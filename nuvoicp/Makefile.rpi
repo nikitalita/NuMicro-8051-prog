@@ -1,9 +1,9 @@
 CC = gcc
 CFLAGS = -g -Wall
 
-#LDFLAGS = -lgpiod
+LDFLAGS = -lgpiod
 
-nuvoicp: main.o icp.o stub.o
+nuvoicp: main.o icp.o rpi.o
 	$(CC) $(CFLAGS) -o nuvoicp $^ $(LDFLAGS)
 clean:
 	rm -f nuvoicp *.o
