@@ -24,6 +24,9 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef RPI
+
+#include <unistd.h>
 #include <gpiod.h>
 
 /* GPIO line numbers for RPi, must be changed for other SBCs */
@@ -111,3 +114,11 @@ void pgm_deinit(void)
 
 	gpiod_chip_close(chip);
 }
+
+void pgm_usleep(unsigned long usec)
+{
+  usleep(usec);
+}
+}
+
+#endif

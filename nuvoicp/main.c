@@ -24,6 +24,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef RPI
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -181,3 +183,5 @@ out:
 err:
 	return 1;
 }
+
+#endif

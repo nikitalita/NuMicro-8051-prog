@@ -24,8 +24,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <stdio.h>
-
+#ifndef ARDUINO
 
 int pgm_init(void)
 {
@@ -51,14 +50,6 @@ void pgm_set_clk(int val)
 
 void pgm_dat_dir(int state)
 {
-	int ret;
-	if (state)
-		ret = 0;
-	else
-		ret = 0;
-
-	if (ret < 0)
-		fprintf(stderr, "Setting data directions failed\n");
 }
 
 void pgm_deinit(void)
@@ -66,3 +57,9 @@ void pgm_deinit(void)
 	/* release reset */
 	pgm_set_rst(1);
 }
+
+void pgm_usleep(unsigned long usec)
+{
+}
+
+#endif

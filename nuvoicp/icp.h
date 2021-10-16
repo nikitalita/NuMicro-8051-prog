@@ -25,24 +25,28 @@
  */
 
 #define FLASH_SIZE	(18 * 1024)
-#define LDROM_MAX_SIZE	(4 * 1024)
+#define LDROM_SIZE  (2 * 1024)
 
 #define APROM_FLASH_ADDR	0x0
+#define LDROM_FLASH_ADDR  (FLASH_SIZE - LDROM_SIZE)
 #define CFG_FLASH_ADDR		0x30000
 #define CFG_FLASH_LEN		5
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int icp_init(void);
 void icp_exit(void);
-void icp_bitsend(uint32_t data, int len);
-void icp_send_command(uint8_t cmd, uint32_t dat);
-uint8_t icp_read_byte(int end);
-void icp_write_byte(uint8_t data, int end, int delay1, int delay2);
 uint32_t icp_read_device_id(void);
 uint8_t icp_read_cid(void);
 uint32_t icp_read_uid(void);
 uint32_t icp_read_ucid(void);
 uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data);
 uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data);
-void icp_dump_config();
 void icp_mass_erase(void);
 void icp_page_erase(uint32_t addr);
+
+#ifdef __cplusplus
+}
+#endif

@@ -24,9 +24,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <stdio.h>
 #include <stdint.h>
-#include <unistd.h>
 
 int pgm_init(void);
 void pgm_set_dat(int val);
@@ -35,13 +33,7 @@ void pgm_set_rst(int val);
 void pgm_set_clk(int val);
 void pgm_dat_dir(int state);
 void pgm_deinit(void);
-
-#define FLASH_SIZE	(18 * 1024)
-#define LDROM_MAX_SIZE	(4 * 1024)
-
-#define APROM_FLASH_ADDR	0x0
-#define CFG_FLASH_ADDR		0x30000
-#define CFG_FLASH_LEN		5
+void pgm_usleep(unsigned long);
 
 #define CMD_READ_UID		0x04
 #define CMD_READ_CID		0x0b
@@ -51,7 +43,7 @@ void pgm_deinit(void);
 #define CMD_MASS_ERASE		0x26
 #define CMD_PAGE_ERASE		0x22
 
-void icp_bitsend(uint32_t data, int len)
+static void icp_bitsend(uint32_t data, int len)
 {
 	/* configure DAT pin as output */
 	pgm_dat_dir(1);
@@ -64,7 +56,7 @@ void icp_bitsend(uint32_t data, int len)
 	}
 }
 
-void icp_send_command(uint8_t cmd, uint32_t dat)
+static void icp_send_command(uint8_t cmd, uint32_t dat)
 {
 	icp_bitsend((dat << 6) | cmd, 24);
 }
@@ -81,10 +73,10 @@ int icp_init(void)
 
 	while (i--) {
 		pgm_set_rst((icp_seq >> i) & 1);
-		usleep(10000);
+		pgm_usleep(10000);
 	}
 
-	usleep(100);
+	pgm_usleep(100);
 
 	icp_bitsend(0x5aa503, 24);
 
@@ -94,16 +86,16 @@ int icp_init(void)
 void icp_exit(void)
 {
 	pgm_set_rst(1);
-	usleep(5000);
+	pgm_usleep(5000);
 	pgm_set_rst(0);
-	usleep(10000);
+	pgm_usleep(10000);
 	icp_bitsend(0xf78f0, 24);
-	usleep(500);
+	pgm_usleep(500);
 	pgm_set_rst(1);
 	pgm_deinit();
 }
 
-uint8_t icp_read_byte(int end)
+static uint8_t icp_read_byte(int end)
 {
 	pgm_dat_dir(0);
 
@@ -126,13 +118,13 @@ uint8_t icp_read_byte(int end)
 	return data;
 }
 
-void icp_write_byte(uint8_t data, int end, int delay1, int delay2)
+static void icp_write_byte(uint8_t data, int end, int delay1, int delay2)
 {
 	icp_bitsend(data, 8);
 	pgm_set_dat(end);
-	usleep(delay1);
+	pgm_usleep(delay1);
 	pgm_set_clk(1);
-	usleep(delay2);
+	pgm_usleep(delay2);
 	pgm_set_dat(0);
 	pgm_set_clk(0);
 }
@@ -190,35 +182,11 @@ uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data)
 
 uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 {
-	int progress_printed = 0;
 	icp_send_command(CMD_WRITE_FLASH, addr);
 
-	for (int i = 0; i < len; i++) {
+	for (int i = 0; i < len; i++)
 		icp_write_byte(data[i], i == (len-1), 200, 50);
-
-		/* print some progress */
-		if (((i % 256) == 0) && len > CFG_FLASH_LEN) {
-			fprintf(stderr, ".");
-			progress_printed++;
-		}
-	}
-
-	if (progress_printed)
-		fprintf(stderr, "\n");
-
 	return addr + len;
-}
-
-void icp_dump_config()
-{
-	uint8_t cfg[CFG_FLASH_LEN];
-	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, cfg);
-
-	fprintf(stderr, "MCU Boot select:\t%s\n", cfg[0] & 0x80 ? "APROM" : "LDROM");
-
-	int ldrom_size = (7 - (cfg[1] & 0x7)) * 1024;
-	fprintf(stderr, "LDROM size:\t\t%d Bytes\n", ldrom_size);
-	fprintf(stderr, "APROM size:\t\t%d Bytes\n", FLASH_SIZE - ldrom_size);
 }
 
 void icp_mass_erase(void)
