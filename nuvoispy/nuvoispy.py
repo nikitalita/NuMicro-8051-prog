@@ -67,7 +67,7 @@ def verify_chksum(tx, rx):
 def cmd_packet(cmd):
 	global seq_num
 	seq_num = seq_num + 1
-	return bytes([cmd]) + bytes(3) + bytes([seq_num & 0xff, (seq_num >> 8) & 0xff]) + bytes(PACKSIZE-5)
+	return bytes([cmd]) + bytes(3) + bytes([seq_num & 0xff, (seq_num >> 8) & 0xff]) + bytes(PACKSIZE-6)
 
 def send_cmd(tx):
 	# todo: only have 5 retries
@@ -100,7 +100,7 @@ def send_cmd(tx):
 
 class NoDevice(Exception):
 	pass
-class ChecksumEerror(Exception):
+class ChecksumError(Exception):
 	pass
 
 def connect_req():
@@ -132,7 +132,7 @@ def update_aprom(filename):
 	flen = f.tell()
 	ipos = 0
 
-	cmd = bytes([CMD_UPDATE_APROM]) + bytes(11) + bytes([flen & 0xff, (flen >> 8) & 0xff]) + bytes(2) + bytes(data[0:48])
+	cmd = bytes([CMD_UPDATE_APROM]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff]) + bytes(2) + bytes([flen & 0xff, (flen >> 8) & 0xff]) + bytes(2) + bytes(data[0:48])
 
 	# Program first block of 48 bytes
 	send_cmd(cmd)
