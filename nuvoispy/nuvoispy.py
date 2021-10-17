@@ -31,18 +31,22 @@ import sys
 import serial
 import time
 
-SER_TIMEOUT		= 0.05		# 50ms
-PACKSIZE		= 64
-N76E003_DEVID 		= 0x3650
+SER_TIMEOUT			= 0.05		# 50ms
+PACKSIZE			= 64
+N76E003_DEVID		= 0x3650
 
 CMD_UPDATE_APROM	= 0xa0
 CMD_UPDATE_CONFIG	= 0xa1
 CMD_READ_CONFIG		= 0xa2
+CMD_ERASE_ALL		= 0xa3
 CMD_SYNC_PACKNO		= 0xa4
 CMD_GET_FWVER		= 0xa6
 CMD_RUN_APROM		= 0xab
-CMD_CONNECT		= 0xae
-CMD_GET_DEVICEID 	= 0xb1
+CMD_CONNECT			= 0xae
+CMD_GET_DEVICEID	= 0xb1
+
+APROM_ADDR			= 0
+LDROM_ADDR			= 16 * 1024
 
 seq_num = 0
 ser = 0
@@ -126,7 +130,14 @@ def get_deviceid():
 	rx = send_cmd(cmd_packet(CMD_GET_DEVICEID))
 	return (rx[9] << 8) + rx[8]
 
-def update_aprom(filename):
+def boot_ldrom():
+	global seq_num
+	seq_num = seq_num + 1
+	config = bytes([ 0x7f, 0xfd, 0xff, 0xff, 0xff ])
+	pkt = bytes([CMD_UPDATE_CONFIG]) + bytes(3) + bytes([seq_num & 0xff, (seq_num >> 8) & 0xff]) + bytes(2) + config + config + bytes(PACKSIZE-18)
+	send_cmd(pkt)
+
+def update_flash(addr, filename):
 	f = open(filename, "rb") #nuvoton_n76e003_sdcc/main.bin
 	data = bytes(f.read())
 	flen = f.tell()
@@ -177,8 +188,13 @@ def main():
 	else:
 		raise NoDevice
 
-	update_aprom(sys.argv[1])
-	ser.write(cmd_packet(CMD_RUN_APROM))
+	if True:
+		send_cmd(cmd_packet(CMD_ERASE_ALL))
+		boot_ldrom()
+		update_flash(LDROM_ADDR, sys.argv[1])
+	else:
+		update_flash(APROM_ADDR, sys.argv[1])
+	send_cmd(cmd_packet(CMD_RUN_APROM))
 	print("\nDone.")
 
 	ser.close()
