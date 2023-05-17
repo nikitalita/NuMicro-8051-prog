@@ -1,2 +1,6 @@
 .DS_Store
 **/*.o
+nuvoicp/build/*
+__pycache__
+.vscode/
+testfiles/

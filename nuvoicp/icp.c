@@ -25,6 +25,10 @@
  */
 
 #include <stdint.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include "config.h"
+#include "icp.h"
 
 int pgm_init(void);
 void pgm_set_dat(int val);
@@ -34,6 +38,7 @@ void pgm_set_clk(int val);
 void pgm_dat_dir(int state);
 void pgm_deinit(void);
 void pgm_usleep(unsigned long);
+void device_print(const char* msg);
 
 #define CMD_READ_UID		0x04
 #define CMD_READ_CID		0x0b
@@ -43,44 +48,74 @@ void pgm_usleep(unsigned long);
 #define CMD_MASS_ERASE		0x26
 #define CMD_PAGE_ERASE		0x22
 
-static void icp_bitsend(uint32_t data, int len)
+#define ENTRY_BITS    0x5aa503
+#define ICP_RESET_SEQ 0x9e1cb6
+// Alternative Reset sequence earlier nulink firmware revisions used
+#define ALT_RESET_SEQ 0xAE1CB6
+#define EXIT_BITS     0xF78F0
+
+//
+#ifndef ARDUINO_AVR_MEGA2560
+#define CMD_DELAY 1
+#else
+#define CMD_DELAY 0
+#endif
+
+
+
+static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 {
 	/* configure DAT pin as output */
 	pgm_dat_dir(1);
-
 	int i = len;
+
 	while (i--) {
 		pgm_set_dat((data >> i) & 1);
+		pgm_usleep(udelay);
 		pgm_set_clk(1);
+		pgm_usleep(udelay);
 		pgm_set_clk(0);
 	}
 }
 
+
 static void icp_send_command(uint8_t cmd, uint32_t dat)
 {
-	icp_bitsend((dat << 6) | cmd, 24);
+	icp_bitsend((dat << 6) | cmd, 24, CMD_DELAY);
 }
 
-int icp_init(void)
+int reset_seq(uint32_t reset_seq, int len){
+	for (int i = 0; i < len + 1; i++) {
+		pgm_set_rst((reset_seq >> (len - i)) & 1);
+		pgm_usleep(10000);
+	}
+	return 0;
+}
+
+int icp_init(uint8_t do_reset)
 {
-	uint32_t icp_seq = 0x9e1cb6;
-	int i = 24;
 	int rc;
 
 	rc = pgm_init();
-        if (rc < 0) 
+    if (rc < 0) 
 		return rc;
-
-	while (i--) {
-		pgm_set_rst((icp_seq >> i) & 1);
-		pgm_usleep(10000);
-	}
-
+	if (do_reset)
+		reset_seq(ALT_RESET_SEQ, 24);
+	pgm_set_rst(0);
 	pgm_usleep(100);
-
-	icp_bitsend(0x5aa503, 24);
+	icp_bitsend(ENTRY_BITS, 24, 60);
 
 	return 0;
+}
+
+void icp_reentry(uint32_t delay1, uint32_t delay2) {
+	pgm_usleep(10);
+	pgm_set_rst(1);
+	pgm_usleep(delay1);
+	pgm_set_rst(0);
+	pgm_usleep(delay2);
+	icp_bitsend(ENTRY_BITS, 24, 60);
+	pgm_usleep(10);
 }
 
 void icp_exit(void)
@@ -89,30 +124,38 @@ void icp_exit(void)
 	pgm_usleep(5000);
 	pgm_set_rst(0);
 	pgm_usleep(10000);
-	icp_bitsend(0xf78f0, 24);
+	icp_bitsend(EXIT_BITS, 24, 60);
 	pgm_usleep(500);
 	pgm_set_rst(1);
 	pgm_deinit();
 }
 
+#define READ_BYTE_SLEEP 1
+
 static uint8_t icp_read_byte(int end)
 {
 	pgm_dat_dir(0);
-
+//	pgm_usleep(CMD_DELAY);
 	uint8_t data = 0;
 	int i = 8;
 
 	while (i--) {
+//		pgm_usleep(CMD_DELAY);
 		int state = pgm_get_dat();
 		pgm_set_clk(1);
+//		pgm_usleep(CMD_DELAY);
 		pgm_set_clk(0);
 		data |= (state << i);
 	}
 
 	pgm_dat_dir(1);
+//	pgm_usleep(CMD_DELAY);
 	pgm_set_dat(end);
+//	pgm_usleep(CMD_DELAY);
 	pgm_set_clk(1);
+//	pgm_usleep(CMD_DELAY);
 	pgm_set_clk(0);
+//	pgm_usleep(CMD_DELAY);
 	pgm_set_dat(0);
 
 	return data;
@@ -120,7 +163,7 @@ static uint8_t icp_read_byte(int end)
 
 static void icp_write_byte(uint8_t data, int end, int delay1, int delay2)
 {
-	icp_bitsend(data, 8);
+	icp_bitsend(data, 8, 1);
 	pgm_set_dat(end);
 	pgm_usleep(delay1);
 	pgm_set_clk(1);
@@ -138,6 +181,14 @@ uint32_t icp_read_device_id(void)
 	devid[1] = icp_read_byte(1);
 
 	return (devid[1] << 8) | devid[0];
+}
+
+uint32_t icp_read_pid(void){
+	icp_send_command(CMD_READ_DEVICE_ID, 2);
+	uint8_t pid[2];
+	pid[0] = icp_read_byte(0);
+	pid[1] = icp_read_byte(1);
+	return (pid[1] << 8) | pid[0];
 }
 
 uint8_t icp_read_cid(void)
@@ -200,3 +251,70 @@ void icp_page_erase(uint32_t addr)
 	icp_send_command(CMD_PAGE_ERASE, addr);
 	icp_write_byte(0xff, 1, 10000, 1000);
 }
+
+void outputf(const char *s, ...)
+{
+  char buf[160];
+  va_list ap;
+  va_start(ap, s);
+  vsnprintf(buf, 160, s, ap);
+  va_end(ap);
+  device_print(buf);
+}
+#ifdef PRINT_CONFIG_EN
+void print_config(config_flags flags){
+  outputf("----- Chip Configuration ----\n");
+  uint8_t *raw_bytes = (uint8_t *)&flags;
+  outputf("Raw config bytes:\t" );
+  for (int i = 0; i < CFG_FLASH_LEN; i++){
+    outputf("%02X ", raw_bytes[i]);
+  }
+  outputf("\nMCU Boot select:\t%s\n", flags.CBS ? "APROM" : "LDROM");
+  int ldrom_size = (7 - (flags.LDS & 0x7)) * 1024;
+  if (ldrom_size > LDROM_MAX_SIZE){
+    ldrom_size = LDROM_MAX_SIZE;
+  }
+  outputf("LDROM size:\t\t%d Bytes\n", ldrom_size);
+  outputf("APROM size:\t\t%d Bytes\n", FLASH_SIZE - ldrom_size);
+  outputf("Security lock:\t\t%s\n", flags.LOCK ? "UNLOCKED" : "LOCKED"); // this is switched, 1 is off and 0 is on
+  outputf("P2.0/Nrst reset:\t%s\n", flags.RPD ? "enabled" : "disabled");
+  outputf("On-Chip Debugger:\t%s\n", flags.OCDEN ? "disabled" : "enabled"); // this is switched, 1 is off and 0 is on
+  outputf("OCD halt PWM output:\t%s\n", flags.OCDPWM ? "tri-state pins are used as PWM outputs" : "PWM continues");
+  outputf("Brown-out detect:\t%s\n", flags.CBODEN ? "enabled" : "disabled");
+  outputf("Brown-out voltage:\t");
+  switch (flags.CBOV) {
+    case 0:
+      outputf("4.4V\n");
+      break;
+    case 1:
+      outputf("3.7V\n");
+      break;
+    case 2:
+      outputf("2.7V\n");
+      break;
+    case 3:
+      outputf("2.2V\n");
+      break;
+  }
+  outputf("Brown-out reset:\t%s\n", flags.CBORST ? "enabled" : "disabled");
+
+  outputf("WDT status:\t\t");
+  switch (flags.WDTEN) {
+    case 15: // 1111
+      outputf("WDT is Disabled. WDT can be used as a general purpose timer via software control.\n");
+      break;
+    case 5:  // 0101
+      outputf("WDT is Enabled as a time-out reset timer and it STOPS running during Idle or Power-down mode.\n");
+      break;
+    default:
+      outputf("WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode\n");
+      break;
+  }
+}
+void icp_dump_config()
+{
+	config_flags flags;
+	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&flags);
+	print_config(flags);
+}
+#endif

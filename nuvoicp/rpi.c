@@ -119,6 +119,9 @@ void pgm_usleep(unsigned long usec)
 {
   usleep(usec);
 }
+
+void device_print(const char * msg){
+  fprintf(stderr, msg);
 }
 
 #endif

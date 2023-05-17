@@ -23,22 +23,19 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+#pragma once
 
-#define FLASH_SIZE	(18 * 1024)
-#define LDROM_SIZE  (2 * 1024)
-
-#define APROM_FLASH_ADDR	0x0
-#define LDROM_FLASH_ADDR  (FLASH_SIZE - LDROM_SIZE)
-#define CFG_FLASH_ADDR		0x30000
-#define CFG_FLASH_LEN		5
+#include "config.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int icp_init(void);
+int icp_init(uint8_t do_reset);
+void icp_reentry(uint32_t delay1, uint32_t delay2);
 void icp_exit(void);
 uint32_t icp_read_device_id(void);
+uint32_t icp_read_pid(void);
 uint8_t icp_read_cid(void);
 uint32_t icp_read_uid(void);
 uint32_t icp_read_ucid(void);
@@ -46,7 +43,11 @@ uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data);
 uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data);
 void icp_mass_erase(void);
 void icp_page_erase(uint32_t addr);
-
+void outputf(const char *fmt, ...);
+#ifdef PRINT_CONFIG_EN
+void print_config(config_flags flags);
+void icp_dump_config();
+#endif
 #ifdef __cplusplus
 }
 #endif

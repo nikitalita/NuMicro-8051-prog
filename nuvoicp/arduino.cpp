@@ -2,10 +2,15 @@
 
 /* Lolin(WeMOS) D1 mini */
 /* 80MHz: 1 cycle = 12.5ns */
-#define DAT   D1
-#define CLK   D2
-#define RST   D3
-
+#ifndef ARDUINO_AVR_MEGA2560
+#define DAT   11
+#define CLK   12
+#define RST   13
+#else
+#define DAT   52
+#define CLK   50
+#define RST   48
+#endif
 extern "C" {
 
 int pgm_init(void)
@@ -46,12 +51,20 @@ void pgm_dat_dir(int state)
 void pgm_deinit(void)
 {
   /* release reset */
+  pinMode(CLK, INPUT);
+  pinMode(DAT, INPUT);
   pgm_set_rst(1);
+  pinMode(RST, INPUT);
 }
 
 void pgm_usleep(unsigned long usec)
 {
   delayMicroseconds(usec);
+}
+
+void device_print(const char * msg){
+  if (Serial1.available())
+    Serial1.print(msg);
 }
 
 } // extern "C"
