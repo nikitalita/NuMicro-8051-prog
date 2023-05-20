@@ -4,3 +4,5 @@ nuvoicp/build/*
 __pycache__
 .vscode/
 testfiles/
+nuvoispy/libnuvoicp.so
+nuvoicp/nuvoicp

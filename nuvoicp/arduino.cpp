@@ -6,10 +6,14 @@
 #define DAT   11
 #define CLK   12
 #define RST   13
+extern int CMD_DELAY = 1
+extern int READ_DELAY = 1
 #else
 #define DAT   52
 #define CLK   50
 #define RST   48
+extern int CMD_DELAY = 0
+extern int READ_DELAY = 0
 #endif
 extern "C" {
 

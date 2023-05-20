@@ -54,14 +54,9 @@ void device_print(const char* msg);
 #define ALT_RESET_SEQ 0xAE1CB6
 #define EXIT_BITS     0xF78F0
 
-//
-#ifndef ARDUINO_AVR_MEGA2560
-#define CMD_DELAY 1
-#else
-#define CMD_DELAY 0
-#endif
-
-
+// Device-specific parameters
+extern int CMD_DELAY;
+extern int READ_DELAY;
 
 static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 {
@@ -99,9 +94,15 @@ int icp_init(uint8_t do_reset)
 	rc = pgm_init();
     if (rc < 0) 
 		return rc;
-	if (do_reset)
+	if (do_reset) {
 		reset_seq(ALT_RESET_SEQ, 24);
-	pgm_set_rst(0);
+	} else {
+		pgm_set_rst(1);
+		pgm_usleep(5000);
+		pgm_set_rst(0);
+		pgm_usleep(1000);
+	}
+	
 	pgm_usleep(100);
 	icp_bitsend(ENTRY_BITS, 24, 60);
 
@@ -135,27 +136,27 @@ void icp_exit(void)
 static uint8_t icp_read_byte(int end)
 {
 	pgm_dat_dir(0);
-//	pgm_usleep(CMD_DELAY);
+	pgm_usleep(READ_DELAY);
 	uint8_t data = 0;
 	int i = 8;
 
 	while (i--) {
-//		pgm_usleep(CMD_DELAY);
+		pgm_usleep(READ_DELAY);
 		int state = pgm_get_dat();
 		pgm_set_clk(1);
-//		pgm_usleep(CMD_DELAY);
+		pgm_usleep(READ_DELAY);
 		pgm_set_clk(0);
 		data |= (state << i);
 	}
 
 	pgm_dat_dir(1);
-//	pgm_usleep(CMD_DELAY);
+	pgm_usleep(READ_DELAY);
 	pgm_set_dat(end);
-//	pgm_usleep(CMD_DELAY);
+	pgm_usleep(READ_DELAY);
 	pgm_set_clk(1);
-//	pgm_usleep(CMD_DELAY);
+	pgm_usleep(READ_DELAY);
 	pgm_set_clk(0);
-//	pgm_usleep(CMD_DELAY);
+	pgm_usleep(READ_DELAY);
 	pgm_set_dat(0);
 
 	return data;
@@ -163,7 +164,7 @@ static uint8_t icp_read_byte(int end)
 
 static void icp_write_byte(uint8_t data, int end, int delay1, int delay2)
 {
-	icp_bitsend(data, 8, 1);
+	icp_bitsend(data, 8, 0);
 	pgm_set_dat(end);
 	pgm_usleep(delay1);
 	pgm_set_clk(1);
@@ -261,60 +262,3 @@ void outputf(const char *s, ...)
   va_end(ap);
   device_print(buf);
 }
-#ifdef PRINT_CONFIG_EN
-void print_config(config_flags flags){
-  outputf("----- Chip Configuration ----\n");
-  uint8_t *raw_bytes = (uint8_t *)&flags;
-  outputf("Raw config bytes:\t" );
-  for (int i = 0; i < CFG_FLASH_LEN; i++){
-    outputf("%02X ", raw_bytes[i]);
-  }
-  outputf("\nMCU Boot select:\t%s\n", flags.CBS ? "APROM" : "LDROM");
-  int ldrom_size = (7 - (flags.LDS & 0x7)) * 1024;
-  if (ldrom_size > LDROM_MAX_SIZE){
-    ldrom_size = LDROM_MAX_SIZE;
-  }
-  outputf("LDROM size:\t\t%d Bytes\n", ldrom_size);
-  outputf("APROM size:\t\t%d Bytes\n", FLASH_SIZE - ldrom_size);
-  outputf("Security lock:\t\t%s\n", flags.LOCK ? "UNLOCKED" : "LOCKED"); // this is switched, 1 is off and 0 is on
-  outputf("P2.0/Nrst reset:\t%s\n", flags.RPD ? "enabled" : "disabled");
-  outputf("On-Chip Debugger:\t%s\n", flags.OCDEN ? "disabled" : "enabled"); // this is switched, 1 is off and 0 is on
-  outputf("OCD halt PWM output:\t%s\n", flags.OCDPWM ? "tri-state pins are used as PWM outputs" : "PWM continues");
-  outputf("Brown-out detect:\t%s\n", flags.CBODEN ? "enabled" : "disabled");
-  outputf("Brown-out voltage:\t");
-  switch (flags.CBOV) {
-    case 0:
-      outputf("4.4V\n");
-      break;
-    case 1:
-      outputf("3.7V\n");
-      break;
-    case 2:
-      outputf("2.7V\n");
-      break;
-    case 3:
-      outputf("2.2V\n");
-      break;
-  }
-  outputf("Brown-out reset:\t%s\n", flags.CBORST ? "enabled" : "disabled");
-
-  outputf("WDT status:\t\t");
-  switch (flags.WDTEN) {
-    case 15: // 1111
-      outputf("WDT is Disabled. WDT can be used as a general purpose timer via software control.\n");
-      break;
-    case 5:  // 0101
-      outputf("WDT is Enabled as a time-out reset timer and it STOPS running during Idle or Power-down mode.\n");
-      break;
-    default:
-      outputf("WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode\n");
-      break;
-  }
-}
-void icp_dump_config()
-{
-	config_flags flags;
-	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&flags);
-	print_config(flags);
-}
-#endif

@@ -28,11 +28,19 @@
 
 #include <unistd.h>
 #include <gpiod.h>
+#include <stdio.h>
+#include <errno.h>
 
 /* GPIO line numbers for RPi, must be changed for other SBCs */
-#define GPIO_DAT	20
-#define GPIO_RST	21
-#define GPIO_CLK	26
+#define GPIO_DAT 20
+#define GPIO_RST 21
+#define GPIO_CLK 26
+
+#define MAX_BUSY_DELAY 100
+
+// GPIOD is slow enough that there will be at least 750ns between line cycles, so no delay necessary
+int CMD_DELAY = 0;
+int READ_DELAY = 0;
 
 #define CONSUMER "nuvoicp"
 struct gpiod_chip *chip;
@@ -43,7 +51,8 @@ int pgm_init(void)
 	int ret;
 
 	chip = gpiod_chip_open_by_name("gpiochip0");
-	if (!chip) {
+	if (!chip)
+	{
 		fprintf(stderr, "Open chip failed\n");
 		return -ENOENT;
 	}
@@ -51,7 +60,8 @@ int pgm_init(void)
 	dat_line = gpiod_chip_get_line(chip, GPIO_DAT);
 	rst_line = gpiod_chip_get_line(chip, GPIO_RST);
 	clk_line = gpiod_chip_get_line(chip, GPIO_CLK);
-	if (!dat_line || !clk_line || !rst_line) {
+	if (!dat_line || !clk_line || !rst_line)
+	{
 		fprintf(stderr, "Error getting required GPIO lines!\n");
 		return -ENOENT;
 	}
@@ -59,7 +69,8 @@ int pgm_init(void)
 	ret = gpiod_line_request_input(dat_line, CONSUMER);
 	ret |= gpiod_line_request_output(rst_line, CONSUMER, 0);
 	ret |= gpiod_line_request_output(clk_line, CONSUMER, 0);
-	if (ret < 0) {
+	if (ret < 0)
+	{
 		fprintf(stderr, "Request line as output failed\n");
 		return -ENOENT;
 	}
@@ -95,13 +106,11 @@ void pgm_set_clk(int val)
 
 void pgm_dat_dir(int state)
 {
-	gpiod_line_release(dat_line);
-
 	int ret;
 	if (state)
-		ret = gpiod_line_request_output(dat_line, CONSUMER, 0);
+		ret = gpiod_line_set_direction_output(dat_line, 0);
 	else
-		ret = gpiod_line_request_input(dat_line, CONSUMER);
+		ret = gpiod_line_set_direction_input(dat_line);
 
 	if (ret < 0)
 		fprintf(stderr, "Setting data directions failed\n");
@@ -117,11 +126,28 @@ void pgm_deinit(void)
 
 void pgm_usleep(unsigned long usec)
 {
-  usleep(usec);
+	if (usec == 0)
+		return;
+		
+	if (usec > MAX_BUSY_DELAY)
+	{
+		usleep(usec);
+		return;
+	}
+    struct timespec start_time;
+    int nsec = usec * 1000;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &start_time);
+
+    // Perform your time-sensitive operations
+    struct timespec curr_time;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
+	for ( ; curr_time.tv_nsec - start_time.tv_nsec < nsec; clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time)){
+    };
 }
 
-void device_print(const char * msg){
-  fprintf(stderr, msg);
+void device_print(const char *msg)
+{
+	fprintf(stderr, msg);
 }
 
 #endif

@@ -1,9 +1,24 @@
 CC = gcc
-CFLAGS = -g -Wall -DRPI
+CFLAGS = -Wall -DRPI -O3
 
-LDFLAGS = -lgpiod
+# if USE_PIGPIO is defined, use it
+ifdef USE_PIGPIO
+	DEV_OBJ = rpi-pigpio.o
+	LDFLAGS = -lpigpio
+else # GPIOD
+	DEV_OBJ = rpi.o
+	LDFLAGS = -lgpiod
+endif
 
-nuvoicp: main.o icp.o rpi.o
+# use all as default
+default: all
+
+all: nuvoicp shared
+nuvoicp: main.o icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o nuvoicp $^ $(LDFLAGS)
+shared: main.o icp.o $(DEV_OBJ)
+	$(CC) $(CFLAGS) -shared -o libnuvoicp.so $^ $(LDFLAGS)
+	mv libnuvoicp.so ../nuvoispy/
 clean:
 	rm -f nuvoicp *.o
+	rm -f ../nuvoispy/libnuvoicp.so

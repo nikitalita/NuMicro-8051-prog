@@ -159,7 +159,7 @@ class ConfigFlags(ctypes.LittleEndianStructure):
         print("On-Chip Debugger:\t%s" % ("disabled" if self.OCDEN == 1 else "enabled"))
         print("OCD halt PWM output:\t%s" % ("tri-state pins are used as PWM outputs" if self.OCDPWM == 1 else "PWM continues"))
         print("Brown-out detect:\t%s" % ("enabled" if self.CBODEN == 1 else "disabled"))
-        print("Brown-out voltage:\t%fV" % self.get_brown_out_voltage())
+        print("Brown-out voltage:\t%.1fV" % self.get_brown_out_voltage())
         print("Brown-out reset:\t%s" % ("enabled" if self.CBORST == 1 else "disabled"))
 
         wdt_status = ""
@@ -171,6 +171,10 @@ class ConfigFlags(ctypes.LittleEndianStructure):
             wdt_status = "WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode"
 
         print("WDT status:\t\t%s" % wdt_status)
+    
+    def __str__(self) -> str:
+        return self.to_bytes().__str__()
+        
 
 
 assert ctypes.sizeof(ConfigFlags) == CFG_FLASH_LEN

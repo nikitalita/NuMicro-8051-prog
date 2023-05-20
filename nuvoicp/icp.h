@@ -27,6 +27,11 @@
 
 #include "config.h"
 
+#define CFG_FLASH_ADDR		0x30000
+#define CFG_FLASH_LEN		5
+#define LDROM_MAX_SIZE (4 * 1024)
+#define FLASH_SIZE	(18 * 1024)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
