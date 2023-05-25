@@ -31,6 +31,8 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include "pgm.h"
+
 /* GPIO line numbers for RPi, must be changed for other SBCs */
 #define GPIO_DAT 20
 #define GPIO_RST 21
@@ -145,7 +147,7 @@ void pgm_usleep(unsigned long usec)
     };
 }
 
-void device_print(const char *msg)
+void pgm_print(const char *msg)
 {
 	fprintf(stderr, msg);
 }

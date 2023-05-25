@@ -11,8 +11,14 @@ lib = ctypes.CDLL(dir_path + "/libnuvoicp.so")
 lib.icp_init.argtypes = [ctypes.c_uint8]
 lib.icp_init.restype = ctypes.c_int
 
-lib.icp_reentry.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
+lib.icp_reentry.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
 lib.icp_reentry.restype = None
+
+lib.icp_reentry_glitch.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
+lib.icp_reentry_glitch.restype = None
+
+lib.icp_reentry_glitch_read.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
+lib.icp_reentry_glitch_read.restype = None
 
 lib.icp_exit.argtypes = []
 lib.icp_exit.restype = None
@@ -50,8 +56,17 @@ def icp_init(do_reset = True) -> bool:
     ret = lib.icp_init(ctypes.c_uint8(do_reset)) 
     return True if ret == 0 else False
 
-def icp_reentry(delay1 = 5000, delay2 = 1000):
-    lib.icp_reentry(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2))
+def icp_reentry(delay1 = 5000, delay2 = 1000, delay3 = 10):
+    lib.icp_reentry(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(delay3))
+
+def icp_reentry_glitch(delay1 = 5000, delay2 = 1000) -> None:
+    lib.icp_reentry_glitch(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2))
+
+def icp_reentry_glitch_read(delay1 = 5000, delay2 = 1000) -> bytes:
+    data_type = ctypes.c_uint8 * 5
+    data = data_type()
+    lib.icp_reentry_glitch_read(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), data)
+    return bytes(data)
 
 def icp_exit():
     lib.icp_exit()

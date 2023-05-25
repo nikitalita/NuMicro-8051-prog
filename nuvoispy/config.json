@@ -1,0 +1,13 @@
+{
+    "boot_from_ldrom": false,
+    "ldrom_size": 0,
+    "lock": true,
+    "OCD_enable": false,
+    "OCD_PWM": true,
+    "brownout_voltage": 2.2,
+    "brownout_detect": true,
+    "brownout_reset": true,
+    "brownout_inhibits_IAP": true,
+    "WDT_enable": false,
+    "WDT_keep_active": false
+}

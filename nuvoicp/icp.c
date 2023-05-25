@@ -29,16 +29,7 @@
 #include <stdio.h>
 #include "config.h"
 #include "icp.h"
-
-int pgm_init(void);
-void pgm_set_dat(int val);
-int pgm_get_dat(void);
-void pgm_set_rst(int val);
-void pgm_set_clk(int val);
-void pgm_dat_dir(int state);
-void pgm_deinit(void);
-void pgm_usleep(unsigned long);
-void device_print(const char* msg);
+#include "pgm.h"
 
 #define CMD_READ_UID		0x04
 #define CMD_READ_CID		0x0b
@@ -53,10 +44,6 @@ void device_print(const char* msg);
 // Alternative Reset sequence earlier nulink firmware revisions used
 #define ALT_RESET_SEQ 0xAE1CB6
 #define EXIT_BITS     0xF78F0
-
-// Device-specific parameters
-extern int CMD_DELAY;
-extern int READ_DELAY;
 
 static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 {
@@ -87,12 +74,17 @@ int reset_seq(uint32_t reset_seq, int len){
 	return 0;
 }
 
+void reset_glitch(){
+	pgm_set_rst(1);
+	pgm_set_rst(0);
+}
+
 int icp_init(uint8_t do_reset)
 {
 	int rc;
 
 	rc = pgm_init();
-    if (rc < 0) 
+    if (rc != 0) 
 		return rc;
 	if (do_reset) {
 		reset_seq(ALT_RESET_SEQ, 24);
@@ -109,14 +101,45 @@ int icp_init(uint8_t do_reset)
 	return 0;
 }
 
-void icp_reentry(uint32_t delay1, uint32_t delay2) {
+void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
 	pgm_usleep(10);
 	pgm_set_rst(1);
 	pgm_usleep(delay1);
 	pgm_set_rst(0);
 	pgm_usleep(delay2);
-	icp_bitsend(ENTRY_BITS, 24, 60);
+	icp_bitsend(ENTRY_BITS, 24, 1);
+	pgm_usleep(delay3);
+}
+
+void icp_reentry_glitch(uint32_t delay1, uint32_t delay2){
 	pgm_usleep(10);
+	pgm_set_rst(1);
+	pgm_usleep(delay1);
+	pgm_set_rst(0);
+	pgm_usleep(delay2);
+	int i = 24;
+	// Only send the first 23 bits of the reset sequence
+	pgm_dat_dir(1);
+	while (i-- > 1) {
+		pgm_set_dat((ENTRY_BITS >> i) & 1);
+		pgm_usleep(1);
+		pgm_set_clk(1);
+		pgm_usleep(1);
+		pgm_set_clk(0);
+	}
+	// then send the last bit and set and unset the clk quickly
+	pgm_set_dat(ENTRY_BITS & 1);
+	pgm_usleep(1);
+	pgm_set_clk(1);
+	pgm_set_clk(0);
+	// no wait
+}
+
+void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint8_t * config_bytes) {
+	icp_reentry_glitch(delay1, delay2);
+	// for (i = 0; i < 100; i++)
+	// 	reset_glitch();
+	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, config_bytes);
 }
 
 void icp_exit(void)
@@ -260,5 +283,5 @@ void outputf(const char *s, ...)
   va_start(ap, s);
   vsnprintf(buf, 160, s, ap);
   va_end(ap);
-  device_print(buf);
+  pgm_print(buf);
 }

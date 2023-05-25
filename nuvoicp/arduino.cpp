@@ -1,19 +1,20 @@
 #include <Arduino.h>
 
+#include "pgm.h"
 /* Lolin(WeMOS) D1 mini */
 /* 80MHz: 1 cycle = 12.5ns */
 #ifndef ARDUINO_AVR_MEGA2560
 #define DAT   11
 #define CLK   12
 #define RST   13
-extern int CMD_DELAY = 1
-extern int READ_DELAY = 1
+int CMD_DELAY = 1
+int READ_DELAY = 1
 #else
 #define DAT   52
 #define CLK   50
 #define RST   48
-extern int CMD_DELAY = 0
-extern int READ_DELAY = 0
+int CMD_DELAY = 0
+int READ_DELAY = 0
 #endif
 extern "C" {
 
@@ -66,7 +67,7 @@ void pgm_usleep(unsigned long usec)
   delayMicroseconds(usec);
 }
 
-void device_print(const char * msg){
+void pgm_print(const char * msg){
   if (Serial1.available())
     Serial1.print(msg);
 }

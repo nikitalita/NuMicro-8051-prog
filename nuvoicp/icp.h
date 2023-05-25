@@ -37,7 +37,9 @@ extern "C" {
 #endif
 
 int icp_init(uint8_t do_reset);
-void icp_reentry(uint32_t delay1, uint32_t delay2);
+void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3);
+void icp_reentry_glitch(uint32_t delay1, uint32_t delay2);
+void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint8_t * config_bytes);
 void icp_exit(void);
 uint32_t icp_read_device_id(void);
 uint32_t icp_read_pid(void);

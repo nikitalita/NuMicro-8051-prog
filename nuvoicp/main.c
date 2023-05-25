@@ -226,14 +226,14 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (icp_init(true) < 0) {
+	if (icp_init(true) != 0) {
 		fprintf(stderr, "ERROR: Failed to initialize ICP!\n\n");
 		goto err;
 	}
 	device_info devinfo = get_device_info();
 	// chip's locked, re-enter ICP mode to reload the flash
 	if (devinfo.cid == 0xFF) {
-		icp_reentry(5000, 1000);
+		icp_reentry(5000, 1000, 10);
 		devinfo = get_device_info();
 	}
 	
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
 		icp_mass_erase();
 		// we have to reinitialize if it was previously locked
 		if (current_config.LOCK == 0 || devinfo.cid == 0xFF){
-			icp_reentry(5000, 1000);
+			icp_reentry(5000, 1000, 10);
 		}
 	}
 	print_device_info(devinfo);

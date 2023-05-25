@@ -1,5 +1,11 @@
 CC = gcc
-CFLAGS = -Wall -DRPI -O3
+CFLAGS = -Wall -DRPI
+
+ifdef DEBUG
+	CFLAGS += -g
+else
+	CFLAGS += -O3
+endif
 
 # if USE_PIGPIO is defined, use it
 ifdef USE_PIGPIO
