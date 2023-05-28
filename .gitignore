@@ -1,8 +1,12 @@
 .DS_Store
 **/*.o
 nuvoicp/build/*
-__pycache__
+**/__pycache__
 .vscode/
 testfiles/
 nuvoispy/libnuvoicp.so
 nuvoicp/nuvoicp
+build/
+dist/
+*.egg-info/
+**/*.so

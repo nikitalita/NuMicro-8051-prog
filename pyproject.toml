@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "nuvoprogpy"
+version = "0.1.0"
+description = "In-Chip Programmer and In System Programmer libraries for the N76E003 microcontroller"
+authors = ["nikitalita <69168929+nikitalita@users.noreply.github.com>"]
+license = "MIT"
+readme = "README.md"
+classifiers = [
+    "Operating System :: POSIX :: Linux"
+]
+
+[tool.poetry.build]
+script = "build.py"
+generate-setup-file = true
+
+[tool.poetry.dependencies]
+python = { version = ">=3.9", markers = "sys_platform == 'linux'" }
+
+[tool.poetry.group.dev.dependencies]
+setuptools = "^65.6.3"
+
+[build-system]
+requires = ["setuptools", "poetry-core"]
+build-backend = "poetry.core.masonry.api"

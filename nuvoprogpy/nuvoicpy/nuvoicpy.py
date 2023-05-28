@@ -1,18 +1,17 @@
+import platform
+
+if platform.system() != 'Linux':
+    raise NotImplementedError("%s is not supported yet" % platform.system())
+
 import atexit
 from enum import Enum
 from io import BufferedReader
 import time
 import getopt
 import sys
-try:
-	from nuvoispy.config import *
-	from nuvoispy.libicp import *
-	from nuvoispy.libpgm import *
-except:
-	from config import *
-	from config import ConfigFlags
-	from libicp import *
-	from libpgm import *
+from ..config import *
+from .lib.libnuvoicp import *
+
 
 class DeviceInfo:
 		def __init__(self, device_id = 0xFFFF, uid = 0xFFFFFF, cid = 0xFF, ucid = 0xFFFFFFFF):
@@ -27,21 +26,7 @@ class DeviceInfo:
 		def is_supported(self):
 			return self.device_id == N76E003_DEVID
 
-# enum for ICP host device type
-class ICPHostType(Enum):
-	# def _str_(self):
-	# 	if self.value == 0:
-	# 		return "Raspberry Pi"
-	# 	return "Unknown"
-	def from_str(s):
-		if s.lower() == "rpi":
-			return 0
-		if s.lower() == "raspi":
-			return 0
-		if s.lower() == "raspberry pi":
-			return 0
-		return -1
-	RPI = 0
+
 class PGMInitException(Exception):
 	pass
 class NoDeviceException(Exception):
@@ -65,9 +50,12 @@ Raises:
 Returns:
 		_type_: _description_
 """
+
 class NuvoICP:
-	def __init__(self, host_type: str = "Raspberry Pi", enter_no_init = False, enter_init_send_reset_sequence = None):
-		self.host_type = ICPHostType.from_str(host_type)
+	def __init__(self, library: str = "pigpio", enter_no_init = False, enter_init_send_reset_sequence = None):
+		self.library = library
+		self.icp = LibICP(library)
+		self.pgm = LibPGM(library)
 		self.enter_no_init = enter_no_init
 		self.enter_init_send_reset_sequence = enter_init_send_reset_sequence
 		self.initialized = False
@@ -85,8 +73,8 @@ class NuvoICP:
 	def __exit__(self, exc_type, exc_value, traceback):
 		self.deinit()
 
-	def init_pgm():
-		if not pgm_init():
+	def init_pgm(self):
+		if not self.pgm.init():
 			raise PGMInitException("Unable to initialize PGM module")
 
 
@@ -95,33 +83,33 @@ class NuvoICP:
 	# @return: The current CMD_BIT_DELAY value
 	@property
 	def CMD_BIT_DELAY(self):
-		return pgm_get_cmd_bit_delay()
+		return self.pgm.get_cmd_bit_delay()
 
 	@CMD_BIT_DELAY.setter
 	def CMD_BIT_DELAY(self, delay_us):
-		pgm_set_cmd_bit_delay(delay_us)
+		self.pgm.set_cmd_bit_delay(delay_us)
 	
 	# READ_BIT_DELAY property
 	# The delay between each bit read from the device during `icp_read_byte()` in microseconds
 	# @return: The current READ_BIT_DELAY value
 	@property
 	def READ_BIT_DELAY(self):
-		return pgm_get_read_bit_delay()
+		return self.pgm.get_read_bit_delay()
 
 	@READ_BIT_DELAY.setter
 	def READ_BIT_DELAY(self, delay_us):
-		pgm_set_read_bit_delay(delay_us)
+		self.pgm.set_read_bit_delay(delay_us)
 	
 	# WRITE_BIT_DELAY property
 	# The delay between each bit written to the device during `icp_write_byte()` in microseconds
 	# @return: The current WRITE_BIT_DELAY value
 	@property
 	def WRITE_BIT_DELAY(self):
-		return pgm_get_write_bit_delay()								
+		return self.pgm.get_write_bit_delay()								
 
 	@WRITE_BIT_DELAY.setter
 	def WRITE_BIT_DELAY(self, delay_us):
-		pgm_set_write_bit_delay(delay_us)
+		self.pgm.set_write_bit_delay(delay_us)
 
 
 	# This is mostly needed when the chip is configured to not have P2.0 as the reset pin
@@ -140,24 +128,24 @@ class NuvoICP:
 				while fullexit_tries < max_fullexit:
 					while reentry_tries < max_reentry:
 						print("Reentry attempt " + str(reentry_tries * (fullexit_tries + 1) * (reinit_tries+1)) + " of "+ str(max_reentry * max_reinit * max_fullexit) +"...")
-						icp_reentry(8000 + (reentry_tries * 1000), 1000, 100 + (reentry_tries * 100))
+						self.icp.reentry(8000 + (reentry_tries * 1000), 1000, 100 + (reentry_tries * 100))
 						reentry_tries+=1
-						if icp_read_device_id() != 0:
+						if self.icp.read_device_id() != 0:
 							print("Connected!")
 							return True
 					print("Attempting full exit and entry...")
-					icp_exit()
+					self.icp.exit()
 					time.sleep(0.5)
-					icp_entry()
-					if icp_read_device_id() != 0:
+					self.icp.entry()
+					if self.icp.read_device_id() != 0:
 						print("Connected!")
 						return True
 					fullexit_tries+=1
 				print("Attempting reinitialization...")
-				icp_deinit()
+				self.icp.deinit()
 				time.sleep(0.5)
-				icp_init()
-				if icp_read_device_id() != 0:
+				self.icp.init()
+				if self.icp.read_device_id() != 0:
 					print("Connected!")
 					return True
 				reinit_tries+=1
@@ -174,29 +162,29 @@ class NuvoICP:
 	# Returns True if successful, False otherwise
 	# @param do_reset_seq: Whether to perform the reset sequence
 	def init(self, do_reset_seq = True, check_device = True, retry = True):
-		if not icp_init(do_reset_seq):
+		if not self.icp.init(do_reset_seq):
 			raise PGMInitException("ERROR: Could not initialize ICP.")
 		if check_device:
-			devid = icp_read_device_id()
-			cid = icp_read_cid()
+			devid = self.icp.read_device_id()
+			cid = self.icp.read_cid()
 			if devid == 0:
 				if (not retry or not self.retry()):
-					pgm_deinit()
+					self.pgm.deinit()
 					raise NoDeviceException("ERROR: No device detected, please check your connections!")
-				devid = icp_read_device_id()
-				cid = icp_read_cid()
+				devid = self.icp.read_device_id()
+				cid = self.icp.read_cid()
 			if devid == 0xFFFF and cid == 0xFF:
 				print("WARNING: Read Device ID of 0xFFFF and cid of 0xFF, device may be locked!")
 				print("Proceeding anyway...")
 			elif devid != N76E003_DEVID:
-				pgm_deinit()
+				self.pgm.deinit()
 				raise UnsupportedDeviceException("ERROR: Non-N76E003 device detected (devid: %d)\nThis programmer only supports N76E003 (devid: %d)!" % (devid, N76E003_DEVID))
 		self.initialized = True
 		return True
 
 	def deinit(self):
 		self.initialized = False
-		icp_deinit()
+		self.icp.deinit()
 
 	def reinit(self, do_reset_seq = True, check_device = True):
 		self.deinit()
@@ -207,33 +195,33 @@ class NuvoICP:
 		if not self.initialized:
 			print("ICP not initialized.")
 			return None
-		icp_reentry(delay1, delay2, delay3)
+		self.icp.reentry(delay1, delay2, delay3)
 
 	def get_device_id(self):
 		if not self.initialized:
 			print("ICP not initialized.")
 			return None
-		return icp_read_device_id()
+		return self.icp.read_device_id()
 
 	def get_cid(self):
 		if not self.initialized:
 			print("ICP not initialized.")
 			return None
-		return icp_read_cid()
+		return self.icp.read_cid()
 
 	def read_config(self):
 		if not self.initialized:
 			print("ICP not initialized.")
 			return None
-		return ConfigFlags(icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN))
+		return ConfigFlags(self.icp.read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN))
 
 	def mass_erase(self):
 		if not self.initialized:
 			print("ICP not initialized.")
 			return False
 		print("Erasing flash...")
-		cid = icp_read_cid()
-		icp_mass_erase()
+		cid = self.icp.read_cid()
+		self.icp.mass_erase()
 		if cid == 0xFF or cid == 0x00:
 			self.reentry()
 		return True
@@ -243,37 +231,37 @@ class NuvoICP:
 			print("ICP not initialized.")
 			return None
 		devinfo = DeviceInfo()
-		devinfo.device_id = icp_read_device_id()
-		devinfo.uid = icp_read_uid()
-		devinfo.cid = icp_read_cid()
-		devinfo.ucid = icp_read_ucid()
+		devinfo.device_id = self.icp.read_device_id()
+		devinfo.uid = self.icp.read_uid()
+		devinfo.cid = self.icp.read_cid()
+		devinfo.ucid = self.icp.read_ucid()
 		return devinfo
 
 	def page_erase(self, addr):
 		if not self.initialized:
 			print("ICP not initialized.")
 			return False
-		icp_page_erase(addr)
+		self.icp.page_erase(addr)
 		return True
 
 	def read_flash(self, addr, len) -> bytes:
 		if not self.initialized:
 			print("ICP not initialized.")
 			return None
-		return icp_read_flash(addr, len)
+		return self.icp.read_flash(addr, len)
 
 	def write_flash(self, addr, data) -> bool:
 		if not self.initialized:
 			print("ICP not initialized.")
 			return False
-		icp_write_flash(addr, data)
+		self.icp.write_flash(addr, data)
 		return True
 
 	def dump_flash(self) -> bytes:
 		if not self.initialized:
 			print("ICP not initialized.")
 			return None
-		return icp_read_flash(APROM_ADDR, FLASH_SIZE)
+		return self.icp.read_flash(APROM_ADDR, FLASH_SIZE)
 
 	def dump_flash_to_file(self, read_file) -> bool:
 			if not self.initialized:
@@ -285,7 +273,7 @@ class NuvoICP:
 					print("Could not open file for writing.")
 					return False
 			print("Reading flash...")
-			f.write(icp_read_flash(APROM_ADDR, FLASH_SIZE))
+			f.write(self.icp.read_flash(APROM_ADDR, FLASH_SIZE))
 			f.close()
 			print("Done.")
 			return True
@@ -294,8 +282,8 @@ class NuvoICP:
 		if not self.initialized:
 			print("ICP not initialized.")
 			return False
-		icp_page_erase(CFG_FLASH_ADDR)
-		icp_write_flash(CFG_FLASH_ADDR, config.to_bytes())
+		self.icp.page_erase(CFG_FLASH_ADDR)
+		self.icp.write_flash(CFG_FLASH_ADDR, config.to_bytes())
 		return True
 
 	"""
@@ -315,7 +303,7 @@ class NuvoICP:
 			write_config.set_ldrom_boot(True)
 			write_config.set_ldrom_size(len(ldrom_data))
 		self.write_config(write_config)
-		icp_write_flash(FLASH_SIZE - len(ldrom_data), ldrom_data)
+		self.icp.write_flash(FLASH_SIZE - len(ldrom_data), ldrom_data)
 		print("LDROM programmed.")
 		return write_config
 
@@ -323,7 +311,7 @@ class NuvoICP:
 			if not self.initialized:
 				print("ICP not initialized.")
 				return False
-			read_data = icp_read_flash(APROM_ADDR, FLASH_SIZE)
+			read_data = self.icp.read_flash(APROM_ADDR, FLASH_SIZE)
 			if read_data == None:
 					return False
 			if len(read_data) != len(data):
@@ -345,7 +333,7 @@ class NuvoICP:
 				print("ICP not initialized.")
 				return False
 			print("Programming APROM...")
-			icp_write_flash(APROM_ADDR, data)
+			self.icp.write_flash(APROM_ADDR, data)
 			print("APROM programmed.")
 			return True
 
@@ -417,7 +405,7 @@ class NuvoICP:
 			
 			print("Programming APROM (%d KB)..." % (aprom_size / 1024))
 			self.write_config(config)
-			icp_write_flash(APROM_ADDR, aprom_data)
+			self.icp.write_flash(APROM_ADDR, aprom_data)
 			print("APROM programmed.")
 			combined_data = aprom_data + ldrom_data
 			if not self.verify_flash(combined_data):
@@ -456,202 +444,3 @@ class NuvoICP:
 				ldrom_data = lf.read()
 			return self.program_data(aprom_data, ldrom_data, config, ldrom_override)
 
-
-def print_usage():
-		print("nuvoicpy, a RPi ICP flasher for the Nuvoton N76E003")
-		print("written by Nikitalita\n")
-		print("Usage:")
-		print("\t[-h print this help]")
-		print("\t[-u print chip configuration and exit]")
-		print("\t[-r <filename> read entire flash to file]")
-		print("\t[-w <filename> write file to APROM/entire flash (if LDROM is disabled)]")
-		print("\t[-l <filename> write file to LDROM, enable LDROM, enable boot from LDROM]")
-		print("\t[-b <value>    enable brownout detection (2.2v, 2.7v, 3.7v, 4.4v, or OFF to disable)]")
-		print("\t[-s lock the chip after writing]")
-		print("\t[-c <filename> use config file for writing (overrides -b and -s)]")
-		print("Pinout:\n")
-		print("                           40-pin header J8")
-		print(" connect 3.3V of MCU ->    3V3  (1) (2)  5V")
-		print("                                 [...]")
-		print("        connect CLK ->  GPIO26 (37) (38) GPIO20 <- connect DAT")
-		print("        connect GND ->     GND (39) (40) GPIO21 <- connect RST\n")
-		print("                      ________")
-		print("                     |   USB  |")
-		print("                     |  PORTS |")
-		print("                     |________|\n")
-		print("Please refer to the 'pinout' command on your RPi\n")
-
-def main() -> int:
-		argv = sys.argv[1:]
-		try:
-				opts, _ = getopt.getopt(argv, "hur:w:l:sb:c:")
-		except getopt.GetoptError:
-				print(
-						"Invalid command line arguments. Please refer to the usage documentation."
-				)
-				print_usage()
-				return 2
-
-		config_dump_cmd = False
-		read = False
-		read_file = ""
-		write = False
-		write_file = ""
-		ldrom_file = ""
-		config_file = ""
-		lock_chip = False
-		brown_out_voltage : float = 2.2
-		if len(opts) == 0:
-				print_usage()
-				return 1
-		for opt, arg in opts:
-				if opt == "-h":
-						print_usage()
-						return 0
-				elif opt == "-u":
-						config_dump_cmd = True
-				elif opt == "-r":
-						read = True
-						read_file = arg
-				elif opt == "-w":
-						write_file = arg
-						write = True
-				elif opt == "-l":
-						ldrom_file = arg
-				elif opt == "-c":
-						config_file = arg
-				elif opt == "-s":
-						lock_chip = True
-				elif opt == "-b":
-						#strip off the v if it exists
-						value = arg.strip("vV")
-						if value.lower() == "off":
-							brown_out_voltage = 0
-						#check if the value is a float
-						elif value.isnumeric():
-							brown_out_voltage = float(value)
-							if brown_out_voltage != 2.2 and brown_out_voltage != 4.4 and brown_out_voltage != 2.7 and brown_out_voltage != 3.7:
-								print("ERROR: Brown out voltage must be 2.2v, 2.7v, 3.7v, 4.4v, or OFF to disable.")
-								print_usage()
-								return 2
-		
-
-		if (read and write):
-			print("ERROR: Please specify either -r or -w, not both.\n\n")
-			print_usage()
-			return 2
-
-		if not (read or write or config_dump_cmd):
-			print("ERROR: Please specify either -r, -w, or -u.\n\n")
-			print_usage()
-			return 2
-
-
-		# check to see if the files exist before we start the ICP
-		for filename in [write_file, ldrom_file, config_file]:
-			if ((filename and filename != "") and not os.path.isfile(filename)):
-				print("ERROR: %s does not exist.\n\n" % filename)
-				print_usage()
-				return 2
-
-		try:
-		# check to see if the files are the correct size
-			if (write and os.path.getsize(write_file) > FLASH_SIZE):
-				print("ERROR: %s is too large for APROM.\n\n" % write_file)
-				print_usage()
-				return 2
-		except:
-			print("ERROR: Could not read %s.\n\n" % write_file)
-			return 2
-	
-		# check the length of the ldrom file
-		ldrom_size = 0
-		if (ldrom_file != ""):
-			try:
-				# check the length of the ldrom file
-				ldrom_size = os.path.getsize(ldrom_file)
-				if not NuvoICP.check_ldrom_size(ldrom_size):
-					print("Error: LDROM file invalid.")
-					return 1
-			except:
-				print("Error: Could not read LDROM file")
-				return 2
-
-		# setup write config
-		write_config = None
-		if write:
-			if (config_file != ""):
-				write_config = ConfigFlags.from_json_file(config_file)
-				if (write_config == None):
-					print("Error: Could not read config file")
-					return 1
-			else: #default config
-				write_config = ConfigFlags()
-				if brown_out_voltage == 0:
-					write_config.set_brownout_detect = False
-					write_config.set_brownout_inhibits_IAP = False
-					write_config.set_brownout_reset = False
-				else:
-					write_config.set_brownout_voltage(brown_out_voltage)
-				write_config.set_lock(lock_chip)
-				write_config.set_ldrom_boot(ldrom_file != "")
-				if (ldrom_file != ""):
-					write_config.set_ldrom_size(ldrom_size)
-			
-		with NuvoICP() as icp:
-			devinfo = icp.get_device_info()
-			if (devinfo.device_id != N76E003_DEVID):
-				if (write and devinfo.cid == 0xFF):
-					print("Device not found, chip may be locked, Do you want to attempt a mass erase? (y/N)")
-					if (input() == "y" or input() == "Y"):
-						if not icp.mass_erase():
-							print("Mass erase failed, exiting...")
-							return 2
-						devinfo = icp.get_device_info()
-						print(devinfo)
-					else:
-						print("Exiting...")
-						return 2
-					if (devinfo.device_id != N76E003_DEVID):
-						print("ERROR: Unsupported device ID: 0x%04X (mass erase failed!)\n\n" % devinfo.device_id)
-						return 2
-				else:
-					if devinfo.device_id == 0:
-						print("ERROR: Device not found, please check your connections.\n\n")
-						return 2				
-					print("ERROR: Unsupported device ID: 0x%04X (chip may be locked)\n\n" % devinfo.device_id)
-					return 2
-
-			# process commands
-			if config_dump_cmd:
-				print(devinfo)
-				cfg = icp.read_config()
-				if not cfg:
-					print("Config read failed!!")
-					return 1
-				cfg.print_config()
-				return 0
-			elif read:
-				print(devinfo)
-				cfg = icp.read_config()
-				cfg.print_config()
-				print()
-				if (devinfo.cid == 0xFF or cfg.is_locked()):
-					print("Error: Chip is locked, cannot read flash")
-					return 1
-				if not icp.dump_flash_to_file(read_file):
-						print("Reading failed!!")
-						return 1
-				#remove extension from read_file
-				config_file = read_file.rsplit('.', 1)[0] + "-config.json"
-				cfg.to_json_file(config_file)
-			elif write:
-					if not icp.program(write_file, ldrom_file, write_config):
-						print("Programming failed!!")
-						return 1
-			return 0
-
-
-
-if __name__ == "__main__":
-	sys.exit(main())

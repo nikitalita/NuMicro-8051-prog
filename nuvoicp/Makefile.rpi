@@ -9,10 +9,12 @@ endif
 
 # if USE_PIGPIO is defined, use it
 ifdef USE_PIGPIO
+	LIBNAME = pigpio
 	DEV_OBJ = rpi-pigpio.o
 	CFLAGS += -DDYNAMIC_DELAY
 	LDFLAGS = -lpigpio
 else # GPIOD
+	LIBNAME = gpiod
 	DEV_OBJ = rpi.o
 	LDFLAGS = -lgpiod
 endif
@@ -20,12 +22,10 @@ endif
 # use all as default
 default: all
 
-all: nuvoicp shared
+all: nuvoicp
 nuvoicp: main.o icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o nuvoicp $^ $(LDFLAGS)
 shared: main.o icp.o $(DEV_OBJ)
-	$(CC) $(CFLAGS) -shared -o libnuvoicp.so $^ $(LDFLAGS)
-	mv libnuvoicp.so ../nuvoispy/
+	$(CC) $(CFLAGS) -shared -o libnuvoicp-$(LIBNAME).so $^ $(LDFLAGS)
 clean:
-	rm -f nuvoicp *.o
-	rm -f ../nuvoispy/libnuvoicp.so
+	rm -f nuvoicp *.o libnuvoicp-*.so
