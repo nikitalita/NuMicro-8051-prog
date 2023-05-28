@@ -1,15 +1,14 @@
 import ctypes
+from enum import Enum
 
 # get dir of this file
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
+
 # Load the shared library
 lib = ctypes.CDLL(dir_path + "/libnuvoicp.so")
 
-# Device-specific parameters
-CMD_DELAY = ctypes.c_int.in_dll(lib, "CMD_DELAY")
-READ_DELAY = ctypes.c_int.in_dll(lib, "READ_DELAY")
 
 # Initialize the PGM interface.
 lib.pgm_init.argtypes = []
@@ -35,6 +34,9 @@ lib.pgm_set_rst.restype = None
 lib.pgm_set_clk.argtypes = [ctypes.c_ubyte]
 lib.pgm_set_clk.restype = None
 
+lib.pgm_set_trigger.argtypes = [ctypes.c_ubyte]
+lib.pgm_set_trigger.restype = None
+
 # Sets the direction of the PGM data pin
 lib.pgm_dat_dir.argtypes = [ctypes.c_ubyte]
 lib.pgm_dat_dir.restype = None
@@ -46,6 +48,24 @@ lib.pgm_release_pins.restype = None
 # Releases the RST pin only
 lib.pgm_release_rst.argtypes = []
 lib.pgm_release_rst.restype = None
+
+lib.pgm_set_cmd_bit_delay.argtypes = [ctypes.c_int]
+lib.pgm_set_cmd_bit_delay.restype = None
+
+lib.pgm_set_read_bit_delay.argtypes = [ctypes.c_int]
+lib.pgm_set_read_bit_delay.restype = None
+
+lib.pgm_set_write_bit_delay.argtypes = [ctypes.c_int]
+lib.pgm_set_write_bit_delay.restype = None
+
+lib.pgm_get_cmd_bit_delay.argtypes = []
+lib.pgm_get_cmd_bit_delay.restype = ctypes.c_int
+
+lib.pgm_get_read_bit_delay.argtypes = []
+lib.pgm_get_read_bit_delay.restype = ctypes.c_int
+
+lib.pgm_get_write_bit_delay.argtypes = []
+lib.pgm_get_write_bit_delay.restype = ctypes.c_int
 
 # Device-specific sleep function
 lib.pgm_usleep.argtypes = [ctypes.c_ulong]
@@ -90,6 +110,27 @@ def pgm_release_pins():
 # Releases the RST pin only
 def pgm_release_rst():
     lib.pgm_release_rst()
+
+def pgm_set_trigger(val):
+    lib.pgm_set_trigger(ctypes.c_ubyte(val))
+
+def pgm_set_read_bit_delay(val):
+    lib.pgm_set_read_bit_delay(ctypes.c_int(val))
+
+def pgm_set_cmd_bit_delay(val):
+    lib.pgm_set_cmd_bit_delay(ctypes.c_int(val))
+
+def pgm_set_write_bit_delay(val):
+    lib.pgm_set_write_bit_delay(ctypes.c_int(val))
+
+def pgm_get_read_bit_delay():
+    return int(lib.pgm_get_read_bit_delay())
+
+def pgm_get_cmd_bit_delay():
+    return int(lib.pgm_get_cmd_bit_delay())
+
+def pgm_get_write_bit_delay():
+    return int(lib.pgm_get_write_bit_delay())
 
 # Device-specific sleep function
 def pgm_usleep(usec):

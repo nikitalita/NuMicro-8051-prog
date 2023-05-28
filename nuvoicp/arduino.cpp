@@ -7,14 +7,16 @@
 #define DAT   11
 #define CLK   12
 #define RST   13
-int CMD_DELAY = 1
-int READ_DELAY = 1
+int CMD_SEND_BIT_DELAY = 1
+int READ_BIT_DELAY = 1
+int WRITE_BIT_DELAY = 1
 #else
 #define DAT   52
 #define CLK   50
 #define RST   48
-int CMD_DELAY = 0
-int READ_DELAY = 0
+int CMD_SEND_BIT_DELAY = 0
+int READ_BIT_DELAY = 0
+int WRITE_BIT_DELAY = 0
 #endif
 extern "C" {
 

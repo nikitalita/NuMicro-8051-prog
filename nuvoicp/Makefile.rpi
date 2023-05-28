@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -DRPI
+CFLAGS = -Wall -DRPI -DPRINT_CONFIG_EN
 
 ifdef DEBUG
 	CFLAGS += -g
@@ -10,6 +10,7 @@ endif
 # if USE_PIGPIO is defined, use it
 ifdef USE_PIGPIO
 	DEV_OBJ = rpi-pigpio.o
+	CFLAGS += -DDYNAMIC_DELAY
 	LDFLAGS = -lpigpio
 else # GPIOD
 	DEV_OBJ = rpi.o

@@ -1,12 +1,5 @@
 #pragma once
 
-#define CFG_FLASH_ADDR		0x30000
-#define CFG_FLASH_LEN		5
-#define LDROM_MAX_SIZE (4 * 1024)
-#define FLASH_SIZE	(18 * 1024)
-
-#define APROM_FLASH_ADDR	0x0
-
 typedef struct _config_flags {
 	// config0
 	uint8_t unk0_0:1;      // 0:0

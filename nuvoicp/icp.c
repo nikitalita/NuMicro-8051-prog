@@ -31,19 +31,9 @@
 #include "icp.h"
 #include "pgm.h"
 
-#define CMD_READ_UID		0x04
-#define CMD_READ_CID		0x0b
-#define CMD_READ_DEVICE_ID	0x0c
-#define CMD_READ_FLASH		0x00
-#define CMD_WRITE_FLASH		0x21
-#define CMD_MASS_ERASE		0x26
-#define CMD_PAGE_ERASE		0x22
-
-#define ENTRY_BITS    0x5aa503
-#define ICP_RESET_SEQ 0x9e1cb6
-// Alternative Reset sequence earlier nulink firmware revisions used
-#define ALT_RESET_SEQ 0xAE1CB6
-#define EXIT_BITS     0xF78F0
+// These are MCU dependent (default for N76E003)
+static int program_time = 20;
+static int page_erase_time = 5000;
 
 static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 {
@@ -60,10 +50,9 @@ static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 	}
 }
 
-
 static void icp_send_command(uint8_t cmd, uint32_t dat)
 {
-	icp_bitsend((dat << 6) | cmd, 24, CMD_DELAY);
+	icp_bitsend((dat << 6) | cmd, 24, CMD_SEND_BIT_DELAY);
 }
 
 int reset_seq(uint32_t reset_seq, int len){
@@ -79,6 +68,14 @@ void reset_glitch(){
 	pgm_set_rst(0);
 }
 
+void icp_send_entry_bits() {
+	icp_bitsend(ENTRY_BITS, 24, 60);
+}
+
+void icp_send_exit_bits(){
+	icp_bitsend(EXIT_BITS, 24, 60);
+}
+
 int icp_init(uint8_t do_reset)
 {
 	int rc;
@@ -86,6 +83,11 @@ int icp_init(uint8_t do_reset)
 	rc = pgm_init();
     if (rc != 0) 
 		return rc;
+	icp_entry(do_reset);
+	return 0;
+}
+
+void icp_entry(uint8_t do_reset) {
 	if (do_reset) {
 		reset_seq(ALT_RESET_SEQ, 24);
 	} else {
@@ -96,50 +98,91 @@ int icp_init(uint8_t do_reset)
 	}
 	
 	pgm_usleep(100);
-	icp_bitsend(ENTRY_BITS, 24, 60);
-
-	return 0;
+	icp_send_entry_bits();
 }
 
 void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
 	pgm_usleep(10);
-	pgm_set_rst(1);
-	pgm_usleep(delay1);
+	if (delay1 > 0) {
+		pgm_set_rst(1);
+		pgm_usleep(delay1);
+	}
 	pgm_set_rst(0);
 	pgm_usleep(delay2);
 	icp_bitsend(ENTRY_BITS, 24, 1);
 	pgm_usleep(delay3);
 }
 
-void icp_reentry_glitch(uint32_t delay1, uint32_t delay2){
-	pgm_usleep(10);
+void icp_fullexit_entry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
+	icp_exit();
+}
+
+void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
+	pgm_usleep(200);
+	// this bit here it to ensure that the config bytes are read at the correct time (right next to the reset high)
 	pgm_set_rst(1);
 	pgm_usleep(delay1);
 	pgm_set_rst(0);
 	pgm_usleep(delay2);
-	int i = 24;
-	// Only send the first 23 bits of the reset sequence
-	pgm_dat_dir(1);
-	while (i-- > 1) {
-		pgm_set_dat((ENTRY_BITS >> i) & 1);
-		pgm_usleep(1);
-		pgm_set_clk(1);
-		pgm_usleep(1);
-		pgm_set_clk(0);
-	}
-	// then send the last bit and set and unset the clk quickly
-	pgm_set_dat(ENTRY_BITS & 1);
-	pgm_usleep(1);
-	pgm_set_clk(1);
-	pgm_set_clk(0);
-	// no wait
+
+	//now we do a the full reentry, set the trigger
+	pgm_usleep(200);
+	pgm_set_trigger(1);
+	pgm_set_rst(1);
+
+	// now we sleep for 270us, the length of the config load
+	// done in starts because of pigpio limitations (max busy wait = 100us)
+	pgm_usleep(100);
+	pgm_usleep(100);
+	pgm_usleep(70);
+	// config bytes are loaded, set trigger = 0
+	pgm_set_trigger(0);
+
+	pgm_usleep(delay1 - 270);
+	pgm_usleep(0);
+	pgm_usleep(delay2);
+	icp_bitsend(ENTRY_BITS, 24, 1);
+	pgm_usleep(delay3);
+
+
+	// pgm_set_rst(1);
+	// pgm_set_trigger(1);
+	// pgm_usleep(delay1);
+	// pgm_set_rst(0);
+	// pgm_usleep(delay2);
+	// int i = 24;
+	// // Only send the first 23 bits of the reset sequence
+	// pgm_dat_dir(1);
+	// while (i-- > 1) {
+	// 	pgm_set_dat((ENTRY_BITS >> i) & 1);
+	// 	pgm_usleep(1);
+	// 	pgm_set_clk(1);
+	// 	pgm_usleep(1);
+	// 	pgm_set_clk(0);
+	// }
+	// // then send the last bit and set and unset the clk quickly
+	// pgm_set_dat(ENTRY_BITS & 1);
+	// pgm_usleep(1);
+	// pgm_set_clk(1);
+	// // if (trigger_after_entry){
+	// // 	pgm_set_trigger(1);
+	// // }
+	// pgm_set_clk(0);
+	// // no wait
 }
 
-void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint8_t * config_bytes) {
-	icp_reentry_glitch(delay1, delay2);
+void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay3, uint8_t * config_bytes) {
+	icp_reentry_glitch(delay1, delay2, delay3);
 	// for (i = 0; i < 100; i++)
 	// 	reset_glitch();
 	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, config_bytes);
+	
+}
+
+void icp_deinit(void)
+{
+	icp_exit();
+	pgm_deinit();
 }
 
 void icp_exit(void)
@@ -151,35 +194,35 @@ void icp_exit(void)
 	icp_bitsend(EXIT_BITS, 24, 60);
 	pgm_usleep(500);
 	pgm_set_rst(1);
-	pgm_deinit();
 }
+
 
 #define READ_BYTE_SLEEP 1
 
 static uint8_t icp_read_byte(int end)
 {
 	pgm_dat_dir(0);
-	pgm_usleep(READ_DELAY);
+	pgm_usleep(READ_BIT_DELAY);
 	uint8_t data = 0;
 	int i = 8;
 
 	while (i--) {
-		pgm_usleep(READ_DELAY);
+		pgm_usleep(READ_BIT_DELAY);
 		int state = pgm_get_dat();
 		pgm_set_clk(1);
-		pgm_usleep(READ_DELAY);
+		pgm_usleep(READ_BIT_DELAY);
 		pgm_set_clk(0);
 		data |= (state << i);
 	}
 
 	pgm_dat_dir(1);
-	pgm_usleep(READ_DELAY);
+	pgm_usleep(READ_BIT_DELAY);
 	pgm_set_dat(end);
-	pgm_usleep(READ_DELAY);
+	pgm_usleep(READ_BIT_DELAY);
 	pgm_set_clk(1);
-	pgm_usleep(READ_DELAY);
+	pgm_usleep(READ_BIT_DELAY);
 	pgm_set_clk(0);
-	pgm_usleep(READ_DELAY);
+	pgm_usleep(READ_BIT_DELAY);
 	pgm_set_dat(0);
 
 	return data;
@@ -187,7 +230,7 @@ static uint8_t icp_read_byte(int end)
 
 static void icp_write_byte(uint8_t data, int end, int delay1, int delay2)
 {
-	icp_bitsend(data, 8, 0);
+	icp_bitsend(data, 8, WRITE_BIT_DELAY);
 	pgm_set_dat(end);
 	pgm_usleep(delay1);
 	pgm_set_clk(1);
@@ -249,18 +292,20 @@ uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data)
 {
 	icp_send_command(CMD_READ_FLASH, addr);
 
-	for (int i = 0; i < len; i++)
+	for (int i = 0; i < len; i++){
 		data[i] = icp_read_byte(i == (len-1));
-
+	}
 	return addr + len;
 }
 
 uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 {
 	icp_send_command(CMD_WRITE_FLASH, addr);
-
-	for (int i = 0; i < len; i++)
-		icp_write_byte(data[i], i == (len-1), 200, 50);
+	int delay1 = program_time;
+	for (int i = 0; i < len; i++) {
+		icp_write_byte(data[i], i == (len-1), delay1, 5);
+	}
+		
 	return addr + len;
 }
 
@@ -273,7 +318,7 @@ void icp_mass_erase(void)
 void icp_page_erase(uint32_t addr)
 {
 	icp_send_command(CMD_PAGE_ERASE, addr);
-	icp_write_byte(0xff, 1, 10000, 1000);
+	icp_write_byte(0xff, 1, page_erase_time, 1000);
 }
 
 void outputf(const char *s, ...)
@@ -285,3 +330,63 @@ void outputf(const char *s, ...)
   va_end(ap);
   pgm_print(buf);
 }
+
+// disabled for microcontroller targets to avoid storing a large number of strings in flash
+#ifdef PRINT_CONFIG_EN
+void print_config(config_flags flags){
+  outputf("----- Chip Configuration ----\n");
+  uint8_t *raw_bytes = (uint8_t *)&flags;
+  outputf("Raw config bytes:\t" );
+  for (int i = 0; i < CFG_FLASH_LEN; i++){
+    outputf("%02X ", raw_bytes[i]);
+  }
+  outputf("\nMCU Boot select:\t%s\n", flags.CBS ? "APROM" : "LDROM");
+  int ldrom_size = (7 - (flags.LDS & 0x7)) * 1024;
+  if (ldrom_size > LDROM_MAX_SIZE){
+    ldrom_size = LDROM_MAX_SIZE;
+  }
+  outputf("LDROM size:\t\t%d Bytes\n", ldrom_size);
+  outputf("APROM size:\t\t%d Bytes\n", FLASH_SIZE - ldrom_size);
+  outputf("Security lock:\t\t%s\n", flags.LOCK ? "UNLOCKED" : "LOCKED"); // this is switched, 1 is off and 0 is on
+  outputf("P2.0/Nrst reset:\t%s\n", flags.RPD ? "enabled" : "disabled");
+  outputf("On-Chip Debugger:\t%s\n", flags.OCDEN ? "disabled" : "enabled"); // this is switched, 1 is off and 0 is on
+  outputf("OCD halt PWM output:\t%s\n", flags.OCDPWM ? "tri-state pins are used as PWM outputs" : "PWM continues");
+  outputf("Brown-out detect:\t%s\n", flags.CBODEN ? "enabled" : "disabled");
+  outputf("Brown-out voltage:\t");
+  switch (flags.CBOV) {
+    case 0:
+      outputf("4.4V\n");
+      break;
+    case 1:
+      outputf("3.7V\n");
+      break;
+    case 2:
+      outputf("2.7V\n");
+      break;
+    case 3:
+      outputf("2.2V\n");
+      break;
+  }
+  outputf("Brown-out reset:\t%s\n", flags.CBORST ? "enabled" : "disabled");
+
+  outputf("WDT status:\t\t");
+  switch (flags.WDTEN) {
+    case 15: // 1111
+      outputf("WDT is Disabled. WDT can be used as a general purpose timer via software control.\n");
+      break;
+    case 5:  // 0101
+      outputf("WDT is Enabled as a time-out reset timer and it STOPS running during Idle or Power-down mode.\n");
+      break;
+    default:
+      outputf("WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode\n");
+      break;
+  }
+}
+
+void icp_dump_config()
+{
+	config_flags flags;
+	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&flags);
+	print_config(flags);
+}
+#endif // PRINT_CONFIG_EN

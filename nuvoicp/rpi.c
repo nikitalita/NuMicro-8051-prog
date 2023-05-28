@@ -41,8 +41,9 @@
 #define MAX_BUSY_DELAY 100
 
 // GPIOD is slow enough that there will be at least 750ns between line cycles, so no delay necessary
-int CMD_DELAY = 0;
-int READ_DELAY = 0;
+int CMD_SEND_BIT_DELAY = 0;
+int READ_BIT_DELAY = 0;
+int WRITE_BIT_DELAY = 0;
 
 #define CONSUMER "nuvoicp"
 struct gpiod_chip *chip;
