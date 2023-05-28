@@ -37,6 +37,7 @@
 #define GPIO_DAT 20
 #define GPIO_RST 21
 #define GPIO_CLK 26
+#define GPIO_TRIGGER 16
 
 #define MAX_BUSY_DELAY 100
 
@@ -47,7 +48,7 @@ int WRITE_BIT_DELAY = 0;
 
 #define CONSUMER "nuvoicp"
 struct gpiod_chip *chip;
-struct gpiod_line *dat_line, *rst_line, *clk_line;
+struct gpiod_line *dat_line, *rst_line, *clk_line, *trigger_line;
 
 int pgm_init(void)
 {
@@ -63,7 +64,8 @@ int pgm_init(void)
 	dat_line = gpiod_chip_get_line(chip, GPIO_DAT);
 	rst_line = gpiod_chip_get_line(chip, GPIO_RST);
 	clk_line = gpiod_chip_get_line(chip, GPIO_CLK);
-	if (!dat_line || !clk_line || !rst_line)
+	trigger_line = gpiod_chip_get_line(chip, GPIO_TRIGGER);
+	if (!dat_line || !clk_line || !rst_line || !trigger_line)
 	{
 		fprintf(stderr, "Error getting required GPIO lines!\n");
 		return -ENOENT;
@@ -72,6 +74,8 @@ int pgm_init(void)
 	ret = gpiod_line_request_input(dat_line, CONSUMER);
 	ret |= gpiod_line_request_output(rst_line, CONSUMER, 0);
 	ret |= gpiod_line_request_output(clk_line, CONSUMER, 0);
+	ret |= gpiod_line_request_output(trigger_line, CONSUMER, 0);
+
 	if (ret < 0)
 	{
 		fprintf(stderr, "Request line as output failed\n");
@@ -81,13 +85,13 @@ int pgm_init(void)
 	return 0;
 }
 
-void pgm_set_dat(int val)
+void pgm_set_dat(unsigned char val)
 {
 	if (gpiod_line_set_value(dat_line, val) < 0)
 		fprintf(stderr, "Setting data line failed\n");
 }
 
-int pgm_get_dat(void)
+unsigned char pgm_get_dat(void)
 {
 	int ret = gpiod_line_get_value(dat_line);
 	if (ret < 0)
@@ -95,19 +99,19 @@ int pgm_get_dat(void)
 	return ret;
 }
 
-void pgm_set_rst(int val)
+void pgm_set_rst(unsigned char val)
 {
 	if (gpiod_line_set_value(rst_line, val) < 0)
 		fprintf(stderr, "Setting reset line failed\n");
 }
 
-void pgm_set_clk(int val)
+void pgm_set_clk(unsigned char val)
 {
 	if (gpiod_line_set_value(clk_line, val) < 0)
 		fprintf(stderr, "Setting clock line failed\n");
 }
 
-void pgm_dat_dir(int state)
+void pgm_dat_dir(unsigned char state)
 {
 	int ret;
 	if (state)
@@ -123,7 +127,7 @@ void pgm_deinit(void)
 {
 	/* release reset */
 	pgm_set_rst(1);
-
+	pgm_release_pins();
 	gpiod_chip_close(chip);
 }
 
@@ -141,7 +145,6 @@ void pgm_usleep(unsigned long usec)
     int nsec = usec * 1000;
     clock_gettime(CLOCK_MONOTONIC_RAW, &start_time);
 
-    // Perform your time-sensitive operations
     struct timespec curr_time;
     clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
 	for ( ; curr_time.tv_nsec - start_time.tv_nsec < nsec; clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time)){
@@ -150,7 +153,36 @@ void pgm_usleep(unsigned long usec)
 
 void pgm_print(const char *msg)
 {
-	fprintf(stderr, msg);
+	fprintf(stderr,"%s", msg);
+}
+
+void pgm_release_pins(void){
+	gpiod_line_release(dat_line);
+	gpiod_line_release(rst_line);
+	gpiod_line_release(clk_line);
+	gpiod_line_release(trigger_line);
+}
+
+void pgm_release_rst(void) {
+	gpiod_line_release(rst_line);
+}
+
+void pgm_set_trigger(unsigned char val){
+	if (gpiod_line_set_value(trigger_line, val) < 0)
+		fprintf(stderr, "Setting trigger line failed\n");
+}
+void pgm_set_cmd_bit_delay(int delay_us){}
+void pgm_set_read_bit_delay(int delay_us){}
+void pgm_set_write_bit_delay(int delay_us){}
+
+int pgm_get_cmd_bit_delay(){
+    return CMD_SEND_BIT_DELAY;
+}
+int pgm_get_read_bit_delay(){
+    return READ_BIT_DELAY;
+}
+int pgm_get_write_bit_delay(){
+    return WRITE_BIT_DELAY;
 }
 
 #endif

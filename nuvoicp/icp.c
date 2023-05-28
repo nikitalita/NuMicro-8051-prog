@@ -117,14 +117,13 @@ void icp_fullexit_entry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3
 	icp_exit();
 }
 
-void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
+void icp_reset_trigger(uint32_t delay1, uint32_t delay2, uint32_t delay3){
 	pgm_usleep(200);
 	// this bit here it to ensure that the config bytes are read at the correct time (right next to the reset high)
 	pgm_set_rst(1);
 	pgm_usleep(delay1);
 	pgm_set_rst(0);
 	pgm_usleep(delay2);
-
 	//now we do a the full reentry, set the trigger
 	pgm_usleep(200);
 	pgm_set_trigger(1);
@@ -141,8 +140,36 @@ void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
 	pgm_usleep(delay1 - 270);
 	pgm_usleep(0);
 	pgm_usleep(delay2);
-	icp_bitsend(ENTRY_BITS, 24, 1);
+
+}
+
+void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
+	pgm_usleep(200);
+	// this bit here it to ensure that the config bytes are read at the correct time (right next to the reset high)
+	pgm_set_rst(1);
+	pgm_usleep(delay1);
+	pgm_set_rst(0);
+	pgm_usleep(delay2);
+
+	//now we do a the full reentry, set the trigger
+	pgm_usleep(200);
+	pgm_set_trigger(1);
 	pgm_usleep(delay3);
+	pgm_set_rst(1);
+
+	// now we sleep for 280us, the length of the config load
+	// done in starts because of pigpio limitations (max busy wait = 100us)
+	pgm_usleep(100);
+	pgm_usleep(100);
+	pgm_usleep(80);
+	// config bytes are loaded, set trigger = 0
+	pgm_set_trigger(0);
+
+	pgm_usleep(delay1 - 270);
+	pgm_usleep(0);
+	pgm_usleep(delay2);
+	icp_bitsend(ENTRY_BITS, 24, 1);
+	pgm_usleep(10);
 
 
 	// pgm_set_rst(1);
@@ -268,7 +295,7 @@ uint32_t icp_read_uid(void)
 {
 	uint8_t uid[3];
 
-	for (int i = 0; i < sizeof(uid); i++) {
+	for (uint8_t  i = 0; i < sizeof(uid); i++) {
 		icp_send_command(CMD_READ_UID, i);
 		uid[i] = icp_read_byte(1);
 	}
@@ -280,7 +307,7 @@ uint32_t icp_read_ucid(void)
 {
 	uint8_t ucid[4];
 
-	for (int i = 0; i < sizeof(ucid); i++) {
+	for (uint8_t i = 0; i < sizeof(ucid); i++) {
 		icp_send_command(CMD_READ_UID, i + 0x20);
 		ucid[i] = icp_read_byte(1);
 	}
@@ -292,7 +319,7 @@ uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data)
 {
 	icp_send_command(CMD_READ_FLASH, addr);
 
-	for (int i = 0; i < len; i++){
+	for (uint32_t i = 0; i < len; i++){
 		data[i] = icp_read_byte(i == (len-1));
 	}
 	return addr + len;
@@ -302,7 +329,7 @@ uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 {
 	icp_send_command(CMD_WRITE_FLASH, addr);
 	int delay1 = program_time;
-	for (int i = 0; i < len; i++) {
+	for (uint32_t i = 0; i < len; i++) {
 		icp_write_byte(data[i], i == (len-1), delay1, 5);
 	}
 		

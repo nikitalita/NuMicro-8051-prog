@@ -141,9 +141,8 @@ void pgm_usleep(unsigned long usec)
 
 void pgm_print(const char *msg)
 {
-	fprintf(stderr, msg);
+	fprintf(stderr, "%s", msg);
 }
 
 
-
-#endif
+#endif // RPI
