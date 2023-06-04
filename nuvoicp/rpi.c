@@ -39,7 +39,7 @@
 #define GPIO_CLK 26
 #define GPIO_TRIGGER 16
 
-#define MAX_BUSY_DELAY 100
+#define MAX_BUSY_DELAY 300
 
 // GPIOD is slow enough that there will be at least 750ns between line cycles, so no delay necessary
 int CMD_SEND_BIT_DELAY = 0;
@@ -131,15 +131,14 @@ void pgm_deinit(void)
 	gpiod_chip_close(chip);
 }
 
-void pgm_usleep(unsigned long usec)
+unsigned long pgm_usleep(unsigned long usec)
 {
 	if (usec == 0)
-		return;
+		return 0;
 		
 	if (usec > MAX_BUSY_DELAY)
 	{
-		usleep(usec);
-		return;
+		return usleep(usec);
 	}
     struct timespec start_time;
     int nsec = usec * 1000;
@@ -149,6 +148,7 @@ void pgm_usleep(unsigned long usec)
     clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
 	for ( ; curr_time.tv_nsec - start_time.tv_nsec < nsec; clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time)){
     };
+	return usec;
 }
 
 void pgm_print(const char *msg)

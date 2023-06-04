@@ -3,7 +3,6 @@
 
 
 #ifdef __cplusplus
-#pragma message "HALDO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 extern "C" {
 
 #endif
@@ -90,7 +89,7 @@ int pgm_get_read_bit_delay();
 int pgm_get_write_bit_delay();
 
 // Device-specific sleep function
-void pgm_usleep(unsigned long usec);
+unsigned long pgm_usleep(unsigned long usec);
 
 // Device-specific print function
 void pgm_print(const char *msg);

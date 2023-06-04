@@ -31,24 +31,24 @@ int pgm_init(void)
 	return 0;
 }
 
-void pgm_set_dat(int val)
+void pgm_set_dat(unsigned char val)
 {
 }
 
-int pgm_get_dat(void)
+unsigned char pgm_get_dat(void)
 {
 	return 0;
 }
 
-void pgm_set_rst(int val)
+void pgm_set_rst(unsigned char val)
 {
 }
 
-void pgm_set_clk(int val)
+void pgm_set_clk(unsigned char val)
 {
 }
 
-void pgm_dat_dir(int state)
+void pgm_dat_dir(unsigned char state)
 {
 }
 
@@ -58,8 +58,9 @@ void pgm_deinit(void)
 	pgm_set_rst(1);
 }
 
-void pgm_usleep(unsigned long usec)
+unsigned long pgm_usleep(unsigned long usec)
 {
+	return 0;
 }
 
 #endif

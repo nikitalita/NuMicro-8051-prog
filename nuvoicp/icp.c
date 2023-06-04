@@ -143,7 +143,7 @@ void icp_reset_trigger(uint32_t delay1, uint32_t delay2, uint32_t delay3){
 
 }
 
-void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
+void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low){
 	pgm_usleep(200);
 	// this bit here it to ensure that the config bytes are read at the correct time (right next to the reset high)
 	pgm_set_rst(1);
@@ -152,21 +152,19 @@ void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
 	pgm_usleep(delay2);
 
 	//now we do a the full reentry, set the trigger
-	pgm_usleep(200);
 	pgm_set_trigger(1);
-	pgm_usleep(delay3);
+	pgm_usleep(delay_after_trigger_high);
 	pgm_set_rst(1);
 
-	// now we sleep for 280us, the length of the config load
-	// done in starts because of pigpio limitations (max busy wait = 100us)
-	pgm_usleep(100);
-	pgm_usleep(100);
-	pgm_usleep(80);
+	// by default, we sleep for 280us, the length of the config load
+	if (delay_before_trigger_low == 0){
+		delay_before_trigger_low = 280;
+	}
+	pgm_usleep(delay_before_trigger_low);
 	// config bytes are loaded, set trigger = 0
 	pgm_set_trigger(0);
-
-	pgm_usleep(delay1 - 270);
-	pgm_usleep(0);
+	pgm_usleep(delay1 - delay_before_trigger_low);
+	pgm_set_rst(0);
 	pgm_usleep(delay2);
 	icp_bitsend(ENTRY_BITS, 24, 1);
 	pgm_usleep(10);
@@ -198,8 +196,8 @@ void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
 	// // no wait
 }
 
-void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay3, uint8_t * config_bytes) {
-	icp_reentry_glitch(delay1, delay2, delay3);
+void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low, uint8_t * config_bytes) {
+	icp_reentry_glitch(delay1, delay2, delay_after_trigger_high, delay_before_trigger_low);
 	// for (i = 0; i < 100; i++)
 	// 	reset_glitch();
 	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, config_bytes);
@@ -223,8 +221,6 @@ void icp_exit(void)
 	pgm_set_rst(1);
 }
 
-
-#define READ_BYTE_SLEEP 1
 
 static uint8_t icp_read_byte(int end)
 {

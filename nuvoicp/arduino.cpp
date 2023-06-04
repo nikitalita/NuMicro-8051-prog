@@ -7,9 +7,9 @@
 #define DAT   11
 #define CLK   12
 #define RST   13
-int CMD_SEND_BIT_DELAY = 1
-int READ_BIT_DELAY = 1
-int WRITE_BIT_DELAY = 1
+int CMD_SEND_BIT_DELAY = 1;
+int READ_BIT_DELAY = 1;
+int WRITE_BIT_DELAY = 1;
 #else
 #define DAT   52
 #define CLK   50
@@ -30,27 +30,27 @@ int pgm_init(void)
   return 0;
 }
 
-void pgm_set_dat(int val)
+void pgm_set_dat(unsigned char val)
 {
   digitalWrite(DAT, val);
 }
 
-int pgm_get_dat(void)
+unsigned char pgm_get_dat(void)
 {
   return digitalRead(DAT);
 }
 
-void pgm_set_rst(int val)
+void pgm_set_rst(unsigned char val)
 {
   digitalWrite(RST, val);
 }
 
-void pgm_set_clk(int val)
+void pgm_set_clk(unsigned char val)
 {
   digitalWrite(CLK, val);
 }
 
-void pgm_dat_dir(int state)
+void pgm_dat_dir(unsigned char state)
 {
   pinMode(DAT, state ? OUTPUT : INPUT);
 }
@@ -64,9 +64,10 @@ void pgm_deinit(void)
   pinMode(RST, INPUT);
 }
 
-void pgm_usleep(unsigned long usec)
+unsigned long pgm_usleep(unsigned long usec)
 {
   delayMicroseconds(usec);
+  return usec;
 }
 
 void pgm_print(const char * msg){

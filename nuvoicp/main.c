@@ -92,31 +92,6 @@ void usage(void)
 	exit(1);
 }
 
-// #include "pgm.h"
-// #include <pigpio.h>
-
-// void test_clk(){
-// 	for (int i = 0; i < 1000; i++){
-// 		pgm_set_clk(0);
-// 		gpioDelay(200);
-// 		pgm_set_clk(1);
-// 		gpioDelay(200);
-// 	}
-// }
-// void test(){
-// 	printf("testing clock...\n");
-// 	pgm_init();
-// 	gpioDelay(100000);
-// 	test_clk();
-// 	// gpioDelay(5);
-// 	// pgm_set_clk(1);
-// 	// uint32_t result = gpioDelay(200);
-// 	// pgm_set_clk(0);
-// 	pgm_deinit();
-// 	printf("done\n");
-// 	// printf("result: %d\n", result);
-// }
-
 
 int main(int argc, char *argv[])
 {

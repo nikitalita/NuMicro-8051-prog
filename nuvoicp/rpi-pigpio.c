@@ -10,6 +10,7 @@
 #define GPIO_CLK 26
 
 #define GPIO_TRIGGER 16
+#define MAX_BUSY_DELAY 300
 
 #ifndef DYNAMIC_DELAY
 int CMD_SEND_BIT_DELAY = 1;
@@ -133,10 +134,23 @@ int pgm_get_write_bit_delay(){
 }
 #endif
 
-void pgm_usleep(unsigned long usec)
-{
-    if (usec > 0)
-        gpioDelay(usec-1);
+unsigned long pgm_usleep(unsigned long usec)
+{   
+    unsigned long waited = 0;
+    if (usec == 0){
+        return 0;
+    }
+    // because of the limitations of the gpioDelay function (>100us sleeps are real sleeps, which can sleep for 60+ additional us), we have to break this up
+    if (usec > 101 && usec <= MAX_BUSY_DELAY) {
+        for (; usec > 100; usec -= 100){
+            waited += gpioDelay(99);
+        }
+    }
+    if (usec > 0){
+        // gpioDelay introduces a delay of 1us, so we subtract 1 from the delay
+        waited += gpioDelay(usec-1);
+    }
+    return waited;
 }
 
 void pgm_print(const char *msg)
