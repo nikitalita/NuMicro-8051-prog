@@ -13,5 +13,4 @@ shared: main.o icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -shared -o libnuvoicp.so $^ $(LDFLAGS)
 	mv libnuvoicp.so ../nuvoispy/
 clean:
-	rm -f nuvoicp *.o
-	rm -f ../nuvoispy/libnuvoicp.so
+	rm -f nuvoicp *.o libnuvoicp-*.so
