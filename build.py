@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import os
 
+
 class CustomDevelop(develop):
     """Custom install procedure.
 
@@ -50,7 +51,7 @@ class CustomBuildClib(build_clib):
     """
 
     user_options = build_clib.user_options + [('shared-location=', 's',
-         "copy the shared C/C++ libraries here after linking."),]
+                                               "copy the shared C/C++ libraries here after linking."),]
 
     def initialize_options(self) -> None:
         self.shared_location = None
@@ -178,6 +179,8 @@ class CustomBuildClib(build_clib):
                     output_dir=self.build_clib,
                     debug=self.debug,
                 )
+
+
 def clean():
     for root, dirs, files in os.walk('build'):
         for file in files:
@@ -208,7 +211,7 @@ def build(setup_kwargs):
                         "nuvoicp/icp.c",
                         "nuvoicp/rpi.c",
                         "nuvoicp/main.c",
-                      ],
+                    ],
                     "shared": True,
                     "cflags": ["-DRPI",  "-DPRINT_CONFIG_EN",],
                     # "include_dir": ...
@@ -222,9 +225,9 @@ def build(setup_kwargs):
                         "nuvoicp/icp.c",
                         "nuvoicp/rpi-pigpio.c",
                         "nuvoicp/main.c",
-                      ],
+                    ],
                     "shared": True,
-                    "cflags": ["-DRPI", "-DPRINT_CONFIG_EN","-DUSE_PIGPIO", "-DDYNAMIC_DELAY"],
+                    "cflags": ["-DRPI", "-DPRINT_CONFIG_EN", "-DUSE_PIGPIO", "-DDYNAMIC_DELAY"],
                     # "include_dir": ...
                     "libraries": ["pigpio"]
                 },

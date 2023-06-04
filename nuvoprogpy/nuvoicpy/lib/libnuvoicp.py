@@ -3,20 +3,38 @@ import ctypes
 # get dir of this file
 import os
 import platform
+import signal
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 if platform.system() != 'Linux':
     raise NotImplementedError("%s is not supported yet" % platform.system())
 
+
+# pigpio is dumb and overrides the signal handlers for SIGINT and SIGTERM
+# so every time we call anything that calls gpioInitialise(), we need to override the signal handlers
+def catch_ctrlc(signum, frame):
+    if signum == signal.SIGINT:
+        raise KeyboardInterrupt("Caught SIGTERM")
+    elif signum == signal.SIGTERM:
+        # raise a non-KeyboardInterrupt exception
+        raise Exception("Caught SIGTERM")
+
+
+def override_signals():
+    signal.signal(signal.SIGINT, catch_ctrlc)
+    signal.signal(signal.SIGTERM, catch_ctrlc)
+
+
 class LibICP:
-    def __init__(self, libname = "pigpio"):
+    def __init__(self, libname="pigpio"):
         # Load the shared library
         if libname.lower() == "pigpio":
             self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-pigpio.so")
         elif libname.lower() == "gpiod":
             self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-gpiod.so")
         else:
-            raise ValueError("Unknown lib: %s\nMust be either 'pigpio' or 'gpiod'" % libname)
+            raise ValueError(
+                "Unknown lib: %s\nMust be either 'pigpio' or 'gpiod'" % libname)
 
         # Function prototypes
         self.lib.icp_send_entry_bits.argtypes = []
@@ -31,13 +49,16 @@ class LibICP:
         self.lib.icp_entry.argtypes = [ctypes.c_uint8]
         self.lib.icp_entry.restype = None
 
-        self.lib.icp_reentry.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
+        self.lib.icp_reentry.argtypes = [
+            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
         self.lib.icp_reentry.restype = None
 
-        self.lib.icp_reentry_glitch.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
+        self.lib.icp_reentry_glitch.argtypes = [
+            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
         self.lib.icp_reentry_glitch.restype = None
 
-        self.lib.icp_reentry_glitch_read.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint8)]
+        self.lib.icp_reentry_glitch_read.argtypes = [
+            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
         self.lib.icp_reentry_glitch_read.restype = None
 
         self.lib.icp_deinit.argtypes = []
@@ -61,10 +82,12 @@ class LibICP:
         self.lib.icp_read_ucid.argtypes = []
         self.lib.icp_read_ucid.restype = ctypes.c_uint32
 
-        self.lib.icp_read_flash.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
+        self.lib.icp_read_flash.argtypes = [
+            ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
         self.lib.icp_read_flash.restype = ctypes.c_uint32
 
-        self.lib.icp_write_flash.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
+        self.lib.icp_write_flash.argtypes = [
+            ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
         self.lib.icp_write_flash.restype = ctypes.c_uint32
 
         self.lib.icp_mass_erase.argtypes = []
@@ -81,23 +104,30 @@ class LibICP:
     def send_exit_bits(self) -> None:
         self.lib.icp_send_exit_bits()
 
-    def init(self,do_reset = True) -> bool:
-        ret = self.lib.icp_init(ctypes.c_uint8(do_reset)) 
-        return True if ret == 0 else False
+    def init(self, do_reset=True) -> bool:
+        ret = self.lib.icp_init(ctypes.c_uint8(do_reset))
+        if ret == 0:  # PGM failed to initialize
+            # This ends up calling gpioInitialise(), so take the signals back
+            override_signals()
+            return True
+        return False
 
-    def entry(self,do_reset = True) -> None:
+    def entry(self, do_reset=True) -> None:
         self.lib.icp_entry(ctypes.c_uint8(do_reset))
 
-    def reentry(self,delay1 = 5000, delay2 = 1000, delay3 = 10):
-        self.lib.icp_reentry(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(delay3))
+    def reentry(self, delay1=5000, delay2=1000, delay3=10):
+        self.lib.icp_reentry(ctypes.c_uint32(
+            delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(delay3))
 
-    def reentry_glitch(self,delay1 = 5000, delay2 = 1000, delay3 = 10) -> None:
-        self.lib.icp_reentry_glitch(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(delay3))
+    def reentry_glitch(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> None:
+        self.lib.icp_reentry_glitch(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(
+            delay_after_trigger_high), ctypes.c_uint32(delay_before_trigger_low))
 
-    def reentry_glitch_read(self,delay1 = 5000, delay2 = 1000, delay3 = 10) -> bytes:
+    def reentry_glitch_read(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bytes:
         data_type = ctypes.c_uint8 * 5
         data = data_type()
-        self.lib.icp_reentry_glitch_read(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2),ctypes.c_uint32(delay3), data)
+        self.lib.icp_reentry_glitch_read(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(
+            delay_after_trigger_high), ctypes.c_uint32(delay_before_trigger_low), data)
         return bytes(data)
 
     def deinit(self):
@@ -121,34 +151,38 @@ class LibICP:
     def read_ucid(self):
         return self.lib.icp_read_ucid()
 
-    def read_flash(self,addr, length):
+    def read_flash(self, addr, length):
         data_type = ctypes.c_uint8 * length
         data = data_type()
-        self.lib.icp_read_flash(ctypes.c_uint32(addr), ctypes.c_uint32(length), data)
+        self.lib.icp_read_flash(ctypes.c_uint32(
+            addr), ctypes.c_uint32(length), data)
         return bytes(data)
 
-    def write_flash(self,addr, data) -> int:
+    def write_flash(self, addr, data) -> int:
         length = len(data)
         data_type = ctypes.c_uint8 * length
         data_buffer = data_type(*data)
-        ret = self.lib.icp_write_flash(ctypes.c_uint32(addr), ctypes.c_uint32(length), data_buffer)
+        ret = self.lib.icp_write_flash(ctypes.c_uint32(
+            addr), ctypes.c_uint32(length), data_buffer)
         return int(ret)
 
     def mass_erase(self):
         self.lib.icp_mass_erase()
 
-    def page_erase(self,addr):
+    def page_erase(self, addr):
         self.lib.icp_page_erase(ctypes.c_uint32(addr))
 
+
 class LibPGM:
-    def __init__(self, libname = "pigpio"):
+    def __init__(self, libname="pigpio"):
         # Load the shared library
         if libname.lower() == "pigpio":
             self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-pigpio.so")
         elif libname.lower() == "gpiod":
             self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-gpiod.so")
         else:
-            raise ValueError("Unknown lib: %s\nMust be either 'pigpio' or 'gpiod'" % libname)
+            raise ValueError(
+                "Unknown lib: %s\nMust be either 'pigpio' or 'gpiod'" % libname)
         # Initialize the PGM interface.
         self.lib.pgm_init.argtypes = []
         self.lib.pgm_init.restype = ctypes.c_int
@@ -216,7 +250,12 @@ class LibPGM:
 
     # Initialize the PGM interface.
     def init(self) -> bool:
-        return True if self.lib.pgm_init() == 0 else False
+        ret = self.lib.pgm_init()
+        if ret == 0:  # PGM failed to initialize
+            # This ends up calling gpioInitialise(), so take the signals back
+            override_signals()
+            return True
+        return False
 
     # Shutdown the PGM interface.
     def deinit(self):
@@ -227,7 +266,7 @@ class LibPGM:
         self.lib.pgm_set_dat(ctypes.c_ubyte(val))
 
     # Get the current value of the PGM data pin.
-    def get_dat(self)-> int:
+    def get_dat(self) -> int:
         return int(self.lib.pgm_get_dat())
 
     # Set the PGM reset pin to the given value.
@@ -278,4 +317,3 @@ class LibPGM:
     # Device-specific print function
     def print(self, msg):
         self.lib.pgm_print(ctypes.c_char_p(msg.encode()))
-
