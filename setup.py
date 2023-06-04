@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
+from build import *
+import shutil
+import os
+
 from setuptools import setup
 
 packages = \
-['nuvoprogpy']
+    ['nuvoprogpy']
 
 package_data = \
-{'': ['*']}
+    {'': ['*']}
 
 setup_kwargs = {
     'name': 'nuvoprogpy',
@@ -22,6 +26,10 @@ setup_kwargs = {
     'python_requires': '>=3.9',
 }
 
-from build import *
+# remove the build directory
+
+# remove *.so files from nuvoprogpy/nuvoicpy/lib without using shutil.rmtree
+
+
 build(setup_kwargs)
 setup(**setup_kwargs)

@@ -7,7 +7,7 @@ from setuptools.dep_util import newer_pairwise_group
 import platform
 from pathlib import Path
 import shutil
-
+import os
 
 class CustomDevelop(develop):
     """Custom install procedure.
@@ -178,13 +178,25 @@ class CustomBuildClib(build_clib):
                     output_dir=self.build_clib,
                     debug=self.debug,
                 )
+def clean():
+    for root, dirs, files in os.walk('build'):
+        for file in files:
+            if file.endswith('.o'):
+                os.remove(os.path.join(root, file))
+            elif file.startswith('libnuvoicp') and file.endswith('.so'):
+                os.remove(os.path.join(root, file))
+
+    for root, dirs, files in os.walk('nuvoprogpy/nuvoicpy/lib'):
+        for file in files:
+            if file.startswith('libnuvoicp') and file.endswith('.so'):
+                os.remove(os.path.join(root, file))
 
 
 def build(setup_kwargs):
     """
     This is a callback for poetry used to hook in our extensions.
     """
-    print("HALDO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    clean()
     setup_kwargs.update({
         # declare shared libraries (.dll/.so) to build. These can be linked
         # into extensions or cython code, but also accessed by ctypes or cffi"rpi-pigpio.c",
