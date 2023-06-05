@@ -409,14 +409,18 @@ class NuvoICP:
             config: ConfigFlags:
                 The configuration flags to program
             _skip_erase: bool (=False):
-                For testing only. If True, the config block will not be erased before writing.
+                If True, the config block will not be erased before writing.
+
+                We avoid erasing the configuration bytes after a mass_erase() to prevent flash wear.
+                You don't want to use this if you're using write_config() by itself, as the config will
+                fail to be written if the config isn't the default (FF FF FF FF FF).
         """
         self._fail_if_not_init()
         if not _skip_erase:
             self.icp.page_erase(CFG_FLASH_ADDR)
         self.icp.write_flash(CFG_FLASH_ADDR, config.to_bytes())
 
-    def program_ldrom(self, ldrom_data: bytes, write_config: ConfigFlags = None) -> ConfigFlags:
+    def program_ldrom(self, ldrom_data: bytes, write_config: ConfigFlags = None, _skip_config_erase=False) -> ConfigFlags:
         """
         Programs the LDROM with the given data, and programs the config block with the given configuration flags.
 
@@ -426,6 +430,8 @@ class NuvoICP:
             write_config: ConfigFlags (=None):
                 The configuration flags to program to the config block.
                 If None, the default configuration for booting the ldrom of its size will be written.
+            _skip_config_erase: bool (=False):
+                If True, the config block will not be erased before writing. For more info, see write_config().
 
         #### Returns:
             ConfigFlags:
@@ -437,7 +443,7 @@ class NuvoICP:
             write_config = ConfigFlags()
             write_config.set_ldrom_boot(True)
             write_config.set_ldrom_size(len(ldrom_data))
-        self.write_config(write_config, False)
+        self.write_config(write_config, _skip_config_erase)
         self.icp.write_flash(FLASH_SIZE - len(ldrom_data), ldrom_data)
         self.print_vb("LDROM programmed.")
         return write_config
@@ -542,7 +548,7 @@ class NuvoICP:
 
         self.mass_erase()
         if len(ldrom_data) > 0:
-            config = self.program_ldrom(ldrom_data, config)
+            config = self.program_ldrom(ldrom_data, config, True)
             if not config:
                 eprint("Could not write LDROM.")
                 return False
@@ -553,7 +559,7 @@ class NuvoICP:
                 self.print_vb(
                     "Skipping writing default config... (Mass erase already set config bytes to default)")
             else:
-                self.write_config(config, False)
+                self.write_config(config, True)
 
         self.print_vb("Programming APROM (%d KB)..." % (aprom_size / 1024))
         self.icp.write_flash(APROM_ADDR, aprom_data)
