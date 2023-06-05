@@ -7,16 +7,10 @@
 #define DAT   11
 #define CLK   12
 #define RST   13
-int CMD_SEND_BIT_DELAY = 1;
-int READ_BIT_DELAY = 1;
-int WRITE_BIT_DELAY = 1;
 #else
 #define DAT   52
 #define CLK   50
 #define RST   48
-int CMD_SEND_BIT_DELAY = 0
-int READ_BIT_DELAY = 0
-int WRITE_BIT_DELAY = 0
 #endif
 extern "C" {
 
@@ -55,14 +49,26 @@ void pgm_dat_dir(unsigned char state)
   pinMode(DAT, state ? OUTPUT : INPUT);
 }
 
-void pgm_deinit(void)
+void pgm_release_pins(void)
 {
-  /* release reset */
   pinMode(CLK, INPUT);
   pinMode(DAT, INPUT);
-  pgm_set_rst(1);
   pinMode(RST, INPUT);
 }
+
+void pgm_release_rst(void)
+{
+  pinMode(RST, INPUT);
+}
+
+void pgm_deinit(void)
+{
+  pinMode(CLK, INPUT);
+  pinMode(DAT, INPUT);
+  /* don't release reset */
+  pgm_set_rst(1);
+}
+
 
 unsigned long pgm_usleep(unsigned long usec)
 {

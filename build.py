@@ -213,7 +213,7 @@ def build(setup_kwargs):
                         "nuvoicp/main.c",
                     ],
                     "shared": True,
-                    "cflags": ["-DRPI",  "-DPRINT_CONFIG_EN",],
+                    "cflags": ["-DRPI",  "-DPRINT_CONFIG_EN", "-DDYNAMIC_DELAY"],
                     # "include_dir": ...
                     "libraries": ["gpiod"]
                 },

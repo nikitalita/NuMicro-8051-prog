@@ -45,48 +45,7 @@ void pgm_release_pins(void);
 void pgm_release_rst(void);
 
 
-/**
- * Sets the delay between each bit of the CMD sequence sent to the device.
- * Only functional on RasPi; NOP on other targets
- * 
- * @param delay_us Delay in microseconds
-*/
-void pgm_set_cmd_bit_delay(int delay_us);
-/**
- * Sets the delay between each bit read from the device during `icp_read_byte()`
- * Only functional on RasPi; NOP on other targets
- * 
- * @param delay_us Delay in microseconds
-*/
-void pgm_set_read_bit_delay(int delay_us);
-/**
- * Sets the delay between each bit written to the device during `icp_write_byte()`
- * Only functional on RasPi; NOP on other targets
- * 
- * @param delay_us Delay in microseconds
-*/
-void pgm_set_write_bit_delay(int delay_us);
 
-/**
- * Gets the delay between each bit written to the device during `icp_write_byte()`
- * 
- * @return Delay in microseconds
-*/
-int pgm_get_cmd_bit_delay();
-
-/**
- * Gets the delay between each bit read from the device during `icp_read_byte()`
- * 
- * @return Delay in microseconds
-*/
-int pgm_get_read_bit_delay();
-
-/**
- * Gets the delay between each bit of the CMD sequence sent to the device.
- * 
- * @return Delay in microseconds
-*/
-int pgm_get_write_bit_delay();
 
 // Device-specific sleep function
 unsigned long pgm_usleep(unsigned long usec);
@@ -94,16 +53,6 @@ unsigned long pgm_usleep(unsigned long usec);
 // Device-specific print function
 void pgm_print(const char *msg);
 
-// This is only used by the raspi; for microcontrollers, this isn't enabled as the delays are determined by the clock speed.
-#ifndef DYNAMIC_DELAY
-extern int CMD_SEND_BIT_DELAY;
-extern int READ_BIT_DELAY;
-extern int WRITE_BIT_DELAY;
-#else
-#define CMD_SEND_BIT_DELAY pgm_get_cmd_bit_delay()
-#define READ_BIT_DELAY pgm_get_read_bit_delay()
-#define WRITE_BIT_DELAY pgm_get_write_bit_delay()
-#endif
 
 #ifdef __cplusplus
 }

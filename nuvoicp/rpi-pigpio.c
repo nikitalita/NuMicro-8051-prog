@@ -12,16 +12,6 @@
 #define GPIO_TRIGGER 16
 #define MAX_BUSY_DELAY 300
 
-#ifndef DYNAMIC_DELAY
-int CMD_SEND_BIT_DELAY = 1;
-int READ_BIT_DELAY = 2;
-int WRITE_BIT_DELAY = 2;
-#else
-static int cmd_bit_delay_val = 1;
-static int read_bit_delay_val = 2;
-static int write_bit_delay_val = 2;
-#endif
-
 int pgm_init(void)
 {
     if (gpioInitialise() < 0)
@@ -99,40 +89,6 @@ void pgm_deinit(void)
     pgm_release_pins();
     gpioTerminate();
 }
-
-#ifdef DYNAMIC_DELAY
-void pgm_set_cmd_bit_delay(int delay_us) {
-    cmd_bit_delay_val = delay_us;
-}
-void pgm_set_read_bit_delay(int delay_us) {
-    read_bit_delay_val = delay_us;
-}
-void pgm_set_write_bit_delay(int delay_us) {
-    write_bit_delay_val = delay_us;
-}
-int pgm_get_cmd_bit_delay(){
-    return cmd_bit_delay_val;
-}
-int pgm_get_read_bit_delay(){
-    return read_bit_delay_val;
-}
-int pgm_get_write_bit_delay(){
-    return write_bit_delay_val;
-}
-#else
-void pgm_set_cmd_bit_delay(int delay_us){}
-void pgm_set_read_bit_delay(int delay_us){}
-void pgm_set_write_bit_delay(int delay_us){}
-int pgm_get_cmd_bit_delay(){
-    return CMD_SEND_BIT_DELAY;
-}
-int pgm_get_read_bit_delay(){
-    return READ_BIT_DELAY;
-}
-int pgm_get_write_bit_delay(){
-    return WRITE_BIT_DELAY;
-}
-#endif
 
 unsigned long pgm_usleep(unsigned long usec)
 {   

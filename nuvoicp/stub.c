@@ -54,11 +54,22 @@ void pgm_dat_dir(unsigned char state)
 
 void pgm_deinit(void)
 {
-	/* release reset */
-	pgm_set_rst(1);
+}
+
+void pgm_release_pins(void)
+{
+}
+
+void pgm_release_rst(void)
+{
 }
 
 unsigned long pgm_usleep(unsigned long usec)
+{
+	return 0;
+}
+
+void pgm_print(const char *msg)
 {
 	return 0;
 }

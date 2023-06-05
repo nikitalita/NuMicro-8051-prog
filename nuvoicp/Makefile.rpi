@@ -11,7 +11,7 @@ endif
 ifdef USE_PIGPIO
 	LIBNAME = pigpio
 	DEV_OBJ = rpi-pigpio.o
-	CFLAGS += -DDYNAMIC_DELAY
+	CFLAGS += -DDYNAMIC_DELAY -DUSE_PIGPIO
 	LDFLAGS = -lpigpio
 else # GPIOD
 	LIBNAME = gpiod

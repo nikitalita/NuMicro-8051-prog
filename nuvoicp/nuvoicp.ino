@@ -48,10 +48,10 @@ void setup()
   while (!Serial1); // wait for serial port to connect. Needed for native USB port only
   Serial1.println("online");
 
-  outputf("DEVICEID\t\t\t0x%02x\n", icp_read_device_id());
-  outputf("CID\t\t\t0x%02x\n", icp_read_cid());
-  outputf("UID\t\t\t0x%06x\n", icp_read_uid());
-  outputf("UCID\t\t\t0x%08x\n", icp_read_ucid());
+  icp_outputf("DEVICEID\t\t\t0x%02x\n", icp_read_device_id());
+  icp_outputf("CID\t\t\t0x%02x\n", icp_read_cid());
+  icp_outputf("UID\t\t\t0x%06x\n", icp_read_uid());
+  icp_outputf("UCID\t\t\t0x%08x\n", icp_read_ucid());
 #ifdef PRINT_CONFIG_EN
   icp_dump_config();
 #endif
@@ -59,10 +59,10 @@ void setup()
   uint16_t addr = 0;
   while (addr < 256) {
     icp_read_flash(addr, sizeof(buf), buf);
-    outputf("%04x: ", addr);
+    icp_outputf("%04x: ", addr);
     for (int i = 0; i < sizeof(buf); i++)
-      outputf("%02x ", buf[i]);
-    outputf("\n");
+      icp_outputf("%02x ", buf[i]);
+    icp_outputf("\n");
     addr += sizeof(buf);
   }
 #endif
@@ -75,16 +75,16 @@ int pktsize = 0;
 void tx_pkt()
 {
 #ifdef _DEBUG
-  outputf("sending packet\n");
+  icp_outputf("sending packet\n");
   for (int i = 0; i < PACKSIZE; i++)
-    outputf(" %02x", pkt[i]);
-  outputf("\n");
+    icp_outputf(" %02x", pkt[i]);
+  icp_outputf("\n");
 #endif
   int pktsize = 0;
   while (pktsize < PACKSIZE)
     Serial.write(pkt[pktsize++]);
 #ifdef _DEBUG
-  outputf("done sending packet\n");
+  icp_outputf("done sending packet\n");
 #endif
 }
 
@@ -95,7 +95,7 @@ void update(unsigned char* pkt, int len)
 {
   int n = len > update_size ? update_size : len;
 #ifdef _DEBUG
-  outputf("writing %d bytes to flash at addr 0x%04x\n", n, update_addr);
+  icp_outputf("writing %d bytes to flash at addr 0x%04x\n", n, update_addr);
 #endif
   update_addr = icp_write_flash(update_addr, n, pkt);
   update_size -= n;
@@ -160,10 +160,10 @@ void loop()
       return;
 
 #ifdef _DEBUGxx
-  outputf("received packet: ");
+  icp_outputf("received packet: ");
   for (int i = 0; i < PACKSIZE; i++)
-    outputf(" %02x", pkt[i]);
-  outputf("\n");
+    icp_outputf(" %02x", pkt[i]);
+  icp_outputf("\n");
 #endif
 
     pktsize = 0;
@@ -176,7 +176,7 @@ void loop()
       checksum += pkt[i];
 
 #ifdef _DEBUG
-    outputf("received %d-byte packet, command 0x%02x, seqno 0x%04x, checksum 0x%04x\n", PACKSIZE, cmd, seqno, checksum);
+    icp_outputf("received %d-byte packet, command 0x%02x, seqno 0x%04x, checksum 0x%04x\n", PACKSIZE, cmd, seqno, checksum);
 #endif
 
     pkt[0] = checksum & 0xff;
@@ -214,7 +214,7 @@ void loop()
         {
         int id = icp_read_cid();
 #ifdef _DEBUG
-        outputf("received device id of 0x%04x\n", id);
+        icp_outputf("received device id of 0x%04x\n", id);
 #endif
         pkt[8] = id & 0xff;
         tx_pkt();
@@ -224,7 +224,7 @@ void loop()
         {
         int id = icp_read_uid();
 #ifdef _DEBUG
-        outputf("received device id of 0x%04x\n", id);
+        icp_outputf("received device id of 0x%04x\n", id);
 #endif
         pkt[8] = id & 0xff;
         pkt[9] = (id >> 8) & 0xff;
@@ -236,7 +236,7 @@ void loop()
         {
         int id = icp_read_ucid();
 #ifdef _DEBUG
-        outputf("received device id of 0x%04x\n", id);
+        icp_outputf("received device id of 0x%04x\n", id);
 #endif
         pkt[8] = id & 0xff;
         pkt[9] = (id >> 8) & 0xff;
@@ -249,7 +249,7 @@ void loop()
         {
         int id = icp_read_device_id();
 #ifdef _DEBUG
-        outputf("received device id of 0x%04x\n", id);
+        icp_outputf("received device id of 0x%04x\n", id);
 #endif
         pkt[8] = id & 0xff;
         pkt[9] = (id >> 8) & 0xff;
@@ -277,7 +277,7 @@ void loop()
         break;
       case CMD_RUN_APROM:
 #ifdef _DEBUG
-        outputf("running aprom\n");
+        icp_outputf("running aprom\n");
 #endif
         icp_exit();
         tx_pkt();
@@ -303,7 +303,7 @@ void loop()
         update_addr = (pkt[9] << 8) | pkt[8];
         update_size = (pkt[13] << 8) | pkt[12];
 #ifdef _DEBUG
-        outputf("flashing %d bytes\n", update_size);
+        icp_outputf("flashing %d bytes\n", update_size);
 #endif
         update(&pkt[16], 48);
         if (update_size > 0)

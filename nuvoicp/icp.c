@@ -30,10 +30,23 @@
 #include "config.h"
 #include "icp.h"
 #include "pgm.h"
+#include "delay.h"
 
 // These are MCU dependent (default for N76E003)
 static int program_time = 20;
 static int page_erase_time = 5000;
+
+#ifdef DYNAMIC_DELAY
+int ICP_CMD_DELAY = DEFAULT_BIT_DELAY;
+int ICP_READ_DELAY = DEFAULT_BIT_DELAY;
+int ICP_WRITE_DELAY = DEFAULT_BIT_DELAY;
+#else
+#define ICP_CMD_DELAY DEFAULT_BIT_DELAY
+#define ICP_READ_DELAY DEFAULT_BIT_DELAY
+#define ICP_WRITE_DELAY DEFAULT_BIT_DELAY
+#endif
+
+
 
 static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 {
@@ -52,7 +65,7 @@ static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 
 static void icp_send_command(uint8_t cmd, uint32_t dat)
 {
-	icp_bitsend((dat << 6) | cmd, 24, CMD_SEND_BIT_DELAY);
+	icp_bitsend((dat << 6) | cmd, 24, ICP_CMD_DELAY);
 }
 
 int reset_seq(uint32_t reset_seq, int len){
@@ -225,27 +238,27 @@ void icp_exit(void)
 static uint8_t icp_read_byte(int end)
 {
 	pgm_dat_dir(0);
-	pgm_usleep(READ_BIT_DELAY);
+	pgm_usleep(ICP_READ_DELAY);
 	uint8_t data = 0;
 	int i = 8;
 
 	while (i--) {
-		pgm_usleep(READ_BIT_DELAY);
+		pgm_usleep(ICP_READ_DELAY);
 		int state = pgm_get_dat();
 		pgm_set_clk(1);
-		pgm_usleep(READ_BIT_DELAY);
+		pgm_usleep(ICP_READ_DELAY);
 		pgm_set_clk(0);
 		data |= (state << i);
 	}
 
 	pgm_dat_dir(1);
-	pgm_usleep(READ_BIT_DELAY);
+	pgm_usleep(ICP_READ_DELAY);
 	pgm_set_dat(end);
-	pgm_usleep(READ_BIT_DELAY);
+	pgm_usleep(ICP_READ_DELAY);
 	pgm_set_clk(1);
-	pgm_usleep(READ_BIT_DELAY);
+	pgm_usleep(ICP_READ_DELAY);
 	pgm_set_clk(0);
-	pgm_usleep(READ_BIT_DELAY);
+	pgm_usleep(ICP_READ_DELAY);
 	pgm_set_dat(0);
 
 	return data;
@@ -253,7 +266,7 @@ static uint8_t icp_read_byte(int end)
 
 static void icp_write_byte(uint8_t data, int end, int delay1, int delay2)
 {
-	icp_bitsend(data, 8, WRITE_BIT_DELAY);
+	icp_bitsend(data, 8, ICP_WRITE_DELAY);
 	pgm_set_dat(end);
 	pgm_usleep(delay1);
 	pgm_set_clk(1);
@@ -344,7 +357,7 @@ void icp_page_erase(uint32_t addr)
 	icp_write_byte(0xff, 1, page_erase_time, 1000);
 }
 
-void outputf(const char *s, ...)
+void icp_outputf(const char *s, ...)
 {
   char buf[160];
   va_list ap;
@@ -354,54 +367,74 @@ void outputf(const char *s, ...)
   pgm_print(buf);
 }
 
-// disabled for microcontroller targets to avoid storing a large number of strings in flash
+#ifdef DYNAMIC_DELAY
+void icp_set_cmd_bit_delay(int delay_us) {
+	ICP_CMD_DELAY = delay_us;
+}
+void icp_set_read_bit_delay(int delay_us) {
+	ICP_READ_DELAY = delay_us;
+}
+void icp_set_write_bit_delay(int delay_us) {
+	ICP_WRITE_DELAY = delay_us;
+}
+#endif
+int icp_get_cmd_bit_delay() {
+	return ICP_CMD_DELAY;
+}
+int icp_get_read_bit_delay() {
+	return ICP_READ_DELAY;
+}
+int icp_get_write_bit_delay() {
+	return ICP_WRITE_DELAY;
+}
+
 #ifdef PRINT_CONFIG_EN
 void print_config(config_flags flags){
-  outputf("----- Chip Configuration ----\n");
+  icp_outputf("----- Chip Configuration ----\n");
   uint8_t *raw_bytes = (uint8_t *)&flags;
-  outputf("Raw config bytes:\t" );
+  icp_outputf("Raw config bytes:\t" );
   for (int i = 0; i < CFG_FLASH_LEN; i++){
-    outputf("%02X ", raw_bytes[i]);
+    icp_outputf("%02X ", raw_bytes[i]);
   }
-  outputf("\nMCU Boot select:\t%s\n", flags.CBS ? "APROM" : "LDROM");
+  icp_outputf("\nMCU Boot select:\t%s\n", flags.CBS ? "APROM" : "LDROM");
   int ldrom_size = (7 - (flags.LDS & 0x7)) * 1024;
   if (ldrom_size > LDROM_MAX_SIZE){
     ldrom_size = LDROM_MAX_SIZE;
   }
-  outputf("LDROM size:\t\t%d Bytes\n", ldrom_size);
-  outputf("APROM size:\t\t%d Bytes\n", FLASH_SIZE - ldrom_size);
-  outputf("Security lock:\t\t%s\n", flags.LOCK ? "UNLOCKED" : "LOCKED"); // this is switched, 1 is off and 0 is on
-  outputf("P2.0/Nrst reset:\t%s\n", flags.RPD ? "enabled" : "disabled");
-  outputf("On-Chip Debugger:\t%s\n", flags.OCDEN ? "disabled" : "enabled"); // this is switched, 1 is off and 0 is on
-  outputf("OCD halt PWM output:\t%s\n", flags.OCDPWM ? "tri-state pins are used as PWM outputs" : "PWM continues");
-  outputf("Brown-out detect:\t%s\n", flags.CBODEN ? "enabled" : "disabled");
-  outputf("Brown-out voltage:\t");
+  icp_outputf("LDROM size:\t\t%d Bytes\n", ldrom_size);
+  icp_outputf("APROM size:\t\t%d Bytes\n", FLASH_SIZE - ldrom_size);
+  icp_outputf("Security lock:\t\t%s\n", flags.LOCK ? "UNLOCKED" : "LOCKED"); // this is switched, 1 is off and 0 is on
+  icp_outputf("P2.0/Nrst reset:\t%s\n", flags.RPD ? "enabled" : "disabled");
+  icp_outputf("On-Chip Debugger:\t%s\n", flags.OCDEN ? "disabled" : "enabled"); // this is switched, 1 is off and 0 is on
+  icp_outputf("OCD halt PWM output:\t%s\n", flags.OCDPWM ? "tri-state pins are used as PWM outputs" : "PWM continues");
+  icp_outputf("Brown-out detect:\t%s\n", flags.CBODEN ? "enabled" : "disabled");
+  icp_outputf("Brown-out voltage:\t");
   switch (flags.CBOV) {
     case 0:
-      outputf("4.4V\n");
+      icp_outputf("4.4V\n");
       break;
     case 1:
-      outputf("3.7V\n");
+      icp_outputf("3.7V\n");
       break;
     case 2:
-      outputf("2.7V\n");
+      icp_outputf("2.7V\n");
       break;
     case 3:
-      outputf("2.2V\n");
+      icp_outputf("2.2V\n");
       break;
   }
-  outputf("Brown-out reset:\t%s\n", flags.CBORST ? "enabled" : "disabled");
+  icp_outputf("Brown-out reset:\t%s\n", flags.CBORST ? "enabled" : "disabled");
 
-  outputf("WDT status:\t\t");
+  icp_outputf("WDT status:\t\t");
   switch (flags.WDTEN) {
     case 15: // 1111
-      outputf("WDT is Disabled. WDT can be used as a general purpose timer via software control.\n");
+      icp_outputf("WDT is Disabled. WDT can be used as a general purpose timer via software control.\n");
       break;
     case 5:  // 0101
-      outputf("WDT is Enabled as a time-out reset timer and it STOPS running during Idle or Power-down mode.\n");
+      icp_outputf("WDT is Enabled as a time-out reset timer and it STOPS running during Idle or Power-down mode.\n");
       break;
     default:
-      outputf("WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode\n");
+      icp_outputf("WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode\n");
       break;
   }
 }
@@ -413,3 +446,6 @@ void icp_dump_config()
 	print_config(flags);
 }
 #endif // PRINT_CONFIG_EN
+
+
+

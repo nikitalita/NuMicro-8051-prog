@@ -42,9 +42,7 @@
 #define MAX_BUSY_DELAY 300
 
 // GPIOD is slow enough that there will be at least 750ns between line cycles, so no delay necessary
-int CMD_SEND_BIT_DELAY = 0;
-int READ_BIT_DELAY = 0;
-int WRITE_BIT_DELAY = 0;
+
 
 #define CONSUMER "nuvoicp"
 struct gpiod_chip *chip;
@@ -170,19 +168,6 @@ void pgm_release_rst(void) {
 void pgm_set_trigger(unsigned char val){
 	if (gpiod_line_set_value(trigger_line, val) < 0)
 		fprintf(stderr, "Setting trigger line failed\n");
-}
-void pgm_set_cmd_bit_delay(int delay_us){}
-void pgm_set_read_bit_delay(int delay_us){}
-void pgm_set_write_bit_delay(int delay_us){}
-
-int pgm_get_cmd_bit_delay(){
-    return CMD_SEND_BIT_DELAY;
-}
-int pgm_get_read_bit_delay(){
-    return READ_BIT_DELAY;
-}
-int pgm_get_write_bit_delay(){
-    return WRITE_BIT_DELAY;
 }
 
 #endif

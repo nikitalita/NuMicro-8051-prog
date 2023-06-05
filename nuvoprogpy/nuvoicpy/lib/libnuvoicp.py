@@ -96,6 +96,24 @@ class LibICP:
         self.lib.icp_page_erase.argtypes = [ctypes.c_uint32]
         self.lib.icp_page_erase.restype = None
 
+        self.lib.icp_set_cmd_bit_delay.argtypes = [ctypes.c_int]
+        self.lib.icp_set_cmd_bit_delay.restype = None
+
+        self.lib.icp_set_read_bit_delay.argtypes = [ctypes.c_int]
+        self.lib.icp_set_read_bit_delay.restype = None
+
+        self.lib.icp_set_write_bit_delay.argtypes = [ctypes.c_int]
+        self.lib.icp_set_write_bit_delay.restype = None
+
+        self.lib.icp_get_cmd_bit_delay.argtypes = []
+        self.lib.icp_get_cmd_bit_delay.restype = ctypes.c_int
+
+        self.lib.icp_get_read_bit_delay.argtypes = []
+        self.lib.icp_get_read_bit_delay.restype = ctypes.c_int
+
+        self.lib.icp_get_write_bit_delay.argtypes = []
+        self.lib.icp_get_write_bit_delay.restype = ctypes.c_int
+
         # Wrapper functions
 
     def send_entry_bits(self) -> None:
@@ -172,6 +190,24 @@ class LibICP:
     def page_erase(self, addr):
         self.lib.icp_page_erase(ctypes.c_uint32(addr))
 
+    def set_read_bit_delay(self, val):
+        self.lib.icp_set_read_bit_delay(ctypes.c_int(val))
+
+    def set_cmd_bit_delay(self, val):
+        self.lib.icp_set_cmd_bit_delay(ctypes.c_int(val))
+
+    def set_write_bit_delay(self, val):
+        self.lib.icp_set_write_bit_delay(ctypes.c_int(val))
+
+    def get_read_bit_delay(self):
+        return int(self.lib.icp_get_read_bit_delay())
+
+    def get_cmd_bit_delay(self):
+        return int(self.lib.icp_get_cmd_bit_delay())
+
+    def get_write_bit_delay(self):
+        return int(self.lib.icp_get_write_bit_delay())
+
 
 class LibPGM:
     def __init__(self, libname="pigpio"):
@@ -221,24 +257,6 @@ class LibPGM:
         # Releases the RST pin only
         self.lib.pgm_release_rst.argtypes = []
         self.lib.pgm_release_rst.restype = None
-
-        self.lib.pgm_set_cmd_bit_delay.argtypes = [ctypes.c_int]
-        self.lib.pgm_set_cmd_bit_delay.restype = None
-
-        self.lib.pgm_set_read_bit_delay.argtypes = [ctypes.c_int]
-        self.lib.pgm_set_read_bit_delay.restype = None
-
-        self.lib.pgm_set_write_bit_delay.argtypes = [ctypes.c_int]
-        self.lib.pgm_set_write_bit_delay.restype = None
-
-        self.lib.pgm_get_cmd_bit_delay.argtypes = []
-        self.lib.pgm_get_cmd_bit_delay.restype = ctypes.c_int
-
-        self.lib.pgm_get_read_bit_delay.argtypes = []
-        self.lib.pgm_get_read_bit_delay.restype = ctypes.c_int
-
-        self.lib.pgm_get_write_bit_delay.argtypes = []
-        self.lib.pgm_get_write_bit_delay.restype = ctypes.c_int
 
         # Device-specific sleep function
         self.lib.pgm_usleep.argtypes = [ctypes.c_ulong]
@@ -292,25 +310,8 @@ class LibPGM:
     def set_trigger(self, val):
         self.lib.pgm_set_trigger(ctypes.c_ubyte(val))
 
-    def set_read_bit_delay(self, val):
-        self.lib.pgm_set_read_bit_delay(ctypes.c_int(val))
-
-    def set_cmd_bit_delay(self, val):
-        self.lib.pgm_set_cmd_bit_delay(ctypes.c_int(val))
-
-    def set_write_bit_delay(self, val):
-        self.lib.pgm_set_write_bit_delay(ctypes.c_int(val))
-
-    def get_read_bit_delay(self):
-        return int(self.lib.pgm_get_read_bit_delay())
-
-    def get_cmd_bit_delay(self):
-        return int(self.lib.pgm_get_cmd_bit_delay())
-
-    def get_write_bit_delay(self):
-        return int(self.lib.pgm_get_write_bit_delay())
-
     # Device-specific sleep function
+
     def usleep(self, usec):
         self.lib.pgm_usleep(ctypes.c_ulong(usec))
 

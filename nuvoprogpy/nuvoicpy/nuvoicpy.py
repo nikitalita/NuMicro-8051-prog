@@ -90,7 +90,7 @@ class NuvoICP:
         ------
 
         #### Keyword args:
-            library: ["pigpio"| "gpiod"] (="pigpio"):
+            library: ["pigpio"|] (="pigpio"):
                 The library to use for GPIO control
             silent: bool (=False):
                 If True, do not print any progress messages
@@ -142,11 +142,11 @@ class NuvoICP:
         #### Returns:
             int
         """
-        return self.pgm.get_cmd_bit_delay()
+        return self.icp.get_cmd_bit_delay()
 
     @CMD_BIT_DELAY.setter
     def CMD_BIT_DELAY(self, delay_us):
-        self.pgm.set_cmd_bit_delay(delay_us)
+        self.icp.set_cmd_bit_delay(delay_us)
 
     @property
     def READ_BIT_DELAY(self) -> int:
@@ -156,11 +156,11 @@ class NuvoICP:
         #### Returns:
             int: The current READ_BIT_DELAY value
         """
-        return self.pgm.get_read_bit_delay()
+        return self.icp.get_read_bit_delay()
 
     @READ_BIT_DELAY.setter
     def READ_BIT_DELAY(self, delay_us):
-        self.pgm.set_read_bit_delay(delay_us)
+        self.icp.set_read_bit_delay(delay_us)
 
     @property
     def WRITE_BIT_DELAY(self) -> int:
@@ -171,11 +171,11 @@ class NuvoICP:
         #### Returns:
             int: The current WRITE_BIT_DELAY value
         """
-        return self.pgm.get_write_bit_delay()
+        return self.icp.get_write_bit_delay()
 
     @WRITE_BIT_DELAY.setter
     def WRITE_BIT_DELAY(self, delay_us):
-        self.pgm.set_write_bit_delay(delay_us)
+        self.icp.set_write_bit_delay(delay_us)
 
     def retry(self) -> bool:
         """
