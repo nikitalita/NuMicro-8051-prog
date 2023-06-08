@@ -46,7 +46,7 @@ static int ICP_WRITE_DELAY = DEFAULT_BIT_DELAY;
 #define ICP_WRITE_DELAY DEFAULT_BIT_DELAY
 #endif
 
-
+#define ENTRY_BIT_DELAY 60
 
 static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 {
@@ -82,11 +82,11 @@ void reset_glitch(){
 }
 
 void icp_send_entry_bits() {
-	icp_bitsend(ENTRY_BITS, 24, 60);
+	icp_bitsend(ENTRY_BITS, 24, ENTRY_BIT_DELAY);
 }
 
 void icp_send_exit_bits(){
-	icp_bitsend(EXIT_BITS, 24, 60);
+	icp_bitsend(EXIT_BITS, 24, ENTRY_BIT_DELAY);
 }
 
 int icp_init(uint8_t do_reset)
@@ -102,7 +102,7 @@ int icp_init(uint8_t do_reset)
 
 void icp_entry(uint8_t do_reset) {
 	if (do_reset) {
-		reset_seq(ALT_RESET_SEQ, 24);
+		reset_seq(ICP_RESET_SEQ, 24);
 	} else {
 		pgm_set_rst(1);
 		pgm_usleep(5000);
@@ -112,6 +112,7 @@ void icp_entry(uint8_t do_reset) {
 	
 	pgm_usleep(100);
 	icp_send_entry_bits();
+	pgm_usleep(10);
 }
 
 void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
@@ -122,38 +123,12 @@ void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
 	}
 	pgm_set_rst(0);
 	pgm_usleep(delay2);
-	icp_bitsend(ENTRY_BITS, 24, 1);
+	icp_send_entry_bits();
 	pgm_usleep(delay3);
 }
 
 void icp_fullexit_entry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
 	icp_exit();
-}
-
-void icp_reset_trigger(uint32_t delay1, uint32_t delay2, uint32_t delay3){
-	pgm_usleep(200);
-	// this bit here it to ensure that the config bytes are read at the correct time (right next to the reset high)
-	pgm_set_rst(1);
-	pgm_usleep(delay1);
-	pgm_set_rst(0);
-	pgm_usleep(delay2);
-	//now we do a the full reentry, set the trigger
-	pgm_usleep(200);
-	pgm_set_trigger(1);
-	pgm_set_rst(1);
-
-	// now we sleep for 270us, the length of the config load
-	// done in starts because of pigpio limitations (max busy wait = 100us)
-	pgm_usleep(100);
-	pgm_usleep(100);
-	pgm_usleep(70);
-	// config bytes are loaded, set trigger = 0
-	pgm_set_trigger(0);
-
-	pgm_usleep(delay1 - 270);
-	pgm_usleep(0);
-	pgm_usleep(delay2);
-
 }
 
 void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low){
@@ -170,7 +145,7 @@ void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_t
 	pgm_set_rst(1);
 
 	// by default, we sleep for 280us, the length of the config load
-	if (delay_before_trigger_low == 0){
+	if (delay_before_trigger_low == 0) {
 		delay_before_trigger_low = 280;
 	}
 	pgm_usleep(delay_before_trigger_low);
@@ -179,42 +154,13 @@ void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_t
 	pgm_usleep(delay1 - delay_before_trigger_low);
 	pgm_set_rst(0);
 	pgm_usleep(delay2);
-	icp_bitsend(ENTRY_BITS, 24, 1);
+	icp_send_entry_bits();
 	pgm_usleep(10);
-
-
-	// pgm_set_rst(1);
-	// pgm_set_trigger(1);
-	// pgm_usleep(delay1);
-	// pgm_set_rst(0);
-	// pgm_usleep(delay2);
-	// int i = 24;
-	// // Only send the first 23 bits of the reset sequence
-	// pgm_dat_dir(1);
-	// while (i-- > 1) {
-	// 	pgm_set_dat((ENTRY_BITS >> i) & 1);
-	// 	pgm_usleep(1);
-	// 	pgm_set_clk(1);
-	// 	pgm_usleep(1);
-	// 	pgm_set_clk(0);
-	// }
-	// // then send the last bit and set and unset the clk quickly
-	// pgm_set_dat(ENTRY_BITS & 1);
-	// pgm_usleep(1);
-	// pgm_set_clk(1);
-	// // if (trigger_after_entry){
-	// // 	pgm_set_trigger(1);
-	// // }
-	// pgm_set_clk(0);
-	// // no wait
 }
 
 void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low, uint8_t * config_bytes) {
 	icp_reentry_glitch(delay1, delay2, delay_after_trigger_high, delay_before_trigger_low);
-	// for (i = 0; i < 100; i++)
-	// 	reset_glitch();
 	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, config_bytes);
-	
 }
 
 void icp_deinit(void)
@@ -348,13 +294,13 @@ uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 void icp_mass_erase(void)
 {
 	icp_send_command(CMD_MASS_ERASE, 0x3A5A5);
-	icp_write_byte(0xff, 1, 100000, 10000);
+	icp_write_byte(0xff, 1, 50000, 500);
 }
 
 void icp_page_erase(uint32_t addr)
 {
 	icp_send_command(CMD_PAGE_ERASE, addr);
-	icp_write_byte(0xff, 1, page_erase_time, 1000);
+	icp_write_byte(0xff, 1, page_erase_time, 100);
 }
 
 void icp_outputf(const char *s, ...)

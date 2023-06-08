@@ -314,22 +314,10 @@ class NuvoICP:
         if not self.initialized:
             raise ICPInitException("ICP is not initialized")
 
-    def reentry(self, delay1=5000, delay2=1000, delay3=10):
-        """
-        Reenter ICP mode
-        ------
-
-        #### Keyword args:
-
-            delay1: int (=5000):
-                Delay in ms before setting reset high
-            delay2: int (=1000):
-                Delay in ms before sending reset low
-            delay3: int (=10):
-                Delay in ms before continuing after sending the entry bits
-        """
+    def reenter_icp(self):
         self._fail_if_not_init()
-        self.icp.reentry(delay1, delay2, delay3)
+        self.icp.exit()
+        self.icp.entry()
 
     def get_device_id(self) -> int:
         """
@@ -357,7 +345,7 @@ class NuvoICP:
         cid = self.icp.read_cid()
         self.icp.mass_erase()
         if cid == 0xFF or cid == 0x00:
-            self.reentry()
+            self.reenter_icp()
         return True
 
     def get_device_info(self):
@@ -547,19 +535,19 @@ class NuvoICP:
                 aprom_data += bytes([0xFF] * (aprom_size - len(aprom_data)))
 
         self.mass_erase()
+        dev_id = self.get_device_id()
+        if dev_id != N76E003_DEVID:
+            # failed to reenter ICP mode
+            eprint("Failed to reenter ICP mode.")
+            return False
+
         if len(ldrom_data) > 0:
             config = self.program_ldrom(ldrom_data, config, True)
             if not config:
                 eprint("Could not write LDROM.")
                 return False
         else:
-            # We want to avoid writing to the config if we don't have to
-            # In testing, I've noticed that they can wear out after a few hundred writes
-            if str(config) == str(ConfigFlags()):
-                self.print_vb(
-                    "Skipping writing default config... (Mass erase already set config bytes to default)")
-            else:
-                self.write_config(config, True)
+            self.write_config(config, True)
 
         self.print_vb("Programming APROM (%d KB)..." % (aprom_size / 1024))
         self.icp.write_flash(APROM_ADDR, aprom_data)
@@ -568,19 +556,27 @@ class NuvoICP:
         if not self.verify_flash(combined_data):
             self.print_vb("Verification failed.")
             return False
+        self.print_vb("ROM data verified.")
         # check that the config was really written
-        self.reentry()
+        self.reenter_icp()
         new_config = self.read_config()
         if str(new_config) != str(config):
-            self.print_vb("Config verification failed.")
+            eprint("Config verification failed.")
+            if not self.silent:
+                self.print_vb("Expected:")
+                config.print_config()
+                self.print_vb("Got:")
+                new_config.print_config()
             return False
+        self.print_vb("Config verified.")
         self.print_vb("Verification succeeded.")
 
         self.print_vb("\nResulting Device info:")
         devinfo = self.get_device_info()
         self.print_vb(devinfo)
         self.print_vb()
-        config.print_config()
+        if not self.silent:
+            config.print_config()
         self.print_vb("Finished programming!\n")
         return True
 
@@ -647,7 +643,7 @@ def print_usage():
 def main() -> int:
     argv = sys.argv[1:]
     try:
-        opts, _ = getopt.getopt(argv, "hur:w:l:sb:c:")
+        opts, _ = getopt.getopt(argv, "hur:w:l:skb:c:")
     except getopt.GetoptError:
         eprint("Invalid command line arguments. Please refer to the usage documentation.")
         print_usage()
