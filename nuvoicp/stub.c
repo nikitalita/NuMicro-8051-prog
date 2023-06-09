@@ -52,7 +52,7 @@ void pgm_dat_dir(unsigned char state)
 {
 }
 
-void pgm_deinit(void)
+void pgm_deinit(unsigned char leave_reset_high)
 {
 }
 

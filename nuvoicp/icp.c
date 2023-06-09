@@ -148,11 +148,18 @@ void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_t
 	if (delay_before_trigger_low == 0) {
 		delay_before_trigger_low = 280;
 	}
-	pgm_usleep(delay_before_trigger_low);
-	// config bytes are loaded, set trigger = 0
-	pgm_set_trigger(0);
-	pgm_usleep(delay1 - delay_before_trigger_low);
-	pgm_set_rst(0);
+
+	if (delay_before_trigger_low > delay1){
+		pgm_usleep(delay1);
+		pgm_set_rst(0);
+		pgm_usleep(delay_before_trigger_low - delay1);
+		pgm_set_trigger(0);
+	} else {
+		pgm_usleep(delay_before_trigger_low);
+		pgm_set_trigger(0);
+		pgm_usleep(delay1 - delay_before_trigger_low);
+		pgm_set_rst(0);
+	}
 	pgm_usleep(delay2);
 	icp_send_entry_bits();
 	pgm_usleep(10);
@@ -166,7 +173,7 @@ void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_af
 void icp_deinit(void)
 {
 	icp_exit();
-	pgm_deinit();
+	pgm_deinit(1);
 }
 
 void icp_exit(void)

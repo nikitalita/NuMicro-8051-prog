@@ -67,15 +67,24 @@ void pgm_dat_dir(unsigned char state)
     }
 }
 
-void pgm_release_pins(void){
+// There's no "high-z" setting; this just turns them into inputs and sets the pull-up/down resistors to off, so it is effectively high-z
+void pgm_release_non_reset_pins(void) {
     gpioSetMode(GPIO_DAT, PI_INPUT);
-    gpioSetMode(GPIO_RST, PI_INPUT);
     gpioSetMode(GPIO_CLK, PI_INPUT);
     gpioSetMode(GPIO_TRIGGER, PI_INPUT);
+    gpioSetPullUpDown(GPIO_DAT, PI_PUD_OFF);
+    gpioSetPullUpDown(GPIO_CLK, PI_PUD_OFF);
+    gpioSetPullUpDown(GPIO_TRIGGER, PI_PUD_OFF);
 }
 
 void pgm_release_rst(void) {
     gpioSetMode(GPIO_RST, PI_INPUT);
+    gpioSetPullUpDown(GPIO_TRIGGER, PI_PUD_OFF);
+}
+
+void pgm_release_pins(void) {
+    pgm_release_non_reset_pins();
+    pgm_release_rst();
 }
 
 void pgm_set_trigger(unsigned char val)
@@ -83,10 +92,15 @@ void pgm_set_trigger(unsigned char val)
     gpioWrite(GPIO_TRIGGER, val);
 }
 
-void pgm_deinit(void)
+void pgm_deinit(unsigned char leave_reset_high)
 {
-    gpioWrite(GPIO_RST, 1);
-    pgm_release_pins();
+    if (!leave_reset_high) {
+        pgm_release_pins();
+    } else {
+        gpioWrite(GPIO_RST, 1);
+        pgm_release_non_reset_pins();
+    }
+    pgm_release_non_reset_pins();
     gpioTerminate();
 }
 

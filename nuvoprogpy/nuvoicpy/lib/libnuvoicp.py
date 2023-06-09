@@ -26,7 +26,7 @@ def override_signals():
 
 
 class LibICP:
-    def __init__(self, libname="pigpio"):
+    def __init__(self, libname="gpiod"):
         # Load the shared library
         if libname.lower() == "pigpio":
             self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-pigpio.so")
@@ -124,10 +124,11 @@ class LibICP:
 
     def init(self, do_reset=True) -> bool:
         ret = self.lib.icp_init(ctypes.c_uint8(do_reset))
-        if ret == 0:  # PGM failed to initialize
+        if ret == 0:  # PGM initialized
             # This ends up calling gpioInitialise(), so take the signals back
             override_signals()
             return True
+        # ret != 0 means PGM not initialized, don't override signals
         return False
 
     def entry(self, do_reset=True) -> None:
@@ -210,7 +211,7 @@ class LibICP:
 
 
 class LibPGM:
-    def __init__(self, libname="pigpio"):
+    def __init__(self, libname="gpiod"):
         # Load the shared library
         if libname.lower() == "pigpio":
             self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-pigpio.so")
@@ -224,7 +225,7 @@ class LibPGM:
         self.lib.pgm_init.restype = ctypes.c_int
 
         # Shutdown the PGM interface.
-        self.lib.pgm_deinit.argtypes = []
+        self.lib.pgm_deinit.argtypes = [ctypes.c_ubyte]
         self.lib.pgm_set_dat.restype = None
 
         # Set the PGM data pin to the given value.
@@ -260,7 +261,7 @@ class LibPGM:
 
         # Device-specific sleep function
         self.lib.pgm_usleep.argtypes = [ctypes.c_ulong]
-        self.lib.pgm_usleep.restype = None
+        self.lib.pgm_usleep.restype = ctypes.c_ulong
 
         # Device-specific print function
         self.lib.pgm_print.argtypes = [ctypes.c_char_p]
@@ -276,8 +277,8 @@ class LibPGM:
         return False
 
     # Shutdown the PGM interface.
-    def deinit(self):
-        self.lib.pgm_deinit()
+    def deinit(self, leave_reset_high=True):
+        self.lib.pgm_deinit(ctypes.c_ubyte(1 if leave_reset_high else 0))
 
     # Set the PGM data pin to the given value.
     def set_dat(self, val):
@@ -313,7 +314,7 @@ class LibPGM:
     # Device-specific sleep function
 
     def usleep(self, usec):
-        self.lib.pgm_usleep(ctypes.c_ulong(usec))
+        return int(self.lib.pgm_usleep(ctypes.c_ulong(usec)))
 
     # Device-specific print function
     def print(self, msg):

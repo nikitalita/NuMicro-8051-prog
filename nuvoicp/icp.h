@@ -67,6 +67,20 @@ void icp_send_exit_bits();
 int icp_init(uint8_t do_reset);
 void icp_entry(uint8_t do_reset);
 void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3);
+
+/**
+ * @brief      ICP reentry glitching
+ * 
+ * @details    This function is for getting the configuration bytes to read at consistent times during an ICP reentry.
+ *             Every time reset is set high, the configuration bytes are read, but the timing of the reset high is not consistent 
+ *             unless an additional reset 1,0 is performed first. When this is done, the configuration bytes are consistently read at about 2us after the reset high.
+ *             This is primarily for capturing the configuration byte load process.
+ * 
+ * @param[in]  delay1  Delay after reset is set to high
+ * @param[in]  delay2  Delay after reset is set to low
+ * @param[in]  delay_after_trigger_high  Delay after setting trigger pin high (for triggering a capture device), before setting reset high 
+ * @param[in]  delay_before_trigger_low  Delay after setting reset high, before setting trigger pin low
+*/
 void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low);
 void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low, uint8_t * config_bytes);
 void icp_deinit(void);

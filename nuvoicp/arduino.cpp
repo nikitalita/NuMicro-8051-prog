@@ -56,17 +56,25 @@ void pgm_release_pins(void)
   pinMode(RST, INPUT);
 }
 
+void pgm_set_trigger(unsigned char val)
+{
+  /* not implemented */
+}
+
 void pgm_release_rst(void)
 {
   pinMode(RST, INPUT);
 }
 
-void pgm_deinit(void)
+void pgm_deinit(unsigned char leave_reset_high)
 {
   pinMode(CLK, INPUT);
   pinMode(DAT, INPUT);
-  /* don't release reset */
-  pgm_set_rst(1);
+  if (leave_reset_high){
+    pgm_set_rst(1);
+  } else {
+    pinMode(RST, INPUT)
+  }
 }
 
 

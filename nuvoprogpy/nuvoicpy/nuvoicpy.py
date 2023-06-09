@@ -84,23 +84,26 @@ Returns:
 
 class NuvoICP:
 
-    def __init__(self, library: str = "pigpio", silent=False, _enter_no_init=None):
+    def __init__(self, library: str = "gpiod", silent=False, _enter_no_init=None, _deinit_reset_high=True):
         """
         NuvoICP constructor
         ------
 
         #### Keyword args:
-            library: ["pigpio"|] (="pigpio"):
+            library: ["pigpio"|"gpiod"] (="gpiod"):
                 The library to use for GPIO control
             silent: bool (=False):
                 If True, do not print any progress messages
             _enter_no_init: _type_ (=None):
                 If True, do not initialize the ICP module when entering a with statement
+            _deinit_reset_high: _type_ (=True):
+                If True, set the reset pin high when deinitializing the ICP module and do not release the pin
         """
         self.library = library
         self.icp = LibICP(library)
         self.pgm = LibPGM(library)
         self._enter_no_init = _enter_no_init
+        self.deinit_reset_high = _deinit_reset_high
         self.initialized = False
         self.silent = silent
 
@@ -118,10 +121,10 @@ class NuvoICP:
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.initialized:
-            self.deinit()
+            self.close()
         else:
             # pgm may still be initialized, this is reentrant
-            self.pgm.deinit()
+            self.pgm.deinit(self.deinit_reset_high)
 
     def print_vb(self, *args, **kwargs):
         """
@@ -283,7 +286,7 @@ class NuvoICP:
                     "ERROR: Non-N76E003 device detected (devid: %d)\nThis programmer only supports N76E003 (devid: %d)!" % (devid, N76E003_DEVID))
         self.initialized = True
 
-    def deinit(self):
+    def close(self):
         """
         Deinitialize the ICP interface
         ------
@@ -291,9 +294,10 @@ class NuvoICP:
         """
         if self.initialized:
             self.initialized = False
-            self.icp.deinit()  # calls both icp.deinit() and pgm.deinit()
+            self.icp.exit()
+            self.pgm.deinit(self.deinit_reset_high)
         else:
-            self.pgm.deinit()  # just in case
+            self.pgm.deinit(self.deinit_reset_high)  # just in case
 
     def reinit(self, do_reset_seq=True, check_device=True):
         """
@@ -306,7 +310,7 @@ class NuvoICP:
             check_device: bool (=True):
                 Whether to check that a device is connected/supported before continuing
         """
-        self.deinit()
+        self.close()
         time.sleep(0.2)
         self.init(do_reset_seq, check_device, True)
 
@@ -712,7 +716,6 @@ def main() -> int:
     except:
         eprint("ERROR: Could not read %s.\n\n" % write_file)
         return 2
-
     # check the length of the ldrom file
     ldrom_size = 0
     if ldrom_file != "":
@@ -744,7 +747,7 @@ def main() -> int:
         devinfo = nuvo.get_device_info()
         if devinfo.device_id != N76E003_DEVID:
             if write and devinfo.cid == 0xFF:
-                eprint("Device not found, chip may be locked, Do you want to attempt a mass erase? (y/N)")
+                print("Device not found, chip may be locked, Do you want to attempt a mass erase? (y/N)")
                 if input() == "y" or input() == "Y":
                     if not nuvo.mass_erase():
                         eprint("Mass erase failed, exiting...")
@@ -752,7 +755,7 @@ def main() -> int:
                     devinfo = nuvo.get_device_info()
                     eprint(devinfo)
                 else:
-                    eprint("Exiting...")
+                    eprint("ERROR: Device not found")
                     return 2
                 if devinfo.device_id != N76E003_DEVID:
                     eprint(

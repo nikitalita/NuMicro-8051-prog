@@ -19,7 +19,7 @@ void test_sleep() {
 	uint32_t waited = pgm_usleep(300);
 	pgm_set_trigger(0);
 	printf("waited: %d\n", waited);
-	pgm_deinit();
+	pgm_deinit(0);
 }
 
 void test(){
@@ -31,7 +31,7 @@ void test(){
 	// pgm_set_clk(1);
 	// uint32_t result = gpioDelay(200);
 	// pgm_set_clk(0);
-	pgm_deinit();
+	pgm_deinit(0);
 	printf("done\n");
 	// printf("result: %d\n", result);
 }

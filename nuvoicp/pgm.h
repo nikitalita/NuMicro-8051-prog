@@ -13,10 +13,10 @@ int pgm_init(void);
 /**
  * Deinitializes pgm interface.
  * 
- * Sets RST to high and sets DAT and CLK pins to INPUT mode, and terminates GPIO mode.
+ * Sets RST to high and sets DAT and CLK pins to high-z, and terminates GPIO mode.
  * To allow RST to be set by other devices (or an onboard RST button), call pgm_release_pins() or pgm_release_rst().
  */
-void pgm_deinit(void);
+void pgm_deinit(unsigned char leave_reset_high);
 
 // Set the PGM data pin to the given value.
 void pgm_set_dat(unsigned char val);
@@ -30,22 +30,19 @@ void pgm_set_rst(unsigned char val);
 // Set the PGM clock pin to the given value.
 void pgm_set_clk(unsigned char val);
 
-// Sets the PGM trigger pin to the given value.
+// Sets the PGM trigger pin to the given value. (Optionally implemented, for glitching purposes)
 void pgm_set_trigger(unsigned char val);
 
 // Sets the direction of the PGM data pin
 void pgm_dat_dir(unsigned char state);
 
-// Releases all PGM pins by setting them to INPUT mode.
+// Releases all PGM pins and sets them to high-z.
 // The purpose for this is to avoid the pins being left in a high state
 // and unable to be controlled by other programs/devices.
 void pgm_release_pins(void);
 
 // Releases the RST pin only
 void pgm_release_rst(void);
-
-
-
 
 // Device-specific sleep function
 unsigned long pgm_usleep(unsigned long usec);

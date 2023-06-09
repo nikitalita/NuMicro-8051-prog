@@ -37,6 +37,7 @@
 #define GPIO_DAT 20
 #define GPIO_RST 21
 #define GPIO_CLK 26
+
 #define GPIO_TRIGGER 16
 
 #define MAX_BUSY_DELAY 300
@@ -111,6 +112,7 @@ void pgm_set_clk(unsigned char val)
 
 void pgm_dat_dir(unsigned char state)
 {
+	// gpiod_line_release(dat_line);
 	int ret;
 	if (state)
 		ret = gpiod_line_set_direction_output(dat_line, 0);
@@ -121,19 +123,13 @@ void pgm_dat_dir(unsigned char state)
 		fprintf(stderr, "Setting data directions failed\n");
 }
 
-void pgm_deinit(void)
-{
-	/* release reset */
-	pgm_set_rst(1);
-	pgm_release_pins();
-	gpiod_chip_close(chip);
-}
+
 
 unsigned long pgm_usleep(unsigned long usec)
 {
 	if (usec == 0)
 		return 0;
-		
+
 	if (usec > MAX_BUSY_DELAY)
 	{
 		return usleep(usec);
@@ -144,9 +140,19 @@ unsigned long pgm_usleep(unsigned long usec)
 
     struct timespec curr_time;
     clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
-	for ( ; curr_time.tv_nsec - start_time.tv_nsec < nsec; clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time)){
-    };
-	return usec;
+	long ntimepassed = 0;
+	while (true){
+		clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
+		ntimepassed = (curr_time.tv_nsec - start_time.tv_nsec);
+		long secspassed = (curr_time.tv_sec - start_time.tv_sec);
+		if (secspassed > 0){
+			ntimepassed += ((curr_time.tv_sec - start_time.tv_sec) * 1000000);
+		}
+		if (ntimepassed > nsec){
+			break;
+		}
+    }
+	return ntimepassed / 1000;
 }
 
 void pgm_print(const char *msg)
@@ -154,15 +160,40 @@ void pgm_print(const char *msg)
 	fprintf(stderr,"%s", msg);
 }
 
-void pgm_release_pins(void){
-	gpiod_line_release(dat_line);
-	gpiod_line_release(rst_line);
-	gpiod_line_release(clk_line);
-	gpiod_line_release(trigger_line);
+void pgm_release_non_reset_pins(void){
+	if (dat_line) {
+		gpiod_line_release(dat_line);
+	}
+	if (clk_line) {
+		gpiod_line_release(clk_line);
+	}
+	if (trigger_line) {
+		gpiod_line_release(trigger_line);
+	}
 }
 
 void pgm_release_rst(void) {
-	gpiod_line_release(rst_line);
+	if (rst_line) {
+		gpiod_line_release(rst_line);
+	}
+}
+
+void pgm_release_pins(void){
+	pgm_release_non_reset_pins();
+	pgm_release_rst();
+}
+
+void pgm_deinit(unsigned char leave_reset_high)
+{
+	if (leave_reset_high){
+		pgm_set_rst(1);
+		pgm_release_non_reset_pins();
+	} else {
+		pgm_release_pins();
+	}
+	if (chip) {
+		gpiod_chip_close(chip);
+	}
 }
 
 void pgm_set_trigger(unsigned char val){
