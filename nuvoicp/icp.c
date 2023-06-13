@@ -48,18 +48,31 @@ static int ICP_WRITE_DELAY = DEFAULT_BIT_DELAY;
 
 #define ENTRY_BIT_DELAY 60
 
-static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
-{
-	/* configure DAT pin as output */
-	pgm_dat_dir(1);
-	int i = len;
-
-	while (i--) {
-		pgm_set_dat((data >> i) & 1);
+static inline void icp_bitsend_byte(uint8_t data, uint8_t len, uint32_t udelay){
+	uint8_t j = len;
+	while (j--) {
+		pgm_set_dat((data >> j) & 1);
 		pgm_usleep(udelay);
 		pgm_set_clk(1);
 		pgm_usleep(udelay);
 		pgm_set_clk(0);
+	}
+}
+
+static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
+{
+	pgm_dat_dir(1);
+	int i = len;
+	// For efficiency on 8-bit processors here, we want to only perform bitshifts on 8-bit integers in the inner loop because bitshifts on 32-bit integers is expensive.
+	uint8_t datum;
+	while (i >= 8) {
+		i -= 8;
+		datum = (data >> i) & 0xFF;
+		icp_bitsend_byte(datum, 8, udelay);
+	}
+	if (i > 0) {
+		datum = (data >> (8 - i) & (0xFF >> (8 - i)));
+		icp_bitsend_byte(datum, i, udelay);
 	}
 }
 
@@ -68,17 +81,12 @@ static void icp_send_command(uint8_t cmd, uint32_t dat)
 	icp_bitsend((dat << 6) | cmd, 24, ICP_CMD_DELAY);
 }
 
-int reset_seq(uint32_t reset_seq, int len){
+int send_reset_seq(uint32_t reset_seq, int len){
 	for (int i = 0; i < len + 1; i++) {
 		pgm_set_rst((reset_seq >> (len - i)) & 1);
 		pgm_usleep(10000);
 	}
 	return 0;
-}
-
-void reset_glitch(){
-	pgm_set_rst(1);
-	pgm_set_rst(0);
 }
 
 void icp_send_entry_bits() {
@@ -94,15 +102,23 @@ int icp_init(uint8_t do_reset)
 	int rc;
 
 	rc = pgm_init();
-    if (rc != 0) 
+    if (rc < 0) {
 		return rc;
+	} else if (rc != 0){
+		return -1;
+	}
 	icp_entry(do_reset);
+	uint32_t dev_id = icp_read_device_id();
+	if (dev_id >> 8 == 0x2F){
+		printf("Device ID mismatch: %x\n", dev_id);
+		return -1;
+	}
 	return 0;
 }
 
 void icp_entry(uint8_t do_reset) {
 	if (do_reset) {
-		reset_seq(ICP_RESET_SEQ, 24);
+		send_reset_seq(ICP_RESET_SEQ, 24);
 	} else {
 		pgm_set_rst(1);
 		pgm_usleep(5000);
@@ -182,7 +198,7 @@ void icp_exit(void)
 	pgm_usleep(5000);
 	pgm_set_rst(0);
 	pgm_usleep(10000);
-	icp_bitsend(EXIT_BITS, 24, 60);
+	icp_send_exit_bits();
 	pgm_usleep(500);
 	pgm_set_rst(1);
 }
@@ -399,6 +415,3 @@ void icp_dump_config()
 	print_config(flags);
 }
 #endif // PRINT_CONFIG_EN
-
-
-

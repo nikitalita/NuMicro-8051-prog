@@ -7,14 +7,20 @@ extern "C" {
 
 #endif
 
-// Initialize the PGM interface.
+/**
+ * Initialize the PGM interface.
+ * 
+ * Sets the CLK and RST pins to output mode, sets DAT to Input mode, and sets the RST pin to low.
+ * 
+ * @return 0 on success, <0 on failure.
+ */
 int pgm_init(void);
 
 /**
  * Deinitializes pgm interface.
  * 
- * Sets RST to high and sets DAT and CLK pins to high-z, and terminates GPIO mode.
- * To allow RST to be set by other devices (or an onboard RST button), call pgm_release_pins() or pgm_release_rst().
+ * Sets DAT and CLK pins to high-z, and terminates GPIO mode.
+ * @param leave_reset_high If 1, the RST pin will be left high. If 0, the RST pin will be set to high-z.
  */
 void pgm_deinit(unsigned char leave_reset_high);
 
@@ -30,7 +36,7 @@ void pgm_set_rst(unsigned char val);
 // Set the PGM clock pin to the given value.
 void pgm_set_clk(unsigned char val);
 
-// Sets the PGM trigger pin to the given value. (Optionally implemented, for glitching purposes)
+// Sets the PGM trigger pin to the given value. (Optionally implemented, for fault injection purposes)
 void pgm_set_trigger(unsigned char val);
 
 // Sets the direction of the PGM data pin

@@ -24,7 +24,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifdef RPI
+#ifndef ARDUINO
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -73,7 +73,7 @@ void pgm_deinit(unsigned char leave_reset_high)
   if (leave_reset_high){
     pgm_set_rst(1);
   } else {
-    pinMode(RST, INPUT)
+    pinMode(RST, INPUT);
   }
 }
 

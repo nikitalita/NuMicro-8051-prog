@@ -270,7 +270,7 @@ class LibPGM:
     # Initialize the PGM interface.
     def init(self) -> bool:
         ret = self.lib.pgm_init()
-        if ret == 0:  # PGM failed to initialize
+        if ret < 0:  # PGM failed to initialize
             # This ends up calling gpioInitialise(), so take the signals back
             override_signals()
             return True

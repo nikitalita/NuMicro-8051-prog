@@ -26,6 +26,16 @@
 
 #ifndef ARDUINO
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+
+static int8_t dat_dir = -1;
+static int8_t dat = -1;
+static int8_t rst = -1;
+static int8_t clk = -1;
+static uint8_t pgm_init_done = false;
+
 int pgm_init(void)
 {
 	return 0;
@@ -33,45 +43,80 @@ int pgm_init(void)
 
 void pgm_set_dat(unsigned char val)
 {
+	if (dat_dir == 1) {
+		printf("%d", val);
+		dat = val;
+	} else {
+		printf("pgm_set_dat() called while dat_dir == 0\n");
+	}
+	
 }
 
 unsigned char pgm_get_dat(void)
 {
-	return 0;
+	if (dat_dir == 0){
+		return dat;
+	} else {
+		printf("pgm_get_dat() called while dat_dir == 1\n");
+		return 0;
+	}
 }
 
 void pgm_set_rst(unsigned char val)
 {
+	rst = val;
 }
 
 void pgm_set_clk(unsigned char val)
 {
+	clk = val;
 }
 
 void pgm_dat_dir(unsigned char state)
 {
+	dat_dir = state;
 }
 
 void pgm_deinit(unsigned char leave_reset_high)
 {
+	if (leave_reset_high)
+		pgm_set_rst(1);
+	else{
+		rst = -1;
+	}
+	clk = -1;
+	dat = -1;
+	dat_dir = -1;
+	pgm_init_done = false;
+
 }
 
 void pgm_release_pins(void)
 {
+	rst = -1;
+	clk = -1;
+	dat = -1;
+	dat_dir = -1;
 }
 
 void pgm_release_rst(void)
 {
+	rst = -1;
+}
+
+void pgm_set_trigger(void)
+{
+	printf("pgm_set_trigger() called\n");
 }
 
 unsigned long pgm_usleep(unsigned long usec)
 {
-	return 0;
+	return usec;
 }
 
 void pgm_print(const char *msg)
 {
-	return 0;
+	printf("%s", msg);
 }
 
 #endif

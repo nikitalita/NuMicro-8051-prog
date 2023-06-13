@@ -1,5 +1,5 @@
 #pragma once
-
+#include <stdint.h>
 typedef struct _config_flags {
 	// config0
 	uint8_t unk0_0:1;      // 0:0

@@ -7,18 +7,18 @@
 #define CMD_READ_CONFIG     0xa2
 #define CMD_ERASE_ALL       0xa3
 #define CMD_SYNC_PACKNO     0xa4
-#define CMD_READ_ROM        0xa5
-#define CMD_DUMP_ROM        0xaa
+#define CMD_READ_ROM        0xa5 // non-official
+#define CMD_DUMP_ROM        0xaa // non-official
 #define CMD_GET_FWVER       0xa6
 #define CMD_RUN_APROM       0xab
 #define CMD_RUN_LDROM       0xac
 #define CMD_CONNECT         0xae
 
 #define CMD_GET_DEVICEID    0xb1
-#define CMD_GET_UID         0xb2
-#define CMD_GET_CID         0xb3
-#define CMD_GET_UCID        0xb4
-#define CMD_RESET           0xad
+#define CMD_GET_UID         0xb2 // non-official
+#define CMD_GET_CID         0xb3 // non-official
+#define CMD_GET_UCID        0xb4 // non-official
+#define CMD_RESET           0xad // non-official
 
 #ifndef BUILTIN_LED
 #define BUILTIN_LED LED_BUILTIN
@@ -103,9 +103,9 @@ void update(unsigned char* pkt, int len)
 
 // TODO: Remove this for MCUs with smaller RAMs
 #ifndef ARDUINO_AVR_MEGA2560
-#define READ_HACK 1
+#define CACHED_ROM_READ 1
 #endif
-#ifdef READ_HACK
+#ifdef CACHED_ROM_READ
 byte read_buff[FLASH_SIZE];
 bool read_buff_valid = false;
 #endif
@@ -117,7 +117,7 @@ void dump(unsigned char* pkt, int len)
 {
   int n = len > dump_size ? dump_size : len;
 
-#ifdef READ_HACK
+#ifdef CACHED_ROM_READ
   // hack to make reads faster
   if (!read_buff_valid) {
     // we're going to read the entire thing into memory
@@ -266,19 +266,22 @@ void loop()
         break;
       case CMD_ERASE_ALL:
       {
+#ifdef CACHED_ROM_READ
+        read_buff_valid = false;
+#endif
         icp_mass_erase();
-        // if (saved_cid == 0xFF || saved_cid == 0x00) {
-        //   icp_reentry(5000, 1000);
-        //   saved_cid = icp_read_cid();
-        //   saved_device_id = icp_read_device_id();
-        // }
         tx_pkt();
       }
         break;
       case CMD_RUN_APROM:
+      case CMD_RUN_LDROM:
 #ifdef _DEBUG
         icp_outputf("running aprom\n");
 #endif
+#ifdef CACHED_ROM_READ
+        read_buff_valid = false;
+#endif
+
         icp_exit();
         tx_pkt();
         digitalWrite(BUILTIN_LED, HIGH);
@@ -300,6 +303,10 @@ void loop()
         tx_pkt();
         break;
       case CMD_UPDATE_APROM:
+        #ifdef CACHED_ROM_READ
+        read_buff_valid = false;
+        #endif
+
         update_addr = (pkt[9] << 8) | pkt[8];
         update_size = (pkt[13] << 8) | pkt[12];
 #ifdef _DEBUG
