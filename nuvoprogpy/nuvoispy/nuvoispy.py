@@ -33,24 +33,41 @@ import platform
 import sys
 import serial
 import time
-from config import *
+try:
+    from ..config import *
+except Exception as e:
+    # Hack to allow running nuvoicpy.py directly from the command line
+    if __name__ == "__main__":
+        # check if config.py exists in the parent directory
+        if not os.path.isfile(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "config.py")):
+            raise e
+    sys.path.append(os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), ".."))
+    from config import *
 
 CMD_UPDATE_APROM = 0xa0
 CMD_UPDATE_CONFIG = 0xa1
 CMD_READ_CONFIG = 0xa2
 CMD_ERASE_ALL = 0xa3
 CMD_SYNC_PACKNO = 0xa4
-CMD_READ_ROM = 0xa5
-CMD_DUMP_ROM = 0xaa
 CMD_GET_FWVER = 0xa6
 CMD_RUN_APROM = 0xab
+CMD_RUN_LDROM = 0xac
 CMD_CONNECT = 0xae
-CMD_DISCONNECT = 0xaf
-
 CMD_GET_DEVICEID = 0xb1
-CMD_GET_UID = 0xb2
-CMD_GET_CID = 0xb3
-CMD_GET_UCID = 0xb4
+
+# special commands for NuvoICP arduino sketch
+EXTENDED_CMDS_FW_VER = 0xE0  # FW version that we know we can use the extended commands on
+CMD_RESET = 0xad  # not implemented in default N76E003 ISP rom
+CMD_GET_FLASHMODE = 0xCA  # not implemented in default N76E003 ISP rom
+CMD_WRITE_CHECKSUM = 0xC9  # not implemented in default N76E003 ISP rom
+CMD_RESEND_PACKET = 0xFF  # not implemented in default N76E003 ISP rom
+CMD_READ_ROM = 0xa5  # non-official
+CMD_DUMP_ROM = 0xaa  # non-official
+CMD_GET_UID = 0xb2  # non-official
+CMD_GET_CID = 0xb3  # non-official
+CMD_GET_UCID = 0xb4  # non-official
+
 
 SER_BAUD = 115200
 SER_TIMEOUT = 0.025  # 25ms
@@ -58,6 +75,7 @@ PACKSIZE = 64
 
 seq_num = 0
 ser: serial.Serial = 0
+fw_ver = 0
 
 
 def progress_bar(text, value, endvalue, bar_length=54):
@@ -147,7 +165,8 @@ def reopen_serial(wait: float):
     time.sleep(0.5)
 
 
-def connect_req():
+def connect_req(check_fw=True):
+    global fw_ver
     connected = False
 
     time.sleep(SER_TIMEOUT)
@@ -184,12 +203,22 @@ def connect_req():
             print("Got valid reply")
             connected = True
 
+    if check_fw:
+        fw_ver = get_fwver()
+        print("ISP firmware version: " + hex(fw_ver) +
+              (" (custom ICP tool, extended commands supported)" if fw_ver == EXTENDED_CMDS_FW_VER else ""))
+
 
 def disconnect():
     cmd = cmd_packet(CMD_RUN_APROM)
     ser.write(cmd)
     time.sleep(SER_TIMEOUT)
     rx = ser.read(PACKSIZE)
+
+
+def get_fwver():
+    rx = send_cmd(cmd_packet(CMD_GET_FWVER))
+    return rx[8]
 
 
 def get_deviceid():
@@ -227,8 +256,7 @@ def update_config(config: ConfigFlags):
 
 def read_flash(addr, size):
     cmd = bytes([CMD_READ_ROM]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff]) + \
-        bytes(2) + bytes([0x00, 0x30]) + bytes(2) + \
-        bytes([0x00, 0x30]) + bytes(PACKSIZE-18)
+        bytes(2) + bytes([0x00, 0x30]) + bytes(2) + bytes([0x00, 0x30]) + bytes(PACKSIZE-18)
     return send_cmd(cmd)
 
 
@@ -263,7 +291,7 @@ def dump_flash(filename):
     return True
 
 
-def update_flash(addr, filename, size):
+def update_flash(addr, filename, size, type="APROM"):
     f = open(filename, "rb")  # nuvoton_n76e003_sdcc/main.bin
     data = bytes(f.read())
     flen = size
@@ -277,7 +305,7 @@ def update_flash(addr, filename, size):
     send_cmd(cmd)
     ipos += 48
     while (ipos <= flen):
-        progress_bar("Programming APROM", ipos, flen)
+        progress_bar("Programming " + type, ipos, flen)
         # Program remaing blocks (56 byte)
         if ((ipos + 56) < flen):
             cmd = bytes(8) + bytes(data[ipos:ipos+56])
@@ -286,7 +314,7 @@ def update_flash(addr, filename, size):
             cmd = bytes(8) + bytes(data[ipos:flen]) + bytes(56-(flen-ipos))
         send_cmd(cmd)
         ipos += 56
-    progress_bar("Programming APROM", flen, flen)
+    progress_bar("Programming " + type, flen, flen)
 
 
 def print_usage():
@@ -425,7 +453,7 @@ def write_flash(filename, ldrom_file, lock: bool):
     if ldrom_size > 0:
         config.enable_ldrom(int(ldrom_size / 1024))
         update_config(config)
-        update_flash(FLASH_SIZE - ldrom_size, ldrom_file, ldrom_size)
+        update_flash(FLASH_SIZE - ldrom_size, ldrom_file, ldrom_size, "LDROM")
     else:
         update_config(config)
     update_flash(APROM_ADDR, filename, FLASH_SIZE - ldrom_size)
@@ -440,14 +468,14 @@ def write_flash(filename, ldrom_file, lock: bool):
 
 def main():
     global ser
-
+    global fw_ver
     config_cmd, read_cmd, write_cmd, ldrom_file, lock, filename, port, wait = parse_args()
 
     if not port:
         if (platform.system() == "Windows"):
             port = "COM1"
         else:
-            port = "/dev/ttyUSB0"
+            port = "/dev/ttyACM0"
 
     ser = serial.Serial(port, SER_BAUD, timeout=SER_TIMEOUT)
 
@@ -490,7 +518,10 @@ def main():
         print_device_info(dev_id, cid, uid, ucid)
         config.print_config()
     if read_cmd and not config_cmd:
-        if config.is_locked() or cid == 0xFF:
+        if fw_ver != EXTENDED_CMDS_FW_VER:
+            print("Error: Firmware version does not support reading flash")
+            error = True
+        elif config.is_locked() or cid == 0xFF:
             print("Error: Chip is locked, cannot read")
             error = True
         else:
