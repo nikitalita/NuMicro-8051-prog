@@ -46,34 +46,38 @@ static int ICP_WRITE_DELAY = DEFAULT_BIT_DELAY;
 #define ICP_WRITE_DELAY DEFAULT_BIT_DELAY
 #endif
 
+// to avoid overhead from calling usleep() for 0 us
+#define USLEEP(x) if (x > 0) pgm_usleep(x)
+
+#ifdef _DEBUG
+#define DEBUG_PRINT(x) icp_outputf(x)
+// time measurement
+static unsigned long usstart_time = 0;
+static unsigned long usend_time = 0;
+#define DEBUG_TIMER_START usstart_time = pgm_get_time();
+#define DEBUG_TIMER_END usend_time = pgm_get_time();
+#define DEBUG_PRINT_TIME(funcname) icp_outputf(#funcname " took %d us\n", usend_time - usstart_time)
+#else
+#define DEBUG_PRINT(x)
+#define TIMER_START
+#define DEBUG_TIMER_END
+#define DEBUG_PRINT_TIME(funcname)
+#endif
 #define ENTRY_BIT_DELAY 60
 
-static inline void icp_bitsend_byte(uint8_t data, uint8_t len, uint32_t udelay){
-	uint8_t j = len;
-	while (j--) {
-		pgm_set_dat((data >> j) & 1);
-		pgm_usleep(udelay);
-		pgm_set_clk(1);
-		pgm_usleep(udelay);
-		pgm_set_clk(0);
-	}
-}
+
 
 static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 {
 	pgm_dat_dir(1);
 	int i = len;
-	// For efficiency on 8-bit processors here, we want to only perform bitshifts on 8-bit integers in the inner loop because bitshifts on 32-bit integers is expensive.
-	uint8_t datum;
-	while (i >= 8) {
-		i -= 8;
-		datum = (data >> i) & 0xFF;
-		icp_bitsend_byte(datum, 8, udelay);
-	}
-	if (i > 0) {
-		datum = (data >> (8 - i) & (0xFF >> (8 - i)));
-		icp_bitsend_byte(datum, i, udelay);
-	}
+	while (i--){
+			pgm_set_dat((data >> i) & 1);
+			USLEEP(udelay);
+			pgm_set_clk(1);
+			USLEEP(udelay);
+			pgm_set_clk(0);
+	}	
 }
 
 static void icp_send_command(uint8_t cmd, uint32_t dat)
@@ -84,7 +88,7 @@ static void icp_send_command(uint8_t cmd, uint32_t dat)
 int send_reset_seq(uint32_t reset_seq, int len){
 	for (int i = 0; i < len + 1; i++) {
 		pgm_set_rst((reset_seq >> (len - i)) & 1);
-		pgm_usleep(10000);
+		USLEEP(10000);
 	}
 	return 0;
 }
@@ -121,26 +125,26 @@ void icp_entry(uint8_t do_reset) {
 		send_reset_seq(ICP_RESET_SEQ, 24);
 	} else {
 		pgm_set_rst(1);
-		pgm_usleep(5000);
+		USLEEP(5000);
 		pgm_set_rst(0);
-		pgm_usleep(1000);
+		USLEEP(1000);
 	}
 	
-	pgm_usleep(100);
+	USLEEP(100);
 	icp_send_entry_bits();
-	pgm_usleep(10);
+	USLEEP(10);
 }
 
 void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
-	pgm_usleep(10);
+	USLEEP(10);
 	if (delay1 > 0) {
 		pgm_set_rst(1);
-		pgm_usleep(delay1);
+		USLEEP(delay1);
 	}
 	pgm_set_rst(0);
-	pgm_usleep(delay2);
+	USLEEP(delay2);
 	icp_send_entry_bits();
-	pgm_usleep(delay3);
+	USLEEP(delay3);
 }
 
 void icp_fullexit_entry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
@@ -148,16 +152,16 @@ void icp_fullexit_entry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3
 }
 
 void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low){
-	pgm_usleep(200);
+	USLEEP(200);
 	// this bit here it to ensure that the config bytes are read at the correct time (right next to the reset high)
 	pgm_set_rst(1);
-	pgm_usleep(delay1);
+	USLEEP(delay1);
 	pgm_set_rst(0);
-	pgm_usleep(delay2);
+	USLEEP(delay2);
 
 	//now we do a the full reentry, set the trigger
 	pgm_set_trigger(1);
-	pgm_usleep(delay_after_trigger_high);
+	USLEEP(delay_after_trigger_high);
 	pgm_set_rst(1);
 
 	// by default, we sleep for 280us, the length of the config load
@@ -166,19 +170,19 @@ void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_t
 	}
 
 	if (delay_before_trigger_low > delay1){
-		pgm_usleep(delay1);
+		USLEEP(delay1);
 		pgm_set_rst(0);
-		pgm_usleep(delay_before_trigger_low - delay1);
+		USLEEP(delay_before_trigger_low - delay1);
 		pgm_set_trigger(0);
 	} else {
-		pgm_usleep(delay_before_trigger_low);
+		USLEEP(delay_before_trigger_low);
 		pgm_set_trigger(0);
-		pgm_usleep(delay1 - delay_before_trigger_low);
+		USLEEP(delay1 - delay_before_trigger_low);
 		pgm_set_rst(0);
 	}
-	pgm_usleep(delay2);
+	USLEEP(delay2);
 	icp_send_entry_bits();
-	pgm_usleep(10);
+	USLEEP(10);
 }
 
 void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low, uint8_t * config_bytes) {
@@ -195,11 +199,11 @@ void icp_deinit(void)
 void icp_exit(void)
 {
 	pgm_set_rst(1);
-	pgm_usleep(5000);
+	USLEEP(5000);
 	pgm_set_rst(0);
-	pgm_usleep(10000);
+	USLEEP(10000);
 	icp_send_exit_bits();
-	pgm_usleep(500);
+	USLEEP(500);
 	pgm_set_rst(1);
 }
 
@@ -207,39 +211,40 @@ void icp_exit(void)
 static uint8_t icp_read_byte(int end)
 {
 	pgm_dat_dir(0);
-	pgm_usleep(ICP_READ_DELAY);
+	USLEEP(ICP_READ_DELAY);
 	uint8_t data = 0;
 	int i = 8;
 
 	while (i--) {
-		pgm_usleep(ICP_READ_DELAY);
+		USLEEP(ICP_READ_DELAY);
 		int state = pgm_get_dat();
 		pgm_set_clk(1);
-		pgm_usleep(ICP_READ_DELAY);
+		USLEEP(ICP_READ_DELAY);
 		pgm_set_clk(0);
 		data |= (state << i);
 	}
 
 	pgm_dat_dir(1);
-	pgm_usleep(ICP_READ_DELAY);
+	USLEEP(ICP_READ_DELAY);
 	pgm_set_dat(end);
-	pgm_usleep(ICP_READ_DELAY);
+	USLEEP(ICP_READ_DELAY);
 	pgm_set_clk(1);
-	pgm_usleep(ICP_READ_DELAY);
+	USLEEP(ICP_READ_DELAY);
 	pgm_set_clk(0);
-	pgm_usleep(ICP_READ_DELAY);
+	USLEEP(ICP_READ_DELAY);
 	pgm_set_dat(0);
 
 	return data;
 }
 
-static void icp_write_byte(uint8_t data, int end, int delay1, int delay2)
+static void icp_write_byte(uint8_t data, uint8_t end, uint32_t delay1, uint32_t delay2)
 {
 	icp_bitsend(data, 8, ICP_WRITE_DELAY);
+
 	pgm_set_dat(end);
-	pgm_usleep(delay1);
+	USLEEP(delay1);
 	pgm_set_clk(1);
-	pgm_usleep(delay2);
+	USLEEP(delay2);
 	pgm_set_dat(0);
 	pgm_set_clk(0);
 }
