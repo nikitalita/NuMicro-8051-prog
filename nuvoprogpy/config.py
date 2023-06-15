@@ -13,6 +13,20 @@ LDROM_MAX_SIZE_KB = int(LDROM_MAX_SIZE / 1024)
 FLASH_SIZE = 18 * 1024
 
 
+class DeviceInfo:
+    def __init__(self, device_id=0xFFFF, uid=0xFFFFFF, cid=0xFF, ucid=0xFFFFFFFF):
+        self.device_id = device_id
+        self.uid = uid
+        self.cid = cid
+        self.ucid = ucid
+
+    def __str__(self):
+        return "Device ID: 0x%04X\nCID: 0x%02X\nUID: 0x%08X\nUCID: 0x%08X" % (self.device_id, self.cid, self.uid, self.ucid)
+
+    def is_supported(self):
+        return self.device_id == N76E003_DEVID
+
+
 def float_index_to_bit(bit: float) -> int:
     # get the byte
     bytenum = int(bit)
@@ -196,13 +210,16 @@ class ConfigFlags(ctypes.LittleEndianStructure):
     # Set ldrom size in bytes
 
     def set_ldrom_size(self, size: int):
-        self.set_ldrom_size_kb(int(size / 1024))
+        size_kb = int(size / 1024)
+        if size % 1024 != 0:
+            size_kb += 1
+        self.set_ldrom_size_kb(size_kb)
         return True
 
     # Set ldrom size in KB
     def set_ldrom_size_kb(self, size_kb: int):
         if size_kb < 0 or size_kb > LDROM_MAX_SIZE_KB:
-            return False
+            raise ValueError("Invalid LDROM size")
         self.LDS = ((7 - size_kb) & 0x7)
         return True
 
