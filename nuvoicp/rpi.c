@@ -49,6 +49,8 @@
 struct gpiod_chip *chip;
 struct gpiod_line *dat_line, *rst_line, *clk_line, *trigger_line;
 
+
+
 int pgm_init(void)
 {
 	int ret;
@@ -84,13 +86,13 @@ int pgm_init(void)
 	return 0;
 }
 
-void pgm_set_dat(unsigned char val)
+void pgm_set_dat(uint8_t val)
 {
 	if (gpiod_line_set_value(dat_line, val) < 0)
 		fprintf(stderr, "Setting data line failed\n");
 }
 
-unsigned char pgm_get_dat(void)
+uint8_t pgm_get_dat(void)
 {
 	int ret = gpiod_line_get_value(dat_line);
 	if (ret < 0)
@@ -98,19 +100,19 @@ unsigned char pgm_get_dat(void)
 	return ret;
 }
 
-void pgm_set_rst(unsigned char val)
+void pgm_set_rst(uint8_t val)
 {
 	if (gpiod_line_set_value(rst_line, val) < 0)
 		fprintf(stderr, "Setting reset line failed\n");
 }
 
-void pgm_set_clk(unsigned char val)
+void pgm_set_clk(uint8_t val)
 {
 	if (gpiod_line_set_value(clk_line, val) < 0)
 		fprintf(stderr, "Setting clock line failed\n");
 }
 
-void pgm_dat_dir(unsigned char state)
+void pgm_dat_dir(uint8_t state)
 {
 	// gpiod_line_release(dat_line);
 	int ret;
@@ -125,7 +127,7 @@ void pgm_dat_dir(unsigned char state)
 
 
 
-unsigned long pgm_usleep(unsigned long usec)
+uint32_t pgm_usleep(uint32_t usec)
 {
 	if (usec == 0)
 		return 0;
@@ -134,47 +136,86 @@ unsigned long pgm_usleep(unsigned long usec)
 	{
 		return usleep(usec);
 	}
-    struct timespec start_time;
-    int nsec = usec * 1000;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &start_time);
-
-    struct timespec curr_time;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
-	long ntimepassed = 0;
+    uint64_t start_time = pgm_get_time();
+	uint64_t curr_time;
+	uint64_t utimepassed = 0;
 	while (true){
-		clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
-		ntimepassed = (curr_time.tv_nsec - start_time.tv_nsec);
-		long secspassed = (curr_time.tv_sec - start_time.tv_sec);
-		if (secspassed > 0){
-			ntimepassed += ((curr_time.tv_sec - start_time.tv_sec) * 1000000);
-		}
-		if (ntimepassed > nsec){
+		curr_time = pgm_get_time();
+		utimepassed = curr_time - start_time;
+		if (utimepassed > usec){
 			break;
 		}
     }
-	return ntimepassed / 1000;
+	return utimepassed;
 }
 
 void pgm_print(const char *msg)
 {
 	fprintf(stderr,"%s", msg);
 }
+#ifdef _DEBUG
+#define DEBUG_PRINT(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
+#else
+#define DEBUG_PRINT(msg, ...)
+#endif
+int get_prev_flags(struct gpiod_line * line){
+	int ret = 0;
+	if (gpiod_line_is_open_drain(line)){
+		ret |= GPIOD_LINE_REQUEST_FLAG_OPEN_DRAIN;
+		DEBUG_PRINT("line is open drain\n")
+	}
+	if (gpiod_line_is_open_source(line)){
+		ret |= GPIOD_LINE_REQUEST_FLAG_OPEN_SOURCE;
+		DEBUG_PRINT("line is open source\n")
+	}
+	// if (gpiod_line_is_active_low(line)){
+	// 	ret |= GPIOD_LINE_REQUEST_FLAG_ACTIVE_LOW;
+	// 	DEBUG_PRINT("line is active low\n")
+	// }
+	if (gpiod_line_bias(line) == GPIOD_LINE_BIAS_DISABLE){
+		ret |= GPIOD_LINE_REQUEST_FLAG_BIAS_DISABLE;
+		DEBUG_PRINT("line is bias disabled\n")
+	} else if (gpiod_line_bias(line) == GPIOD_LINE_BIAS_PULL_UP){
+		ret |= GPIOD_LINE_REQUEST_FLAG_BIAS_PULL_UP;
+		DEBUG_PRINT("line is bias pull up\n")
+	} else if (gpiod_line_bias(line) == GPIOD_LINE_BIAS_PULL_DOWN){
+		ret |= GPIOD_LINE_REQUEST_FLAG_BIAS_PULL_DOWN;
+		DEBUG_PRINT("line is bias pull down\n")
+	} else if (gpiod_line_bias(line) == GPIOD_LINE_BIAS_AS_IS){
+		DEBUG_PRINT("line is bias unknown\n")
+	}
+	return ret;
+}
+#define LOWER_FLAG_MASK (GPIOD_LINE_REQUEST_FLAG_OPEN_DRAIN | GPIOD_LINE_REQUEST_FLAG_OPEN_SOURCE | GPIOD_LINE_REQUEST_FLAG_ACTIVE_LOW)
+
+void pgm_release_pin(struct gpiod_line * line){
+	if (!line || !chip){
+		return;
+	}
+	int flags = (get_prev_flags(line) & LOWER_FLAG_MASK) | GPIOD_LINE_REQUEST_FLAG_BIAS_DISABLE;
+	gpiod_line_set_config(line, GPIOD_LINE_REQUEST_DIRECTION_INPUT, flags, 0);
+	gpiod_line_release(line);
+}
 
 void pgm_release_non_reset_pins(void){
 	if (dat_line) {
-		gpiod_line_release(dat_line);
+		DEBUG_PRINT("Releasing dat line\n")
+		pgm_release_pin(dat_line);
 	}
 	if (clk_line) {
-		gpiod_line_release(clk_line);
+		DEBUG_PRINT("Releasing clk line\n")
+		pgm_release_pin(clk_line);
 	}
 	if (trigger_line) {
-		gpiod_line_release(trigger_line);
+		DEBUG_PRINT("Releasing trigger line\n")
+		pgm_release_pin(trigger_line);
 	}
 }
 
 void pgm_release_rst(void) {
 	if (rst_line) {
-		gpiod_line_release(rst_line);
+		DEBUG_PRINT("Releasing rst line\n")
+		pgm_release_pin(rst_line);
 	}
 }
 
@@ -183,7 +224,7 @@ void pgm_release_pins(void){
 	pgm_release_rst();
 }
 
-void pgm_deinit(unsigned char leave_reset_high)
+void pgm_deinit(uint8_t leave_reset_high)
 {
 	if (leave_reset_high){
 		pgm_set_rst(1);
@@ -196,7 +237,14 @@ void pgm_deinit(unsigned char leave_reset_high)
 	}
 }
 
-void pgm_set_trigger(unsigned char val){
+
+uint64_t pgm_get_time(){
+	struct timespec curr_time;
+	clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
+	return (curr_time.tv_sec * 1000000) + (curr_time.tv_nsec / 1000);
+}
+
+void pgm_set_trigger(uint8_t val){
 	if (gpiod_line_set_value(trigger_line, val) < 0)
 		fprintf(stderr, "Setting trigger line failed\n");
 }
