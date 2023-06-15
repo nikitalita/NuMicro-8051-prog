@@ -2,6 +2,8 @@
 #pragma once
 
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 
@@ -22,25 +24,25 @@ int pgm_init(void);
  * Sets DAT and CLK pins to high-z, and terminates GPIO mode.
  * @param leave_reset_high If 1, the RST pin will be left high. If 0, the RST pin will be set to high-z.
  */
-void pgm_deinit(unsigned char leave_reset_high);
+void pgm_deinit(uint8_t leave_reset_high);
 
 // Set the PGM data pin to the given value.
-void pgm_set_dat(unsigned char val);
+void pgm_set_dat(uint8_t val);
 
 // Get the current value of the PGM data pin.
-unsigned char pgm_get_dat(void);
+uint8_t pgm_get_dat(void);
 
 // Set the PGM reset pin to the given value.
-void pgm_set_rst(unsigned char val);
+void pgm_set_rst(uint8_t val);
 
 // Set the PGM clock pin to the given value.
-void pgm_set_clk(unsigned char val);
+void pgm_set_clk(uint8_t val);
 
 // Sets the PGM trigger pin to the given value. (Optionally implemented, for fault injection purposes)
-void pgm_set_trigger(unsigned char val);
+void pgm_set_trigger(uint8_t val);
 
 // Sets the direction of the PGM data pin
-void pgm_dat_dir(unsigned char state);
+void pgm_dat_dir(uint8_t state);
 
 // Releases all PGM pins and sets them to high-z.
 // The purpose for this is to avoid the pins being left in a high state
@@ -51,7 +53,10 @@ void pgm_release_pins(void);
 void pgm_release_rst(void);
 
 // Device-specific sleep function
-unsigned long pgm_usleep(unsigned long usec);
+uint32_t pgm_usleep(uint32_t usec);
+
+// Device-specific get time function, in microseconds
+uint64_t pgm_get_time(void);
 
 // Device-specific print function
 void pgm_print(const char *msg);

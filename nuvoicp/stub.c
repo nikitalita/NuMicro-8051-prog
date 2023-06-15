@@ -41,7 +41,7 @@ int pgm_init(void)
 	return 0;
 }
 
-void pgm_set_dat(unsigned char val)
+void pgm_set_dat(uint8_t val)
 {
 	if (dat_dir == 1) {
 		printf("%d", val);
@@ -52,7 +52,7 @@ void pgm_set_dat(unsigned char val)
 	
 }
 
-unsigned char pgm_get_dat(void)
+uint8_t pgm_get_dat(void)
 {
 	if (dat_dir == 0){
 		return dat;
@@ -62,22 +62,22 @@ unsigned char pgm_get_dat(void)
 	}
 }
 
-void pgm_set_rst(unsigned char val)
+void pgm_set_rst(uint8_t val)
 {
 	rst = val;
 }
 
-void pgm_set_clk(unsigned char val)
+void pgm_set_clk(uint8_t val)
 {
 	clk = val;
 }
 
-void pgm_dat_dir(unsigned char state)
+void pgm_dat_dir(uint8_t state)
 {
 	dat_dir = state;
 }
 
-void pgm_deinit(unsigned char leave_reset_high)
+void pgm_deinit(uint8_t leave_reset_high)
 {
 	if (leave_reset_high)
 		pgm_set_rst(1);
@@ -109,7 +109,7 @@ void pgm_set_trigger(void)
 	printf("pgm_set_trigger() called\n");
 }
 
-unsigned long pgm_usleep(unsigned long usec)
+uint32_t pgm_usleep(uint32_t usec)
 {
 	return usec;
 }

@@ -40,27 +40,27 @@ int pgm_init(void)
     return 0;
 }
 
-void pgm_set_dat(unsigned char val)
+void pgm_set_dat(uint8_t val)
 {
     gpioWrite(GPIO_DAT, val);
 }
 
-unsigned char pgm_get_dat(void)
+uint8_t pgm_get_dat(void)
 {
     return gpioRead(GPIO_DAT);
 }
 
-void pgm_set_rst(unsigned char val)
+void pgm_set_rst(uint8_t val)
 {
     gpioWrite(GPIO_RST, val);
 }
 
-void pgm_set_clk(unsigned char val)
+void pgm_set_clk(uint8_t val)
 {
     gpioWrite(GPIO_CLK, val);
 }
 
-void pgm_dat_dir(unsigned char state)
+void pgm_dat_dir(uint8_t state)
 {
     if (gpioSetMode(GPIO_DAT, state ? PI_OUTPUT : PI_INPUT) < 0){
         pgm_print("Setting data directions failed\n");
@@ -87,12 +87,12 @@ void pgm_release_pins(void) {
     pgm_release_rst();
 }
 
-void pgm_set_trigger(unsigned char val)
+void pgm_set_trigger(uint8_t val)
 {
     gpioWrite(GPIO_TRIGGER, val);
 }
 
-void pgm_deinit(unsigned char leave_reset_high)
+void pgm_deinit(uint8_t leave_reset_high)
 {
     if (!leave_reset_high) {
         pgm_release_pins();
@@ -104,7 +104,7 @@ void pgm_deinit(unsigned char leave_reset_high)
     gpioTerminate();
 }
 
-unsigned long pgm_usleep(unsigned long usec)
+uint32_t pgm_usleep(uint32_t usec)
 {   
     unsigned long waited = 0;
     if (usec == 0){
@@ -121,6 +121,10 @@ unsigned long pgm_usleep(unsigned long usec)
         waited += gpioDelay(usec-1);
     }
     return waited;
+}
+
+uint64_t pgm_get_time(){
+    return gpioTick();
 }
 
 void pgm_print(const char *msg)
