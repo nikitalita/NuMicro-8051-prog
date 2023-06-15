@@ -24,27 +24,27 @@ int pgm_init(void)
   return 0;
 }
 
-void pgm_set_dat(unsigned char val)
+void pgm_set_dat(uint8_t val)
 {
   digitalWrite(DAT, val);
 }
 
-unsigned char pgm_get_dat(void)
+uint8_t pgm_get_dat(void)
 {
   return digitalRead(DAT);
 }
 
-void pgm_set_rst(unsigned char val)
+void pgm_set_rst(uint8_t val)
 {
   digitalWrite(RST, val);
 }
 
-void pgm_set_clk(unsigned char val)
+void pgm_set_clk(uint8_t val)
 {
   digitalWrite(CLK, val);
 }
 
-void pgm_dat_dir(unsigned char state)
+void pgm_dat_dir(uint8_t state)
 {
   pinMode(DAT, state ? OUTPUT : INPUT);
 }
@@ -56,7 +56,7 @@ void pgm_release_pins(void)
   pinMode(RST, INPUT);
 }
 
-void pgm_set_trigger(unsigned char val)
+void pgm_set_trigger(uint8_t val)
 {
   /* not implemented */
 }
@@ -66,7 +66,7 @@ void pgm_release_rst(void)
   pinMode(RST, INPUT);
 }
 
-void pgm_deinit(unsigned char leave_reset_high)
+void pgm_deinit(uint8_t leave_reset_high)
 {
   pinMode(CLK, INPUT);
   pinMode(DAT, INPUT);
@@ -78,15 +78,45 @@ void pgm_deinit(unsigned char leave_reset_high)
 }
 
 
-unsigned long pgm_usleep(unsigned long usec)
+#ifdef _DEBUG
+void pgm_debug_outputf(const char *s, ...)
 {
-  delayMicroseconds(usec);
+  char buf[160];
+  va_list ap;
+  va_start(ap, s);
+  vsnprintf(buf, 160, s, ap);
+  pgm_print(buf);
+
+  va_end(ap);
+}
+
+#define DEBUG_OUTPUTF(s, ...) pgm_debug_outputf(s, ##__VA_ARGS__)
+#else
+#define DEBUG_OUTPUTF(s, ...)
+#endif
+uint32_t pgm_usleep(uint32_t usec)
+{
+  if (usec < 1000) {
+    delayMicroseconds(usec);
+    // not printing for short delays to avoid potentially destructive overhead
+  } else {
+    uint32_t msec = usec / 1000;
+    uint32_t lusec = usec % 1000;
+    DEBUG_OUTPUTF("usleep(%u): ", usec);
+    DEBUG_OUTPUTF("delaying %u ms, ", msec); 
+    DEBUG_OUTPUTF("%u us\n", lusec);
+    delay(msec);
+    delayMicroseconds(lusec);
+  }
   return usec;
 }
 
+uint64_t pgm_get_time(){
+    return micros();
+}
+
 void pgm_print(const char * msg){
-  if (Serial1.available())
-    Serial1.print(msg);
+    Serial2.print(msg);
 }
 
 } // extern "C"
