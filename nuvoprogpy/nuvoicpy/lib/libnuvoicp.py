@@ -260,8 +260,8 @@ class LibPGM:
         self.lib.pgm_release_rst.restype = None
 
         # Device-specific sleep function
-        self.lib.pgm_usleep.argtypes = [ctypes.c_ulong]
-        self.lib.pgm_usleep.restype = ctypes.c_ulong
+        self.lib.pgm_usleep.argtypes = [ctypes.c_uint32]
+        self.lib.pgm_usleep.restype = ctypes.c_uint32
 
         # Device-specific print function
         self.lib.pgm_print.argtypes = [ctypes.c_char_p]
@@ -314,7 +314,7 @@ class LibPGM:
     # Device-specific sleep function
 
     def usleep(self, usec):
-        return int(self.lib.pgm_usleep(ctypes.c_ulong(usec)))
+        return int(self.lib.pgm_usleep(ctypes.c_uint32(usec)))
 
     # Device-specific print function
     def print(self, msg):
