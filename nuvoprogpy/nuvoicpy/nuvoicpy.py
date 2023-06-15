@@ -34,20 +34,6 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-class DeviceInfo:
-    def __init__(self, device_id=0xFFFF, uid=0xFFFFFF, cid=0xFF, ucid=0xFFFFFFFF):
-        self.device_id = device_id
-        self.uid = uid
-        self.cid = cid
-        self.ucid = ucid
-
-    def __str__(self):
-        return "Device ID: 0x%04X\nCID: 0x%02X\nUID: 0x%08X\nUCID: 0x%08X" % (self.device_id, self.cid, self.uid, self.ucid)
-
-    def is_supported(self):
-        return self.device_id == N76E003_DEVID
-
-
 class ICPInitException(Exception):
     pass
 
@@ -84,7 +70,7 @@ Returns:
 
 class NuvoICP:
 
-    def __init__(self, library: str = "gpiod", silent=False, _enter_no_init=None, _deinit_reset_high=True):
+    def __init__(self, silent=False, library: str = "gpiod", _enter_no_init=None, _deinit_reset_high=False):
         """
         NuvoICP constructor
         ------
@@ -480,21 +466,28 @@ class NuvoICP:
         return True
 
     @staticmethod
-    def check_ldrom_size(size) -> bool:
+    def check_ldrom_size(size) -> int:
         if size > LDROM_MAX_SIZE:
-            return False
-        if size % 1024 != 0:
-            return False
-        return True
+            return -1
+        return size if size % 1024 == 0 else size + (1024 - (size % 1024))
+
+    @staticmethod
+    def pad_ldrom(data: bytes) -> bytes:
+        # pad to the next highest KB
+        return data + bytes([0xFF] * (1024 - (len(data) % 1024)))
 
     def program_data(self, aprom_data, ldrom_data=bytes(), config: ConfigFlags = None, ldrom_config_override=True) -> bool:
         self._fail_if_not_init()
         if len(ldrom_data) > 0:
             ldrom_size = len(ldrom_data)
             if not self.check_ldrom_size(ldrom_size):
-                eprint("ERROR: Invalid LDROM. Not programming...")
+                eprint("ERROR: LDROM size greater than max of 4KB. Not programming...")
                 return False
             else:
+                if len(ldrom_data) % 1024 != 0:
+                    eprint("WARNING: LDROM is not a multiple of 1024 bytes. Padding with 0xFF.")
+                    ldrom_data = self.pad_ldrom(ldrom_data)
+                    ldrom_size = len(ldrom_data)
                 if config:
                     if config.get_ldrom_size() != ldrom_size:
                         eprint("WARNING: LDROM size does not match config: %d KB vs %d KB" % (
@@ -662,7 +655,6 @@ def main() -> int:
     config_file = ""
     lock_chip = False
     silent = False
-    brown_out_voltage: float = 2.2
     if len(opts) == 0:
         print_usage()
         return 1
