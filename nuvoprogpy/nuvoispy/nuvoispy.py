@@ -61,11 +61,11 @@ CMD_RUN_LDROM = 0xac
 CMD_CONNECT = 0xae
 CMD_GET_DEVICEID = 0xb1
 
-# special commands for NuvoICP arduino sketch
-EXTENDED_CMDS_FW_VER = 0xE0  # FW version that we know we can use the extended commands on
+# FW version that we know we can use the extended commands on
+EXTENDED_CMDS_FW_VER = 0xD0
+
 CMD_RESET = 0xad   # not implemented in default N76E003 ISP rom
 CMD_GET_FLASHMODE = 0xCA  # not implemented in default N76E003 ISP rom
-CMD_UPDATE_DATAFLASH = 0xC3  # not implemented in default N76E003 ISP rom
 CMD_WRITE_CHECKSUM = 0xC9  # not implemented in default N76E003 ISP rom
 CMD_RESEND_PACKET = 0xFF  # not implemented in default N76E003 ISP rom
 CMD_READ_ROM = 0xa5   # non-official
@@ -74,10 +74,25 @@ CMD_GET_UID = 0xb2   # non-official
 CMD_GET_CID = 0xb3   # non-official
 CMD_GET_UCID = 0xb4   # non-official
 CMD_ISP_PAGE_ERASE = 0xD5   # non-official
+
+# special commands for NuvoICP arduino sketch
+ICP_BRIDGE_FW_VER = 0xE0
+
+CMD_UPDATE_DATAFLASH = 0xC3  # not implemented in default N76E003 ISP rom
 CMD_ISP_MASS_ERASE = 0xD6   # non-official
 
-
+PKT_CMD_START = 0
+PKT_CMD_SIZE = 4
+PKT_SEQ_START = 4
+PKT_SEQ_SIZE = 4
+PKT_HEADER_END = 8
 PACKSIZE = 64
+UPDATE_PKT_SIZE = 56
+
+DUMP_PKT_CHECKSUM_START = PKT_HEADER_END
+DUMP_PKT_CHECKSUM_SIZE = 0  # disabled for now
+DUMP_DATA_START = (DUMP_PKT_CHECKSUM_START + DUMP_PKT_CHECKSUM_SIZE)
+DUMP_DATA_SIZE = (PACKSIZE - DUMP_DATA_START)
 
 DEFAULT_SER_BAUD = 115200
 DEFAULT_SER_TIMEOUT = 0.025  # 25ms
@@ -161,6 +176,10 @@ class NuvoISP(NuvoProg):
         if not self.supports_extended_cmds:
             raise ExtendedCmdsNotSupported("Extended commands are not supported by this firmware version")
 
+    def _fail_if_not_icp_bridge(self):
+        if not self.is_icp_bridge:
+            raise ExtendedCmdsNotSupported("ICP-bridge only commands are not supported in LDROM")
+
     @ property
     def serial_timeout(self):
         return self._serial_timeout
@@ -203,6 +222,10 @@ class NuvoISP(NuvoProg):
     @ property
     def supports_extended_cmds(self):
         return self.fw_ver >= EXTENDED_CMDS_FW_VER
+
+    @ property
+    def is_icp_bridge(self):
+        return self.fw_ver == ICP_BRIDGE_FW_VER
 
     def print_vb(self, *args, **kwargs):
         """
@@ -403,7 +426,7 @@ class NuvoISP(NuvoProg):
 
     def mass_erase(self, _reconnect=True):
         self._fail_if_not_init()
-        self._fail_if_not_extended()
+        self._fail_if_not_icp_bridge()
         cid = self.get_cid()
         success, rx = self.send_cmd(self._cmd_packet(CMD_ISP_MASS_ERASE), 1, fail_on_checksum_error=False)
         if not success:
@@ -440,7 +463,7 @@ class NuvoISP(NuvoProg):
         ipos = 0
         cmd_name = CMD_UPDATE_APROM
         if update_dataflash:
-            self._fail_if_not_extended()
+            self._fail_if_not_icp_bridge()
             cmd_name = CMD_UPDATE_DATAFLASH
         cmd = bytes([cmd_name]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff]) + \
             bytes(2) + bytes([flen & 0xff, (flen >> 8) & 0xff]) + \
@@ -477,16 +500,15 @@ class NuvoISP(NuvoProg):
         self._fail_if_not_init()
         self._fail_if_not_extended()
         addr = APROM_ADDR
-        step_size = 56
+        step_size = DUMP_DATA_SIZE
         data = bytes()
         while (addr < FLASH_SIZE):
             self.update_progress_bar("Dumping...", addr, FLASH_SIZE)
-            cmd = self._cmd_packet(CMD_DUMP_ROM)
             # Give initial cmd time to dump entire rom
             if addr == APROM_ADDR:
-                _, rx = self.send_cmd(cmd, 1)
+                _, rx = self.send_cmd(self._cmd_packet(CMD_DUMP_ROM), 1)
             else:
-                _, rx = self.send_cmd(cmd)
+                _, rx = self.send_cmd(self._cmd_packet(0))
 
             min = PACKSIZE-step_size
             max = PACKSIZE if (addr + step_size <=
@@ -587,13 +609,13 @@ class NuvoISP(NuvoProg):
         read_config = self.read_config()
         cid = self.get_cid()
         if (read_config.is_locked() or cid == 0xFF):
-            if not self.supports_extended_cmds:
+            if not self.is_icp_bridge:
                 raise Exception("ERROR: Device is locked and cannot override. Not programming...")
             elif ldrom_data is None:
                 raise Exception("ERROR: Device is locked; must provide LDROM data to overwrite. Not programming...")
         if not (ldrom_data is None):
-            if not self.supports_extended_cmds:
-                raise ExtendedCmdsNotSupported("Programming the LDROM is not supported by this firmware revision")
+            if not self.is_icp_bridge:
+                raise ExtendedCmdsNotSupported("Programming the LDROM is only supported when using the ICP bridge.")
             update_flashrom = True
         write_config: ConfigFlags
         write_config, ldrom_data = self._check_config(read_config, config, ldrom_data, ldrom_config_override, _lock)
@@ -849,43 +871,49 @@ def main() -> int:
         if write_config == None:
             eprint("Error: Could not read config file")
             return 1
+    try:
+        with NuvoISP(serial_port=port, serial_rate=baud, open_wait=1, silent=silent) as nuvo:
 
-    with NuvoISP(serial_port=port, serial_rate=baud, open_wait=1, silent=silent) as nuvo:
+            devinfo = nuvo.get_device_info()
 
-        devinfo = nuvo.get_device_info()
-
-        if devinfo.device_id != N76E003_DEVID:
-            if devinfo.device_id == 0:
-                eprint("ERROR: Device not found, please check your connections.\n\n")
+            if devinfo.device_id != N76E003_DEVID:
+                if devinfo.device_id == 0:
+                    eprint("ERROR: Device not found, please check your connections.\n\n")
+                    return 2
+                eprint(
+                    "ERROR: Unsupported device ID: 0x%04X (chip may be locked)\n\n" % devinfo.device_id)
                 return 2
-            eprint(
-                "ERROR: Unsupported device ID: 0x%04X (chip may be locked)\n\n" % devinfo.device_id)
-            return 2
-        read_config = nuvo.read_config()
-        if not read_config:
-            eprint("Config read failed!!")
-            return 1
-        # process commands
-        if config_dump_cmd:
-            print(devinfo)
-            read_config.print_config()
-            return 0
-        elif read:
-            print(devinfo)
-            read_config.print_config()
-            print()
-            if devinfo.cid == 0xFF or read_config.is_locked():
-                eprint("Error: Chip is locked, cannot read flash")
+            read_config = nuvo.read_config()
+            if not read_config:
+                eprint("Config read failed!!")
                 return 1
-            nuvo.dump_flash_to_file(read_file)
-            # remove extension from read_file
-            config_file = read_file.rsplit(".", 1)[0] + "-config.json"
-            read_config.to_json_file(config_file)
-        elif write:
-            if not nuvo.program(write_file, ldrom_file, write_config, _no_ldrom=no_ldrom, _lock=lock_chip):
-                eprint("Programming failed!!")
-                return 1
-        return 0
+            # process commands
+            if config_dump_cmd:
+                print(devinfo)
+                read_config.print_config()
+                return 0
+            elif read:
+                print(devinfo)
+                read_config.print_config()
+                print()
+                if devinfo.cid == 0xFF or read_config.is_locked():
+                    eprint("Error: Chip is locked, cannot read flash")
+                    return 1
+                nuvo.dump_flash_to_file(read_file)
+                # remove extension from read_file
+                config_file = read_file.rsplit(".", 1)[0] + "-config.json"
+                read_config.to_json_file(config_file)
+            elif write:
+                if not nuvo.program(write_file, ldrom_file, write_config, _no_ldrom=no_ldrom, _lock=lock_chip):
+                    eprint("Programming failed!!")
+                    return 1
+    except KeyboardInterrupt:
+        eprint("Cancelled by user!")
+        return 3
+    except Exception as e:
+        raise e
+
+    return 0
 
 
 try:

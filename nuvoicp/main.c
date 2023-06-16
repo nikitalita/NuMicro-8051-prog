@@ -34,7 +34,7 @@
 #include <stdbool.h>
 
 #include "icp.h"
-
+#include "pgm.h"
 #define N76E003_DEVID	0x3650
 
 typedef struct _device_info{
@@ -280,11 +280,13 @@ int main(int argc, char *argv[])
 	}
 
 out:
-	icp_deinit();
+	icp_exit();
+	pgm_deinit(0);
 	return 0;
 out_err:
-	icp_deinit();
-err:
+	icp_exit();
+	pgm_deinit(0);
+	err:
 	return 1;
 }
 

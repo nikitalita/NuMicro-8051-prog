@@ -43,9 +43,18 @@
 #define UPDATING_STATE      2
 #define DUMPING_STATE       3
 
+#define PKT_CMD_START     0
+#define PKT_CMD_SIZE      4
+#define PKT_SEQ_START     4
+#define PKT_SEQ_SIZE      4
+#define PKT_HEADER_END    8
+
 #define PACKSIZE           64
 #define UPDATE_PKT_SIZE    56
-#define DUMP_PKT_SIZE      56
+#define DUMP_PKT_CHECKSUM_START  PKT_HEADER_END
+#define DUMP_PKT_CHECKSUM_SIZE   0 // disabled for now
+#define DUMP_DATA_START          (DUMP_PKT_CHECKSUM_START + DUMP_PKT_CHECKSUM_SIZE)
+#define DUMP_DATA_SIZE           (PACKSIZE - DUMP_DATA_START)
 
 #define PAGE_SIZE 128
 
@@ -209,9 +218,12 @@ bool read_buff_valid = false;
 int dump_addr = 0x0000;
 int dump_size = 0;
 
-void dump(unsigned char* pkt, int len)
+void dump(unsigned char* pkt)
 {
-  int n = len > dump_size ? dump_size : len;
+  unsigned char * data_buf = pkt + DUMP_DATA_START;
+  int n = DUMP_DATA_SIZE > dump_size ? dump_size : len;
+
+  uint16_t checksum = 0;
 
 #ifdef CACHED_ROM_READ
   // hack to make reads faster
@@ -226,7 +238,7 @@ void dump(unsigned char* pkt, int len)
     }
     read_buff_valid = true;
   }
-  memcpy(pkt, &read_buff[dump_addr], n);
+  memcpy(data_buf, &read_buff[dump_addr], n);
   dump_addr += n;
 #else
   dump_addr = icp_read_flash(dump_addr, n, pkt);
@@ -328,7 +340,7 @@ int preserve_ldrom(int update_addr, int update_size, int ldrom_size){
   return ldrom_size;
 }
 
-void start_dump(int addr, int size, unsigned char * buf){
+void start_dump(int addr, int size, unsigned char * pkt){
   config_flags flags;
   read_config(&flags);
   uint8_t cid = icp_read_cid();
@@ -352,7 +364,8 @@ void start_dump(int addr, int size, unsigned char * buf){
 
   dump_addr = addr;
   dump_size = size;
-  dump(buf, DUMP_PKT_SIZE);
+  
+  dump(pkt);
   if (dump_size > 0)
     state = DUMPING_STATE;
   tx_pkt();
@@ -400,7 +413,7 @@ void loop()
     pkt[1] = (checksum >> 8) & 0xff;
 
     if (state == DUMPING_STATE) {
-      dump(&pkt[8], DUMP_PKT_SIZE);
+      dump(pkt);
       if (dump_size == 0)
         state = COMMAND_STATE;
       tx_pkt();
@@ -538,13 +551,13 @@ void loop()
       } break;
       case CMD_DUMP_ROM:
         DEBUG_PRINT("CMD_DUMP_ROM\n");
-        start_dump(APROM_FLASH_ADDR, FLASH_SIZE, &pkt[8]);
+        start_dump(APROM_FLASH_ADDR, FLASH_SIZE, pkt);
         break;
       case CMD_READ_ROM:
         dump_addr = (pkt[9] << 8) | pkt[8];
         dump_size = (pkt[13] << 8) | pkt[12];
         DEBUG_PRINT("CMD_READ_ROM (addr: %d, size: %d) \n", dump_addr, dump_size);
-        start_dump(dump_addr, dump_size, &pkt[8]);
+        start_dump(dump_addr, dump_size, pkt);
         break;
 
       case CMD_UPDATE_DATAFLASH:

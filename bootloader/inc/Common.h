@@ -3,20 +3,18 @@ typedef unsigned char         UINT8;
 typedef unsigned int          UINT16;
 typedef unsigned long         UINT32;
 
-#include <stdint.h>
+// #define     CID_READ				0x0B
+// #define     DID_READ				0x0C
 
-#define     CID_READ				0x0B
-#define     DID_READ				0x0C
-
-#define     ERASE_APROM				0x22
-#define     READ_APROM				0x00
-#define     PROGRAM_APROM			0x21
-#define     ERASE_LDROM
-#define     READ_LDROM
-#define     PROGRAM_LDROM
-#define     READ_CFG					0xC0
-#define     PROGRAM_CFG				0xE1
-#define			READ_UID					0x04
+// #define     ERASE_APROM				0x22
+// #define     READ_APROM				0x00
+// #define     PROGRAM_APROM			0x21
+// #define     ERASE_LDROM
+// #define     READ_LDROM
+// #define     PROGRAM_LDROM
+// #define     READ_CFG					0xC0
+// #define     PROGRAM_CFG				0xE1
+// #define			READ_UID					0x04
 
 
 // void  InitialUART0_Timer1(UINT32 u32Baudrate); //T1M = 1, SMOD = 1
