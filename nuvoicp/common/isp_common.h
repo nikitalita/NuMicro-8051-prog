@@ -1,3 +1,4 @@
+/**COMMANDS**/
 #define CMD_UPDATE_APROM    0xa0
 #define CMD_UPDATE_CONFIG   0xa1
 #define CMD_READ_CONFIG     0xa2
@@ -29,5 +30,37 @@
 #define CMD_ISP_MASS_ERASE      0xD6 // non-official
 
 
+// The modes returned by CMD_GET_FLASHMODE
 #define APMODE 1
 #define LDMODE 2
+
+
+// N76E003 device constants
+#define N76E003_DEVID	    0x3650
+#define APROM_FLASH_ADDR	0x0
+#define CFG_FLASH_ADDR		0x30000
+#define CFG_FLASH_LEN		5
+#define LDROM_MAX_SIZE      (4 * 1024)
+#define PAGE_SIZE            128 // flash page size
+#define FLASH_SIZE	        (18 * 1024)
+#define FLASH_PAGE_COUNT FLASH_SIZE/PAGE_SIZE
+
+// packet constants
+#define PKT_CMD_START     0
+#define PKT_CMD_SIZE      4
+#define PKT_SEQ_START     4
+#define PKT_SEQ_SIZE      4
+#define PKT_HEADER_END    8
+
+#define PACKSIZE           64
+
+#define INITIAL_UPDATE_PKT_START 16 // PKT_HEADER_END + 8 bytes for addr and len
+#define INITIAL_UPDATE_PKT_SIZE  48
+
+#define SEQ_UPDATE_PKT_START   PKT_HEADER_END
+#define SEQ_UPDATE_PKT_SIZE    56
+
+#define DUMP_PKT_CHECKSUM_START  PKT_HEADER_END
+#define DUMP_PKT_CHECKSUM_SIZE   0 // disabled for now
+#define DUMP_DATA_START          PKT_HEADER_END //(DUMP_PKT_CHECKSUM_START + DUMP_PKT_CHECKSUM_SIZE)
+#define DUMP_DATA_SIZE           56  //(PACKSIZE - DUMP_DATA_START)

@@ -5,61 +5,21 @@
 #include "config.h"
 #include <Arduino.h>
 #include <assert.h>
+#include "common/isp_common.h"
+
 #define FW_VERSION          0xE0  // Our own special firmware version to tell our ISP tool we can use our custom commands
-
-#define CMD_UPDATE_APROM    0xa0
-#define CMD_UPDATE_CONFIG   0xa1
-#define CMD_READ_CONFIG     0xa2
-#define CMD_ERASE_ALL       0xa3
-#define CMD_SYNC_PACKNO     0xa4
-#define CMD_GET_FWVER       0xa6
-#define CMD_RUN_APROM       0xab
-#define CMD_RUN_LDROM       0xac
-#define CMD_CONNECT         0xae
-
-#define CMD_GET_DEVICEID     0xb1
-
-#define CMD_RESET            0xad  // not implemented in default N76E003 ISP rom
-#define CMD_GET_FLASHMODE    0xCA  // not implemented in default N76E003 ISP rom
-#define CMD_UPDATE_DATAFLASH 0xC3  // not implemented in default N76E003 ISP rom
-#define CMD_WRITE_CHECKSUM   0xC9  // not implemented in default N76E003 ISP rom
-#define CMD_RESEND_PACKET    0xFF  // not implemented in default N76E003 ISP rom
-
-#define CMD_READ_ROM        0xa5 // non-official
-#define CMD_DUMP_ROM        0xaa // non-official
-#define CMD_GET_UID         0xb2 // non-official
-#define CMD_GET_CID         0xb3 // non-official
-#define CMD_GET_UCID        0xb4 // non-official
-
-#define CMD_ISP_PAGE_ERASE      0xD5 // non-official  
-#define CMD_ISP_MASS_ERASE      0xD6 // non-official
 
 #ifndef BUILTIN_LED
 #define BUILTIN_LED LED_BUILTIN
 #endif
 
+
+
+
 #define DISCONNECTED_STATE  0
 #define COMMAND_STATE       1
 #define UPDATING_STATE      2
 #define DUMPING_STATE       3
-
-#define PKT_CMD_START     0
-#define PKT_CMD_SIZE      4
-#define PKT_SEQ_START     4
-#define PKT_SEQ_SIZE      4
-#define PKT_HEADER_END    8
-
-#define PACKSIZE           64
-#define UPDATE_PKT_SIZE    56
-#define DUMP_PKT_CHECKSUM_START  PKT_HEADER_END
-#define DUMP_PKT_CHECKSUM_SIZE   0 // disabled for now
-#define DUMP_DATA_START          (DUMP_PKT_CHECKSUM_START + DUMP_PKT_CHECKSUM_SIZE)
-#define DUMP_DATA_SIZE           (PACKSIZE - DUMP_DATA_START)
-
-#define PAGE_SIZE 128
-
-#define APMODE 1
-#define LDMODE 2
 
 #define _DEBUG 1
 int state;
@@ -221,9 +181,9 @@ int dump_size = 0;
 void dump(unsigned char* pkt)
 {
   unsigned char * data_buf = pkt + DUMP_DATA_START;
-  int n = DUMP_DATA_SIZE > dump_size ? dump_size : len;
+  int n = DUMP_DATA_SIZE > dump_size ? dump_size : DUMP_DATA_SIZE;
 
-  uint16_t checksum = 0;
+  // uint16_t checksum = 0;
 
 #ifdef CACHED_ROM_READ
   // hack to make reads faster
@@ -420,7 +380,7 @@ void loop()
       return;
     }
     if (state == UPDATING_STATE) {
-      update(&pkt[8], UPDATE_PKT_SIZE);
+      update(&pkt[8], SEQ_UPDATE_PKT_SIZE);
       if (update_size == 0) {
         state = COMMAND_STATE;
         if (preserved_ldrom_sz > 0){

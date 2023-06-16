@@ -33,7 +33,7 @@ import platform
 import sys
 import serial
 import time
-
+import math
 
 try:
     from ..nuvoprog import NuvoProg
@@ -87,7 +87,7 @@ PKT_SEQ_START = 4
 PKT_SEQ_SIZE = 4
 PKT_HEADER_END = 8
 PACKSIZE = 64
-UPDATE_PKT_SIZE = 56
+SEQ_UPDATE_PKT_SIZE = 56
 
 DUMP_PKT_CHECKSUM_START = PKT_HEADER_END
 DUMP_PKT_CHECKSUM_SIZE = 0  # disabled for now
@@ -95,7 +95,7 @@ DUMP_DATA_START = (DUMP_PKT_CHECKSUM_START + DUMP_PKT_CHECKSUM_SIZE)
 DUMP_DATA_SIZE = (PACKSIZE - DUMP_DATA_START)
 
 DEFAULT_SER_BAUD = 115200
-DEFAULT_SER_TIMEOUT = 0.025  # 25ms
+DEFAULT_SER_TIMEOUT = 0.01  # 10ms
 
 
 def eprint(*args, **kwargs):
@@ -252,45 +252,60 @@ class NuvoISP(NuvoProg):
         rx = self.ser.read(PACKSIZE)
         self._connected = False
 
-    def reopen_serial(self, wait: float = None):
-        if wait is None:
-            wait = self.open_wait
+    def reopen_serial(self):
+        SERIAL_CLOSE_WAIT = 0.5
         if not self.ser:
             self.ser = serial.Serial(self.serial_port, self.serial_rate, timeout=self.serial_timeout)
         else:
             if self.ser.is_open:
+                self.ser.flush()
                 self.ser.close()
-                time.sleep(0.5)
+                time.sleep(SERIAL_CLOSE_WAIT)
             self.ser = serial.Serial(self.serial_port, self.serial_rate, timeout=self.serial_timeout)
-        time.sleep(wait)
+            self.ser.flush()
+
+    def _cmd_packet_header(self, cmd):
+        self.seq_num = self.seq_num + 1
+        return bytes([cmd]) + bytes(3) + bytes([self.seq_num & 0xff, (self.seq_num >> 8) & 0xff]) + bytes(2)
+
+    def _pad_packet(self, packet):
+        return packet + bytes(PACKSIZE - len(packet))
 
     def _cmd_packet(self, cmd):
-        self.seq_num = self.seq_num + 1
-        return bytes([cmd]) + bytes(3) + bytes([self.seq_num & 0xff, (self.seq_num >> 8) & 0xff]) + bytes(PACKSIZE-6)
+        return self._pad_packet(self._cmd_packet_header(cmd))
+
+    def _wait_for_packet(self, max_retries, timeout=None):
+        if timeout is None:
+            timeout = self.serial_timeout
+        retries = 0
+        while (self.ser.in_waiting < PACKSIZE):
+            if retries > max_retries:
+                return False
+            retries += 1
+            time.sleep(timeout)
+        return True
 
     def _connect_req(self, retry=True):
         time.sleep(self.serial_timeout)
         MAX_CONNECT_RETRIES = 3
-        MAX_SEND_RETRIES = 100
-        MAX_READ_RETRIES = 0
+        MAX_SEND_RETRIES = 50
+        MAX_READ_RETRIES = 5
         connect_retries = 0
         send_retries = 0
         connected = False
-        _open_wait = self.open_wait if self.open_wait > 0 else 1
+        first_wait = self.open_wait if self.open_wait > 0 else 1
+        reopen_wait = first_wait
+        first_try = True
         while not connected:
             cmd = self._cmd_packet(CMD_CONNECT)
             self.ser.write(cmd)
-            time.sleep(self.serial_timeout)
-
-            read_retries = 0
-
-            while (self.ser.in_waiting != PACKSIZE):
-                if read_retries > MAX_READ_RETRIES:
-                    break
-                read_retries += 1
+            if first_try:
+                first_try = False
+                time.sleep(first_wait)
+            else:
                 time.sleep(self.serial_timeout)
-            if self.ser.in_waiting != PACKSIZE:
-                self.ser.read(self.ser.in_waiting)
+
+            if not self._wait_for_packet(MAX_READ_RETRIES):
                 send_retries += 1
                 # the device likely reset on opening serial and we didn't wait long enough, try again
                 if send_retries == MAX_SEND_RETRIES:
@@ -298,20 +313,35 @@ class NuvoISP(NuvoProg):
                         raise NoDevice
                     connect_retries += 1
                     send_retries = 0
-                    _open_wait = _open_wait * connect_retries
-                    self.print_vb("Attempting to reconnect... (backoff = {}s)".format(_open_wait))
-                    self.reopen_serial(_open_wait)
-                    time.sleep(_open_wait)
-                    self._disconnect()  # in case the device does not reset on opening serial and we're still connected
-                    time.sleep(0.2)
+                    reopen_wait = first_wait * connect_retries
+                    self.print_vb("Attempting to reconnect... (backoff = {}s)".format(first_wait))
+                    self.reopen_serial()
+                    time.sleep(reopen_wait)
+                    # self._disconnect()  # in case the device does not reset on opening serial and we're still connected
+                    # time.sleep(0.2)
+                    first_try = True
                     self.print_vb("If not using the arduino ICP programmer, hit reset on the chip")
                 continue
 
-            rx = self.ser.read(self.ser.in_waiting)
+            if self.ser.in_waiting < PACKSIZE:
+                raise ConnectionError("Shouldn't get here")
 
-            if NuvoISP.verify_chksum(cmd, rx):
-                # print("Got valid reply")
-                connected = True
+            # we sent too many connection packets
+            if self.ser.in_waiting > PACKSIZE:
+                if self.ser.in_waiting % PACKSIZE != 0:
+                    self._wait_for_packet(MAX_READ_RETRIES)
+                    if self.ser.in_waiting % PACKSIZE != 0:
+                        raise ConnectionError("Got invalid packet size")
+                packets_in_waiting = int(self.ser.in_waiting / PACKSIZE)
+            else:
+                packets_in_waiting = 1
+
+            # check all the received packets
+            for i in range(int(packets_in_waiting)):
+                rx = self.ser.read(PACKSIZE)
+                if NuvoISP.verify_chksum(cmd, rx):
+                    # print("Got valid reply")
+                    connected = True
 
     def _connect(self, retry=True):
         self._connect_req(retry)
@@ -319,32 +349,41 @@ class NuvoISP(NuvoProg):
         self.fw_ver = self.get_fwver()
         self._connected = True
 
-    def send_cmd(self, tx, timeout=None, fail_on_checksum_error=True):
-        if timeout is None:
-            timeout = self.serial_timeout
+    def send_cmd(self, tx, max_timeout=None, fail_on_checksum_error=True):
+        if max_timeout is None:
+            max_timeout = self.serial_timeout
+
         # todo: only have 5 retries
         sent = False
         retries = 0
+        MAX_SEND_TRIES = 5
         while not sent:
             try:
                 self.ser.write(tx)
                 sent = True
             except serial.SerialTimeoutException:
                 retries = retries + 1
-                if (retries > 5):
+                if (retries > MAX_SEND_TRIES):
                     raise TimeoutError("Too many retries, aborting!")
                 self.print_vb("Timeout sending packet, retrying...")
-                time.sleep(timeout)
+                time.sleep(max_timeout)
 
         tries = 0
         success = True
+
+        # The idea here is that if we set a large max_timeout, we can wait for the entire packet to be received without sleeping for the entire max_timeout
+        DEFAULT_MAX_TRIES = 5
+        max_read_tries = DEFAULT_MAX_TRIES if (max_timeout <= self.serial_timeout) else (
+            DEFAULT_MAX_TRIES * int(math.ceil(max_timeout / self.serial_timeout)))
+        # if we have a smaller max timeout, then we sleep for that on every read attempt, otherwise we sleep for the default timeout
+        read_timeout = self.serial_timeout if (max_timeout >= self.serial_timeout) else max_timeout
         while True:
-            time.sleep(timeout)
+            time.sleep(read_timeout)
             nbytes = self.ser.in_waiting
 
             if (nbytes < PACKSIZE):
-                tries = tries + 1
-                if (tries > 5):
+                tries += 1
+                if (tries > max_read_tries):
                     print("Re-sending packet!")
                     self.ser.write(tx)
                 continue
@@ -367,13 +406,18 @@ class NuvoISP(NuvoProg):
         return rx[8]
 
     def init(self, retry=True, check_for_device=True):
-        self.reopen_serial(self.open_wait)
+        self.reopen_serial()
+        time.sleep(self.open_wait)
         self.print_vb("Connecting...")
         self.print_vb("If not using the arduino ICP programmer, hit reset on the chip")
         self._connect(retry)
         self.print_vb("Connected!")
-        self.print_vb("ISP firmware version: " + hex(self.fw_ver) +
-                      (" (custom ICP tool, extended commands supported)" if self.supports_extended_cmds else ""))
+        revision_string = ""
+        if self.is_icp_bridge:
+            revision_string = " (Arduino ISP-to-ICP bridge, supports extended commands)"
+        elif self.supports_extended_cmds:
+            revision_string = " (custom ISP LDROM, supports extended commands)"
+        self.print_vb("ISP firmware version: " + hex(self.fw_ver) + revision_string)
         # check device id
         if check_for_device:
             dev_id = self.get_device_id()
@@ -450,13 +494,6 @@ class NuvoISP(NuvoProg):
         cmd = bytes([CMD_ISP_PAGE_ERASE]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff])
         return self.send_cmd(self._cmd_packet(cmd))
 
-    def read_flash(self, addr, len) -> bytes:
-        self._fail_if_not_init()
-        self.seq_num = self.seq_num + 1
-        cmd = bytes([CMD_READ_ROM]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff]) + \
-            bytes(2) + bytes([0x00, 0x30]) + bytes(2) + bytes([0x00, 0x30]) + bytes(PACKSIZE-18)
-        return self.send_cmd(cmd)
-
     def update_flash(self, addr, data, size, update_dataflash=False):
         self._fail_if_not_init()
         flen = size
@@ -469,11 +506,8 @@ class NuvoISP(NuvoProg):
             bytes(2) + bytes([flen & 0xff, (flen >> 8) & 0xff]) + \
             bytes(2) + bytes(data[0:48])
 
-        # Program first block of 48 bytes
-        if update_dataflash:
-            self.send_cmd(cmd, 1)
-        else:
-            self.send_cmd(cmd)
+        # Program first block of 48 bytes (1 second delay because it has to erase the flash first)
+        self.send_cmd(cmd, 1)
         ipos += 48
         while (ipos <= flen):
             self.update_progress_bar("Programming Rom", ipos, flen)
@@ -496,23 +530,30 @@ class NuvoISP(NuvoProg):
         if not self.silent:
             progress_bar(name, step, total)
 
-    def dump_flash(self) -> bytes:
+    def dump_flash(self, start_addr=APROM_ADDR, length=FLASH_SIZE) -> bytes:
         self._fail_if_not_init()
         self._fail_if_not_extended()
-        addr = APROM_ADDR
         step_size = DUMP_DATA_SIZE
         data = bytes()
-        while (addr < FLASH_SIZE):
-            self.update_progress_bar("Dumping...", addr, FLASH_SIZE)
+        first_packet: bytes
+        if (start_addr == APROM_ADDR and length == FLASH_SIZE):
+            first_packet = self._cmd_packet(CMD_DUMP_ROM)
+        else:
+            first_packet = self._pad_packet(bytes([CMD_READ_ROM]) + bytes(7) + bytes([start_addr & 0xff, (start_addr >> 8) & 0xff]) +
+                                            bytes(2) + bytes([length & 0xff, (length >> 8) & 0xff]))
+        addr = start_addr
+        end_addr = start_addr + length
+        while (addr < end_addr):
+            self.update_progress_bar("Dumping...", addr, end_addr)
             # Give initial cmd time to dump entire rom
-            if addr == APROM_ADDR:
-                _, rx = self.send_cmd(self._cmd_packet(CMD_DUMP_ROM), 1)
+            if addr == start_addr:
+                _, rx = self.send_cmd(first_packet, 1)
             else:
                 _, rx = self.send_cmd(self._cmd_packet(0))
 
             min = PACKSIZE-step_size
             max = PACKSIZE if (addr + step_size <=
-                               FLASH_SIZE) else FLASH_SIZE - addr + min
+                               end_addr) else end_addr - addr + min
             data += rx[min:max]
             addr += step_size
         return data
@@ -650,8 +691,8 @@ class NuvoISP(NuvoProg):
                 return False
             self.print_vb("ROM data verified.")
             # check that the config was really written correctly (do this AFTER verifying the flash because the device may be locked after programming)
-            self._disconnect()
-            self._connect()
+            # self._disconnect()
+            # self._connect()
             new_config = self.read_config()
             if str(new_config) != str(write_config):
                 eprint("Config verification failed.")

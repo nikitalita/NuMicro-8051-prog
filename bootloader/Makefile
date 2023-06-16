@@ -4,6 +4,7 @@
 # ------------------------------------------------------
 
 INCDIR  = inc
+INCDIR2 = ../nuvoicp/common
 MODEL  = small
 DEFS = -DFOSC_166000
 
@@ -33,7 +34,7 @@ CTOASM = $(addprefix $(OUTDIR)/, $(C_TO_ASM_FILE))
 CC = sdcc
 MCU_MODEL = mcs51
 
-CFLAGS = -I$(INCDIR) -m$(MCU_MODEL) --model-$(MODEL) --out-fmt-ihx --no-xinit-opt $(DEFS) --peep-file peep.def
+CFLAGS = -I$(INCDIR) -I$(INCDIR2) -m$(MCU_MODEL) --model-$(MODEL) --out-fmt-ihx --no-xinit-opt $(DEFS) --peep-file peep.def
 CFLAGS+= --opt-code-size --fomit-frame-pointer --peep-asm --peep-return --std-c11 --acall-ajmp
 LFLAGS = -m$(MCU_MODEL) --model-$(MODEL) --out-fmt-ihx $(DEFS)
 

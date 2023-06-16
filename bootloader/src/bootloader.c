@@ -9,13 +9,25 @@
 #include "SFR_Macro.h"
 #include "Function_define.h"
 #include "isp_uart0.h"
+#include "isp_common.h"
+
+
+// bootloader-specific constants
+#define FW_VERSION           0xD0
+#define APROM_SIZE           16*1024
+#define LDROM_SIZE           2*1024
+#define APROM_PAGE_COUNT APROM_SIZE/PAGE_SIZE
+#define LDROM_ADDRESS APROM_SIZE
+
+// How long to wait for an ISP connection before booting into APROM
+#define Timer0Out_Counter    200 // About 1 second
 
 
 __bit BIT_TMP;
 volatile uint8_t  __xdata uart_rcvbuf[64]; 
 volatile uint8_t  __xdata uart_txbuf[64];
 volatile uint8_t  __data  bufhead;
-volatile uint16_t __data   flash_address; 
+volatile uint16_t __data   current_address; 
 volatile uint16_t __data   AP_size;
 volatile uint8_t  __data  g_timer1Counter;
 volatile uint8_t  __data  count; 
@@ -34,10 +46,6 @@ unsigned char CONF[5];
 unsigned char UID[3];
 unsigned char UCID[4];
 unsigned char DPID[4];
-#define FLASH_SIZE 0x4800
-#define APROM_PAGE_COUNT APROM_SIZE/PAGE_SIZE
-#define FLASH_PAGE_COUNT FLASH_SIZE/PAGE_SIZE
-#define LDROM_ADDRESS APROM_SIZE
 
 void UART0_ini_115200(void)
 {
@@ -131,7 +139,7 @@ void READ_COMPANY_ID(void){
 }
 
 void TM0_ini(void)
-{    
+{
   TH0=TL0=0;    //interrupt timer 140us
   set_TR0;      //Start timer0
   set_PSH;       // Serial port 0 interrupt level2
@@ -182,7 +190,7 @@ void Serial_ISR (void) __interrupt 4
       g_timer1Over=0;
       g_timer1Counter=90; //for check uart timeout using
     }
-  if(bufhead == 64)
+    if(bufhead == 64)
     {
       
       bUartDataReady = TRUE;
@@ -191,16 +199,7 @@ void Serial_ISR (void) __interrupt 4
       bufhead = 0;
     }    
 }
-// void timer_decrement(uint16_t * timer, uint8_t * timer_over){
-//   if(*timer)
-//   {
-//     (*timer)--;
-//     if(!(*timer))
-//     {
-//       *timer_over=1;
-//     }
-//   }
-// }
+
 void Timer0_ISR (void) __interrupt 1
 {
 if(g_timer0Counter)
@@ -229,7 +228,8 @@ if(g_timer0Counter)
 
 
 #ifdef isp_with_wdt
-#define ISP_SET_IAPGO set_IAPGO_WDCLR
+//set_IAPGO_WDCLR not defined
+#define ISP_SET_IAPGO set_IAPGO
 #else
 #define ISP_SET_IAPGO set_IAPGO
 #endif
@@ -244,14 +244,14 @@ void dump(){
   uint16_t addr;
   for(count=8;count<64;count++)
   {
-    addr = flash_address >= LDROM_ADDRESS ? flash_address - LDROM_ADDRESS : flash_address;
-    IAPCN = flash_address >= LDROM_ADDRESS ? BYTE_READ_LD : BYTE_READ_AP;
+    addr = current_address >= LDROM_ADDRESS ? current_address - LDROM_ADDRESS : current_address;
+    IAPCN = current_address >= LDROM_ADDRESS ? BYTE_READ_LD : BYTE_READ_AP;
     IAPAL = addr&0xff;
     IAPAH = (addr>>8)&0xff;
     ISP_SET_IAPGO;
     uart_txbuf[count]=IAPFD;
     g_totalchecksum+=uart_txbuf[count];
-    if(++flash_address==AP_size)
+    if(++current_address==AP_size)
     {
        g_dumpflag=0;
       goto END_DUMP;
@@ -263,31 +263,33 @@ END_DUMP:
 }
 
 void update(uint8_t start_count){
-  for(count=start_count;count<64;count++)
+  for(count=start_count;count<PACKSIZE;count++)
   {
 //              g_timer0Counter=Timer0Out_Counter;
     IAPCN = BYTE_PROGRAM_AP;          //program byte
-    IAPAL = flash_address&0xff;
-    IAPAH = (flash_address>>8)&0xff;
-    IAPFD=uart_rcvbuf[count];
+    IAPAL = current_address&0xff;
+    IAPAH = (current_address>>8)&0xff;
+    IAPFD = uart_rcvbuf[count];
     
     ISP_SET_IAPGO;
 
-    IAPCN = BYTE_READ_AP;              //program byte verify
-    if(IAPFD!=uart_rcvbuf[count])
-    while(1);                          
+    IAPCN = BYTE_READ_AP;              // program byte verify
+
+    if(IAPFD!=uart_rcvbuf[count])      // if not correct
+      while(1); // Error state, loop forever
 //              if (CHPCON==0x43)              //if error flag set, program error stop ISP
 //              while(1);
     
     g_totalchecksum=g_totalchecksum+uart_rcvbuf[count];
-    flash_address++;
+    current_address++;
 
-    if(flash_address==AP_size)
+    if(current_address==AP_size)
     {
         g_programflag=0;
-        if (start_count != 16){
-          g_timer0Over =1;
-        }
+        // Specification implies that this shouldn't boot the APROM after programming.
+        // if (start_count != INITIAL_UPDATE_PKT_START){
+        //   g_timer0Over =1; // boot APROM
+        // }
         goto END_UPDATE;
     }
   } 
@@ -297,17 +299,16 @@ END_UPDATE:
   uart_txbuf[9]=(g_totalchecksum>>8)&0xff;
   Send_64byte_To_UART0();
 }
+
 void set_addrs(){
-  start_address = 0;
   start_address = uart_rcvbuf[8];
   start_address |= ((uart_rcvbuf[9]<<8)&0xFF00);
-  AP_size = 0;
   AP_size = uart_rcvbuf[12];
   AP_size |= ((uart_rcvbuf[13]<<8)&0xFF00);
-
+  current_address = start_address;
 }
 
-void finish_read_config(){
+void finish_read_config() {
   READ_CONFIG();                        /*Read new CONFIG*/  
   Package_checksum();
   uart_txbuf[8] =CONF[0];
@@ -497,7 +498,7 @@ while(1)
             }
             case CMD_DUMP_ROM:
             {
-              flash_address = 0;
+              current_address = 0;
               start_address = 0;
               AP_size = FLASH_SIZE;
               g_dumpflag=1;
@@ -515,13 +516,8 @@ while(1)
             {
 //              g_timer0Counter=Timer0Out_Counter;
               set_addrs();
-              u16_addr = start_address + AP_size;
-              flash_address = (start_address&0xFF00);
-
-              erase_ap(flash_address, u16_addr);
-              
+              erase_ap((start_address&0xFF00), start_address + AP_size);
               g_totalchecksum = 0;
-              flash_address = start_address;
               g_programflag = 1;
 
               update(16);          
@@ -530,8 +526,7 @@ while(1)
             case CMD_ISP_PAGE_ERASE:
             {
               set_addrs();
-              flash_address = (start_address&0xFF00);
-              erase_ap(flash_address, 1);
+              erase_ap((start_address&0xFF00), 1);
               Package_checksum();
               Send_64byte_To_UART0();  
               break;
