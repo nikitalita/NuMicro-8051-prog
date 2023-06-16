@@ -14,7 +14,6 @@
 #define CMD_RUN_LDROM        0xac   // not implemented in default N76E003 ISP rom
 
 #define CMD_READ_ROM        0xa5 // non-official
-#define CMD_DUMP_ROM        0xaa // non-official
 #define CMD_GET_UID         0xb2 // non-official
 #define CMD_GET_CID         0xb3 // non-official
 #define CMD_GET_UCID        0xb4 // non-official

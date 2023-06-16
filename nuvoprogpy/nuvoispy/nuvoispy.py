@@ -69,7 +69,6 @@ CMD_GET_FLASHMODE = 0xCA  # not implemented in default N76E003 ISP rom
 CMD_WRITE_CHECKSUM = 0xC9  # not implemented in default N76E003 ISP rom
 CMD_RESEND_PACKET = 0xFF  # not implemented in default N76E003 ISP rom
 CMD_READ_ROM = 0xa5   # non-official
-CMD_DUMP_ROM = 0xaa   # non-official
 CMD_GET_UID = 0xb2   # non-official
 CMD_GET_CID = 0xb3   # non-official
 CMD_GET_UCID = 0xb4   # non-official
@@ -535,12 +534,8 @@ class NuvoISP(NuvoProg):
         self._fail_if_not_extended()
         step_size = DUMP_DATA_SIZE
         data = bytes()
-        first_packet: bytes
-        if (start_addr == APROM_ADDR and length == FLASH_SIZE):
-            first_packet = self._cmd_packet(CMD_DUMP_ROM)
-        else:
-            first_packet = self._pad_packet(bytes([CMD_READ_ROM]) + bytes(7) + bytes([start_addr & 0xff, (start_addr >> 8) & 0xff]) +
-                                            bytes(2) + bytes([length & 0xff, (length >> 8) & 0xff]))
+        first_packet = self._pad_packet(self._cmd_packet_header(CMD_READ_ROM) + bytes([start_addr & 0xff, (start_addr >> 8) & 0xff]) +
+                                        bytes(2) + bytes([length & 0xff, (length >> 8) & 0xff]))
         addr = start_addr
         end_addr = start_addr + length
         while (addr < end_addr):

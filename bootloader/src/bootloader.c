@@ -237,7 +237,7 @@ if(g_timer0Counter)
 
 #define set_IAPTRG_IAPGO_WDCLR   BIT_TMP=EA;EA=0;set_WDCON_WDCLR;TA=0xAA;TA=0x55;IAPTRG|=0x01;EA=BIT_TMP
 
-unsigned int __xdata start_address,u16_addr;
+unsigned int __xdata start_address,end_address;
 
 
 void dump(){
@@ -250,8 +250,8 @@ void dump(){
     IAPAH = (addr>>8)&0xff;
     ISP_SET_IAPGO;
     uart_txbuf[count]=IAPFD;
-    g_totalchecksum+=uart_txbuf[count];
-    if(++current_address==AP_size)
+    // g_totalchecksum+=uart_txbuf[count];
+    if(++current_address==end_address)
     {
        g_dumpflag=0;
       goto END_DUMP;
@@ -283,7 +283,7 @@ void update(uint8_t start_count){
     g_totalchecksum=g_totalchecksum+uart_rcvbuf[count];
     current_address++;
 
-    if(current_address==AP_size)
+    if(current_address==end_address)
     {
         g_programflag=0;
         // Specification implies that this shouldn't boot the APROM after programming.
@@ -306,6 +306,7 @@ void set_addrs(){
   AP_size = uart_rcvbuf[12];
   AP_size |= ((uart_rcvbuf[13]<<8)&0xFF00);
   current_address = start_address;
+  end_address = AP_size + start_address;
 }
 
 void finish_read_config() {
@@ -496,18 +497,10 @@ while(1)
               finish_read_config();
               break;
             }
-            case CMD_DUMP_ROM:
-            {
-              current_address = 0;
-              start_address = 0;
-              AP_size = FLASH_SIZE;
-              g_dumpflag=1;
-              dump();
-              break;
-            }
             case CMD_READ_ROM:
             {
               set_addrs();
+              g_totalchecksum = 0;
               g_dumpflag=1;
               dump();
               break;
@@ -516,7 +509,7 @@ while(1)
             {
 //              g_timer0Counter=Timer0Out_Counter;
               set_addrs();
-              erase_ap((start_address&0xFF00), start_address + AP_size);
+              erase_ap((start_address&0xFF00), end_address);
               g_totalchecksum = 0;
               g_programflag = 1;
 

@@ -229,7 +229,6 @@ char * cmd_enum_to_string(int cmd)
     case CMD_WRITE_CHECKSUM: return "CMD_WRITE_CHECKSUM";
     case CMD_RESEND_PACKET: return "CMD_RESEND_PACKET";
     case CMD_READ_ROM: return "CMD_READ_ROM";
-    case CMD_DUMP_ROM: return "CMD_DUMP_ROM";
     case CMD_GET_UID: return "CMD_GET_UID";
     case CMD_GET_CID: return "CMD_GET_CID";
     case CMD_GET_UCID: return "CMD_GET_UCID";
@@ -509,10 +508,6 @@ void loop()
         digitalWrite(BUILTIN_LED, HIGH);
         state = DISCONNECTED_STATE;
       } break;
-      case CMD_DUMP_ROM:
-        DEBUG_PRINT("CMD_DUMP_ROM\n");
-        start_dump(APROM_FLASH_ADDR, FLASH_SIZE, pkt);
-        break;
       case CMD_READ_ROM:
         dump_addr = (pkt[9] << 8) | pkt[8];
         dump_size = (pkt[13] << 8) | pkt[12];
