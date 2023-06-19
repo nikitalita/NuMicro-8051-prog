@@ -40,11 +40,12 @@ volatile __bit   g_timer1Over;
 volatile __bit   g_programflag;
 volatile __bit   g_dumpflag;
 
-// unsigned char PID_highB,PID_lowB,DID_highB,DID_lowB,CONF0,CONF1,CONF2,CONF3,CONF4;
+#define UCID_LENGTH 0x30
+#define UID_LENGTH 12
 unsigned char CID;
 unsigned char CONF[5];
-unsigned char UID[3];
-unsigned char UCID[4];
+// unsigned char UID[UID_LENGTH];
+// unsigned char UCID[UCID_LENGTH];
 unsigned char DPID[4];
 
 void UART0_ini_115200(void)
@@ -121,9 +122,6 @@ void BYTE_READ_FUNC(uint8_t cmd, uint8_t start, uint8_t len, uint8_t *buf)
     buf[i] = IAPFD;
 }
 
-void READ_UNIQUE_ID(void) {
-  BYTE_READ_FUNC(READ_UID, 0x00, 3, UID);
-}
 
 void READ_DEVICE_ID(void)
 {
@@ -419,12 +417,8 @@ while(1)
             }
             case CMD_GET_UID:
             {
-              READ_UNIQUE_ID();
+              BYTE_READ_FUNC(READ_UID, 0, UID_LENGTH, &uart_txbuf[8]);
               Package_checksum();
-              uart_txbuf[8]=UID[0];  
-              uart_txbuf[9]=UID[1];  
-              uart_txbuf[10]=UID[2];
-              // uart_txbuf[11]=0x00;  
               Send_64byte_To_UART0();  
               break;
             }
@@ -438,15 +432,18 @@ while(1)
             } 
             case CMD_GET_UCID:
             {
-              // TODO: figure out how to get this
+              BYTE_READ_FUNC(READ_UID, 0x20, UCID_LENGTH, &uart_txbuf[8]);
               Package_checksum();
-              uart_txbuf[8]=0xFF;
-              uart_txbuf[9]=0xFF;
-              uart_txbuf[10]=0xFF;
-              uart_txbuf[11]=0xFF;
               Send_64byte_To_UART0();
               break;
             }
+            // case CMD_GET_BANDGAP:
+            // {
+            //   BYTE_READ_FUNC(READ_UID, 0x0C, 2, &uart_txbuf[8]);
+            //   Package_checksum();
+            //   Send_64byte_To_UART0();
+            //   break;
+            // }
             case CMD_GET_FLASHMODE:
             {
               READ_CONFIG();
@@ -509,7 +506,8 @@ while(1)
             {
 //              g_timer0Counter=Timer0Out_Counter;
               set_addrs();
-              erase_ap((start_address&0xFF00), end_address);
+              // TODO: check if the mask is correct (should be 0xFF80 since page size is 128)
+              erase_ap((start_address&0xFF80), end_address);
               g_totalchecksum = 0;
               g_programflag = 1;
 
@@ -519,7 +517,7 @@ while(1)
             case CMD_ISP_PAGE_ERASE:
             {
               set_addrs();
-              erase_ap((start_address&0xFF00), 1);
+              erase_ap((start_address&0xFF80), 1);
               Package_checksum();
               Send_64byte_To_UART0();  
               break;
