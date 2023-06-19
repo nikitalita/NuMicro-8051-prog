@@ -450,13 +450,20 @@ class NuvoISP(NuvoProg):
         self._fail_if_not_init()
         self._fail_if_not_extended()
         _, rx = self.send_cmd(self._cmd_packet(CMD_GET_UID))
-        return (rx[10] << 16) + (rx[9] << 8) + rx[8]
+        ret = rx[8:20]
+        return ret
+
+    def get_ucid_test(self):
+        self._fail_if_not_init()
+        self._fail_if_not_extended()
+        _, rx = self.send_cmd(self._cmd_packet(CMD_GET_UCID))
+        return rx[8:44]
 
     def get_ucid(self):
         self._fail_if_not_init()
         self._fail_if_not_extended()
         _, rx = self.send_cmd(self._cmd_packet(CMD_GET_UCID))
-        return (rx[11] << 24) + (rx[10] << 16) + (rx[9] << 8) + rx[8]
+        return rx[8:24]
 
     def read_config(self):
         self._fail_if_not_init()
@@ -926,6 +933,9 @@ def main() -> int:
             # process commands
             if config_dump_cmd:
                 print(devinfo)
+                test = nuvo.get_ucid_test()
+                # print as individual bytes
+                print(" ".join(["%02X" % b for b in test]))
                 read_config.print_config()
                 return 0
             elif read:

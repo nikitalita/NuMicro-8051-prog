@@ -14,14 +14,14 @@ FLASH_SIZE = 18 * 1024
 
 
 class DeviceInfo:
-    def __init__(self, device_id=0xFFFF, uid=0xFFFFFF, cid=0xFF, ucid=0xFFFFFFFF):
+    def __init__(self, device_id=0xFFFF, uid=bytes([0xFF]*12), cid=0xFF, ucid=bytes([0xFF]*16)):
         self.device_id = device_id
         self.uid = uid
         self.cid = cid
         self.ucid = ucid
 
     def __str__(self):
-        return "Device ID: 0x%04X\nCID: 0x%02X\nUID: 0x%08X\nUCID: 0x%08X" % (self.device_id, self.cid, self.uid, self.ucid)
+        return "Device ID: 0x%04X\nCID: 0x%02X\nUID: %s\nUCID: %s" % (self.device_id, self.cid, " ".join(["%02X" % b for b in self.uid]), " ".join(["%02X" % b for b in self.ucid]))
 
     def is_supported(self):
         return self.device_id == N76E003_DEVID

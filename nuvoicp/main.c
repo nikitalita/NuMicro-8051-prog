@@ -40,24 +40,31 @@
 typedef struct _device_info{
 	uint16_t devid;
 	uint8_t cid;
-	uint32_t uid;
-	uint32_t ucid;
+	uint8_t uid[12];
+	uint8_t ucid[16];
 } device_info;
 
 device_info get_device_info() {
 	device_info info;
 	info.devid = icp_read_device_id();
 	info.cid = icp_read_cid();
-	info.uid = icp_read_uid();
-	info.ucid = icp_read_ucid();
+	icp_read_uid(info.uid);
+	icp_read_ucid(info.ucid);
 	return info;
 }
 
 void print_device_info(device_info info){
 	printf("Device ID:\t0x%04x (%s)\n", info.devid, info.devid == N76E003_DEVID ? "N76E003" : "unknown");
 	printf("CID:\t\t0x%02x\n", info.cid);
-	printf("UID:\t\t0x%08x\n", info.uid);
-	printf("UCID:\t\t0x%08x\n", info.ucid);
+	printf("UID:\t\t");
+	for (int i = 0; i < 12; i++) {
+		printf("%02x ", info.uid[i]);
+	}
+	printf("\nUCID:\t\t");
+	for (int i = 0; i < 16; i++) {
+		printf("%02x ", info.ucid[i]);
+	}
+	printf("\n");
 }
 
 static const uint8_t blank_cfg[CFG_FLASH_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};

@@ -76,11 +76,11 @@ class LibICP:
         self.lib.icp_read_cid.argtypes = []
         self.lib.icp_read_cid.restype = ctypes.c_uint8
 
-        self.lib.icp_read_uid.argtypes = []
-        self.lib.icp_read_uid.restype = ctypes.c_uint32
+        self.lib.icp_read_uid.argtypes = [ctypes.POINTER(ctypes.c_uint8)]
+        self.lib.icp_read_uid.restype = None
 
-        self.lib.icp_read_ucid.argtypes = []
-        self.lib.icp_read_ucid.restype = ctypes.c_uint32
+        self.lib.icp_read_ucid.argtypes = [ctypes.POINTER(ctypes.c_uint8)]
+        self.lib.icp_read_ucid.restype = None
 
         self.lib.icp_read_flash.argtypes = [
             ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
@@ -165,10 +165,16 @@ class LibICP:
         return self.lib.icp_read_cid()
 
     def read_uid(self):
-        return self.lib.icp_read_uid()
+        data_type = ctypes.c_uint8 * 12
+        data = data_type()
+        self.lib.icp_read_uid(data)
+        return bytes(data)
 
     def read_ucid(self):
-        return self.lib.icp_read_ucid()
+        data_type = ctypes.c_uint8 * 16
+        data = data_type()
+        self.lib.icp_read_ucid(data)
+        return bytes(data)
 
     def read_flash(self, addr, length):
         data_type = ctypes.c_uint8 * length

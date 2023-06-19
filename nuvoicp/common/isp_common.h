@@ -17,6 +17,8 @@
 #define CMD_GET_UID         0xb2 // non-official
 #define CMD_GET_CID         0xb3 // non-official
 #define CMD_GET_UCID        0xb4 // non-official
+#define CMD_GET_BANDGAP     0xb5 // non-official
+
 
 #define CMD_ISP_PAGE_ERASE      0xD5 // non-official
 

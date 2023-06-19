@@ -29,6 +29,12 @@ int state;
 #ifdef _DEBUG
 #pragma message "DEBUG MODE!!!"
 #define DEBUG_PRINT(...) icp_outputf(__VA_ARGS__)
+#define DEBUG_PRINT_BYTEARR(arr, len) \
+  for (int i = 0; i < len; i++) \
+    icp_outputf(" %02x", arr[i]); \
+  icp_outputf("\n");
+
+
 static unsigned long usstart_time = 0;
 static unsigned long usend_time = 0;
 #define TIMER_START usstart_time = pgm_get_time();
@@ -92,6 +98,7 @@ void test_usleep() {
 
 #else // _DEBUG
 #define DEBUG_PRINT(...)
+#define DEBUG_PRINT_BYTEARR(arr, len)
 #endif // _DEBUG
 
 
@@ -114,8 +121,8 @@ void setup()
   icp_init();
   icp_outputf("DEVICEID\t\t\t0x%02x\n", icp_read_device_id());
   icp_outputf("CID\t\t\t0x%02x\n", icp_read_cid());
-  icp_outputf("UID\t\t\t0x%06x\n", icp_read_uid());
-  icp_outputf("UCID\t\t\t0x%08x\n", icp_read_ucid());
+  icp_outputf("UID\t\t\t0x%024x\n", icp_read_uid());
+  icp_outputf("UCID\t\t\t0x%032x\n", icp_read_ucid());
   icp_dump_config();
   uint8_t buf[16];
   uint16_t addr = 0;
@@ -429,21 +436,20 @@ void loop()
         } break;
       case CMD_GET_UID:
         {
-        uint32_t id = icp_read_uid();
-        DEBUG_PRINT("received uid of 0x%06x\n", id);
-        pkt[8] = id & 0xff;
-        pkt[9] = (id >> 8) & 0xff;
-        pkt[10] = (id >> 16) & 0xff;
+        icp_read_uid(&pkt[8]);
+        DEBUG_PRINT("received uid of ");
+        DEBUG_PRINT_BYTEARR(&pkt[8], 12);
         tx_pkt();
         } break;
       case CMD_GET_UCID:
         {
-        int id = icp_read_ucid();
-        DEBUG_PRINT("received ucid of 0x%08x\n", id);
-        pkt[8] = id & 0xff;
-        pkt[9] = (id >> 8) & 0xff;
-        pkt[10] = (id >> 16) & 0xff;
-        pkt[11] = (id >> 24) & 0xff;
+        // __uint128_t id = icp_read_ucid();
+        // DEBUG_PRINT("received ucid of 0x%08x\n", id);
+        // for (int i = 0; i < 16; i++)
+        //   pkt[8 + i] = (id >> (i * 8)) & 0xff;
+        icp_read_ucid(&pkt[8]);
+        DEBUG_PRINT("received ucid of ");
+        DEBUG_PRINT_BYTEARR(&pkt[8], 16);
         tx_pkt();
         } break;
       case CMD_GET_DEVICEID:

@@ -274,28 +274,34 @@ uint8_t icp_read_cid(void)
 	return icp_read_byte(1);
 }
 
-uint32_t icp_read_uid(void)
+void icp_read_uid(uint8_t * buf)
 {
-	uint8_t uid[3];
 
-	for (uint8_t  i = 0; i < sizeof(uid); i++) {
+	for (uint8_t  i = 0; i < 12; i++) {
 		icp_send_command(CMD_READ_UID, i);
-		uid[i] = icp_read_byte(1);
+		buf[i] = icp_read_byte(1);
 	}
-
-	return (uid[2] << 16) | (uid[1] << 8) | uid[0];
+	// __uint128_t ret = 0;
+	// for (uint8_t  i = 0; i < 12; i++) {
+	// 	icp_send_command(CMD_READ_UID, i);
+	// 	ret |= (icp_read_byte(1) << (i * 8));
+	// }
+	// return ret;
 }
 
-uint32_t icp_read_ucid(void)
+void icp_read_ucid(uint8_t * buf)
 {
-	uint8_t ucid[4];
-
-	for (uint8_t i = 0; i < sizeof(ucid); i++) {
+	for (uint8_t i = 0; i < 16; i++) {
 		icp_send_command(CMD_READ_UID, i + 0x20);
-		ucid[i] = icp_read_byte(1);
+		buf[i] = icp_read_byte(1);
 	}
 
-	return (ucid[3] << 24) | (ucid[2] << 16) | (ucid[1] << 8) | ucid[0];
+	// __uint128_t ret = 0;
+	// for (uint8_t i = 0; i < 16; i++) {
+	// 	icp_send_command(CMD_READ_UID, i + 0x20);
+	// 	ret |= (icp_read_byte(1) << (i * 8));
+	// }
+	// return ret;
 }
 
 uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data)
