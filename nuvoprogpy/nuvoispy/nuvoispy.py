@@ -187,7 +187,7 @@ class NuvoISP(NuvoProg):
     def serial_timeout(self, value):
         self._serial_timeout = value
         if self.ser:
-            if self.ser.is_open:
+            if self.is_serial_open():
                 self.reopen_serial()
             else:
                 self.ser.timeout = value
@@ -200,7 +200,7 @@ class NuvoISP(NuvoProg):
     def serial_rate(self, value):
         self._serial_rate = value
         if self.ser:
-            if self.ser.is_open:
+            if self.is_serial_open():
                 self.reopen_serial()
             else:
                 self.ser.baudrate = value
@@ -213,10 +213,40 @@ class NuvoISP(NuvoProg):
     def serial_port(self, value):
         self._serial_port = value
         if self.ser:
-            if self.ser.is_open:
+            if self.is_serial_open():
                 self.reopen_serial()
             else:
                 self.ser.port = value
+
+    def is_serial_open(self):
+        return self.ser.is_open
+
+    def get_serial_inwaiting(self):
+        return self.ser.in_waiting
+
+    def write_serial(self, data):
+        self.ser.write(data)
+
+    def read_serial(self, size=1):
+        return self.ser.read(size)
+
+    def close_serial(self):
+        self.ser.close()
+
+    def flush_serial(self):
+        self.ser.flush()
+
+    def reopen_serial(self):
+        SERIAL_CLOSE_WAIT = 0.5
+        if not self.ser:
+            self.ser = serial.Serial(self.serial_port, self.serial_rate, timeout=self.serial_timeout)
+        else:
+            if self.is_serial_open():
+                self.flush_serial()
+                self.close_serial()
+                time.sleep(SERIAL_CLOSE_WAIT)
+            self.ser = serial.Serial(self.serial_port, self.serial_rate, timeout=self.serial_timeout)
+            self.flush_serial()
 
     @ property
     def supports_extended_cmds(self):
@@ -246,22 +276,10 @@ class NuvoISP(NuvoProg):
 
     def _disconnect(self):
         cmd = self._cmd_packet(CMD_RUN_APROM)
-        self.ser.write(cmd)
+        self.write_serial(cmd)
         time.sleep(self.serial_timeout)
-        rx = self.ser.read(PACKSIZE)
+        rx = self.read_serial(PACKSIZE)
         self._connected = False
-
-    def reopen_serial(self):
-        SERIAL_CLOSE_WAIT = 0.5
-        if not self.ser:
-            self.ser = serial.Serial(self.serial_port, self.serial_rate, timeout=self.serial_timeout)
-        else:
-            if self.ser.is_open:
-                self.ser.flush()
-                self.ser.close()
-                time.sleep(SERIAL_CLOSE_WAIT)
-            self.ser = serial.Serial(self.serial_port, self.serial_rate, timeout=self.serial_timeout)
-            self.ser.flush()
 
     def _cmd_packet_header(self, cmd):
         self.seq_num = self.seq_num + 1
@@ -277,7 +295,7 @@ class NuvoISP(NuvoProg):
         if timeout is None:
             timeout = self.serial_timeout
         retries = 0
-        while (self.ser.in_waiting < PACKSIZE):
+        while (self.get_serial_inwaiting() < PACKSIZE):
             if retries > max_retries:
                 return False
             retries += 1
@@ -297,7 +315,7 @@ class NuvoISP(NuvoProg):
         first_try = True
         while not connected:
             cmd = self._cmd_packet(CMD_CONNECT)
-            self.ser.write(cmd)
+            self.write_serial(cmd)
             if first_try:
                 first_try = False
                 time.sleep(first_wait)
@@ -322,22 +340,23 @@ class NuvoISP(NuvoProg):
                     self.print_vb("If not using the arduino ICP programmer, hit reset on the chip")
                 continue
 
-            if self.ser.in_waiting < PACKSIZE:
+            if self.get_serial_inwaiting() < PACKSIZE:
                 raise ConnectionError("Shouldn't get here")
 
             # we sent too many connection packets
-            if self.ser.in_waiting > PACKSIZE:
-                if self.ser.in_waiting % PACKSIZE != 0:
+            if self.get_serial_inwaiting() > PACKSIZE:
+                if self.get_serial_inwaiting() % PACKSIZE != 0:
                     self._wait_for_packet(MAX_READ_RETRIES)
-                    if self.ser.in_waiting % PACKSIZE != 0:
-                        raise ConnectionError("Got invalid packet size")
-                packets_in_waiting = int(self.ser.in_waiting / PACKSIZE)
+                    if self.get_serial_inwaiting() % PACKSIZE != 0:
+                        self.flush_serial() # try again
+                        continue
+                packets_in_waiting = int(self.get_serial_inwaiting() / PACKSIZE)
             else:
                 packets_in_waiting = 1
 
             # check all the received packets
             for i in range(int(packets_in_waiting)):
-                rx = self.ser.read(PACKSIZE)
+                rx = self.read_serial(PACKSIZE)
                 if NuvoISP.verify_chksum(cmd, rx):
                     # print("Got valid reply")
                     connected = True
@@ -358,7 +377,7 @@ class NuvoISP(NuvoProg):
         MAX_SEND_TRIES = 5
         while not sent:
             try:
-                self.ser.write(tx)
+                self.write_serial(tx)
                 sent = True
             except serial.SerialTimeoutException:
                 retries = retries + 1
@@ -378,16 +397,16 @@ class NuvoISP(NuvoProg):
         read_timeout = self.serial_timeout if (max_timeout >= self.serial_timeout) else max_timeout
         while True:
             time.sleep(read_timeout)
-            nbytes = self.ser.in_waiting
+            nbytes = self.get_serial_inwaiting()
 
             if (nbytes < PACKSIZE):
                 tries += 1
                 if (tries > max_read_tries):
                     print("Re-sending packet!")
-                    self.ser.write(tx)
+                    self.write_serial(tx)
                 continue
 
-            rx = self.ser.read(PACKSIZE)
+            rx = self.read_serial(PACKSIZE)
 
             if (len(rx) != PACKSIZE):
                 continue
@@ -426,10 +445,10 @@ class NuvoISP(NuvoProg):
                 raise NoDevice("Unsupported device ID: " + hex(dev_id))
 
     def close(self):
-        if self.ser and self.ser.is_open:
+        if self.ser and self.is_serial_open():
             if self._connected:
                 self._disconnect()
-            self.ser.close()
+            self.close_serial()
 
     def reinit(self, retry=True, check_fw=True):
         self.close()
