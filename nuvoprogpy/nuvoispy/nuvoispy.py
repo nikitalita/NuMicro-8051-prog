@@ -66,13 +66,16 @@ EXTENDED_CMDS_FW_VER = 0xD0
 
 CMD_RESET = 0xad   # not implemented in default N76E003 ISP rom
 CMD_GET_FLASHMODE = 0xCA  # not implemented in default N76E003 ISP rom
-CMD_WRITE_CHECKSUM = 0xC9  # not implemented in default N76E003 ISP rom
-CMD_RESEND_PACKET = 0xFF  # not implemented in default N76E003 ISP rom
 CMD_READ_ROM = 0xa5   # non-official
 CMD_GET_UID = 0xb2   # non-official
 CMD_GET_CID = 0xb3   # non-official
 CMD_GET_UCID = 0xb4   # non-official
 CMD_ISP_PAGE_ERASE = 0xD5   # non-official
+
+# not implemented yet
+CMD_WRITE_CHECKSUM = 0xC9  # not implemented in default N76E003 ISP rom
+CMD_RESEND_PACKET = 0xFF  # not implemented in default N76E003 ISP rom
+
 
 # special commands for NuvoICP arduino sketch
 ICP_BRIDGE_FW_VER = 0xE0
