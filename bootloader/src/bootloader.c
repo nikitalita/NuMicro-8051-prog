@@ -15,6 +15,7 @@
 #define LDROM_SIZE 2 * 1024
 #define APROM_PAGE_COUNT APROM_SIZE / PAGE_SIZE
 #define LDROM_ADDRESS APROM_SIZE
+#define PAGE_MASK 0xFF80
 
 // How long to wait for an ISP connection before booting into APROM
 #define Timer0Out_Counter 200 // About 1 second
@@ -502,8 +503,7 @@ void main(void)
       {
         // g_timer0Counter=Timer0Out_Counter;
         set_addrs();
-        // TODO: check if the mask is correct (should be 0xFF80 since page size is 128)
-        erase_ap((start_address & 0xFF80), end_address);
+        erase_ap((start_address & PAGE_MASK), end_address);
         g_totalchecksum = 0;
         g_programflag = 1;
 
@@ -513,7 +513,7 @@ void main(void)
       case CMD_ISP_PAGE_ERASE:
       {
         set_addrs();
-        erase_ap((start_address & 0xFF80), (start_address & 0xFF80) + PAGE_SIZE);
+        erase_ap((start_address & PAGE_MASK), (start_address & PAGE_MASK) + PAGE_SIZE);
         Package_checksum();
         Send_64byte_To_UART0();
         break;
