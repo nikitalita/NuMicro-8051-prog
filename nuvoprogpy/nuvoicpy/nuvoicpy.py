@@ -631,7 +631,7 @@ def print_usage():
     print("                           40-pin header J8")
     print(" connect 3.3V of MCU ->    3V3  (1) (2)  5V")
     print("                                 [...]")
-    print("				                        (35) (36) GPIO16 <- connect TRIGGER (optional)")
+    print("	                              (35) (36) GPIO16 <- connect TRIGGER (optional)")
     print("        connect CLK ->  GPIO26 (37) (38) GPIO20 <- connect DAT")
     print("        connect GND ->     GND (39) (40) GPIO21 <- connect RST\n")
     print("                      ________")
