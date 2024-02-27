@@ -1,6 +1,4 @@
-// #include <intrins.h>
 #include <stdio.h>
-// #include <absacc.h>
 #include <string.h>
 #include <stdint.h>
 
