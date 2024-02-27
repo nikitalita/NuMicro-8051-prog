@@ -215,10 +215,12 @@ void Timer0_ISR(void) __interrupt 1
 // #define  isp_with_wdt
 
 #ifdef isp_with_wdt
+// set_WDCLR without disabling interrupts
+#define _set_WDCLR TA=0xAA;TA=0x55;WDCON|=SET_BIT6;
 #define set_IAPGO_WDCLR \
   BIT_TMP = EA;         \
   EA = 0;               \
-  set_WDCLR;            \
+  _set_WDCLR;           \
   TA = 0xAA;            \
   TA = 0x55;            \
   IAPTRG |= SET_BIT0;   \
