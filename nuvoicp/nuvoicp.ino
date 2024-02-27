@@ -24,9 +24,6 @@
 #else
 #define CACHED_ROM_READ 0
 #endif
-#if CACHED_ROM_READ
-
-
 
 #define DISCONNECTED_STATE  0
 #define COMMAND_STATE       1
