@@ -43,7 +43,11 @@ LFLAGS = -m$(MCU_MODEL) --model-$(MODEL) --out-fmt-ihx $(DEFS)
 
 .PHONY: all
 
-all: $(TARGET).bin $(TARGET).hex
+all: make-dirs $(TARGET).bin $(TARGET).hex
+
+make-dirs:
+	mkdir -p $(OBJDIR)
+	mkdir -p $(OUTDIR)
 
 $(OUTDIR)/%.hex: $(OBJDIR)/%.ihx
 	packihx $^ > $@
