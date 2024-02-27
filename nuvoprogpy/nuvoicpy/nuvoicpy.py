@@ -14,7 +14,9 @@ import sys
 import os
 
 try:
+    from ..config import DeviceInfo, ConfigFlags
     from ..config import *
+    from .lib.libnuvoicp import LibICP, LibPGM
     from .lib.libnuvoicp import *
 except Exception as e:
     # Hack to allow running nuvoicpy.py directly from the command line
@@ -23,10 +25,12 @@ except Exception as e:
         if not os.path.isfile(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "config.py")):
             raise e
 
+    from lib.libnuvoicp import LibICP, LibPGM
     from lib.libnuvoicp import *
 
     sys.path.append(os.path.join(
         os.path.dirname(os.path.realpath(__file__)), ".."))
+    from config import DeviceInfo, ConfigFlags
     from config import *
 
 
@@ -722,7 +726,7 @@ def main() -> int:
             return 2
 
     # setup write config
-    write_config = None
+    write_config: ConfigFlags = None
     if write:
         if config_file != "":
             write_config = ConfigFlags.from_json_file(config_file)
