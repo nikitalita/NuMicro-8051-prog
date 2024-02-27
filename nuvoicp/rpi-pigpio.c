@@ -4,6 +4,10 @@
 
 #include "pgm.h"
 
+#ifdef DEBUG
+#include "print_caps.h"
+#endif
+
 /* GPIO line numbers for RPi, must be changed for other SBCs */
 #define GPIO_DAT 20
 #define GPIO_RST 21
@@ -14,6 +18,10 @@
 
 int pgm_init(void)
 {
+    #ifdef DEBUG
+    print_caps();
+    #endif
+
     if (gpioInitialise() < 0)
     {
         pgm_print("pigpio initialization failed\n");

@@ -1,12 +1,22 @@
 CC = gcc
 CFLAGS = -Wall -DRPI -DPRINT_CONFIG_EN -DDYNAMIC_DELAY
+USER := $(shell whoami)
+set_cap_on_nuvoicp_CMD = sudo chown "${USER}:kmem" nuvoicp && sudo setcap cap_sys_rawio,cap_dac_override+eip nuvoicp
 
 ifdef DEBUG
-	CFLAGS += -g
+	CFLAGS += -g -DDEBUG
 else
 	CFLAGS += -O3
+	set_cap_on_nuvoicp_CMD =
 endif
+COMP_LIB = pigpio
+PIGPIO_TARGET_CMD = $(MAKE) -j4 -C $(LOCAL_PIGPIO)
+PIGPIO_CLEAN_CMD = $(MAKE) clean -C $(LOCAL_PIGPIO)
 
+
+ifdef LOCAL_PIGPIO
+	USE_PIGPIO = 1
+endif
 # if USE_PIGPIO is defined, use it
 ifdef USE_PIGPIO
 	LIBNAME = pigpio
@@ -19,10 +29,21 @@ else # GPIOD
 	LDFLAGS = -lgpiod
 endif
 
+ifdef LOCAL_PIGPIO #   Use the one in the $(LOCAL_PIGPIO) directory
+	LDFLAGS = -L./$(LOCAL_PIGPIO) -lpigpio
+	CFLAGS += -I./$(LOCAL_PIGPIO)
+else
+	PIGPIO_TARGET_CMD =
+	PIGPIO_CLEAN_CMD =
+endif
+
+#get running user name
+
 # use all as default
 default: all
 
-all: nuvoicp
+
+all: pigpio-target nuvoicp set_cap_on_nuvoicp
 nuvoicp: main.o icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o nuvoicp $^ $(LDFLAGS)
 shared: main.o icp.o $(DEV_OBJ)
@@ -31,3 +52,14 @@ test: itest.o icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o itest $^ $(LDFLAGS)
 clean:
 	rm -f nuvoicp *.o libnuvoicp-*.so
+	$(PIGPIO_CLEAN_CMD)
+
+# Mostly for debugging purposes
+set_cap_on_nuvoicp: nuvoicp
+	$(set_cap_on_nuvoicp_CMD)
+pigpio-target:
+	$(PIGPIO_TARGET_CMD)
+
+# Bogus dependency so it always runs
+
+# $(MAKE) -j4 -C pigpio
