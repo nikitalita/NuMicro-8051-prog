@@ -13,7 +13,7 @@
 
 
 // bootloader-specific constants
-#define FW_VERSION           0xD0
+#define FW_VERSION           0xD0     // Supports extended commands
 #define APROM_SIZE           16*1024
 #define LDROM_SIZE           2*1024
 #define APROM_PAGE_COUNT APROM_SIZE/PAGE_SIZE
@@ -27,13 +27,13 @@ __bit BIT_TMP;
 volatile uint8_t  __xdata uart_rcvbuf[64]; 
 volatile uint8_t  __xdata uart_txbuf[64];
 volatile uint8_t  __data  bufhead;
-volatile uint16_t __data   current_address; 
-volatile uint16_t __data   AP_size;
+volatile uint16_t __data  current_address; 
+volatile uint16_t __data  AP_size;
 volatile uint8_t  __data  g_timer1Counter;
 volatile uint8_t  __data  count; 
-volatile uint16_t __data   g_timer0Counter;
-volatile uint32_t __data   g_checksum;
-volatile uint32_t __data   g_totalchecksum;
+volatile uint16_t __data  g_timer0Counter;
+volatile uint32_t __data  g_checksum;
+volatile uint32_t __data  g_totalchecksum;
 volatile __bit   bUartDataReady;
 volatile __bit   g_timer0Over;
 volatile __bit   g_timer1Over;
@@ -44,8 +44,6 @@ volatile __bit   g_dumpflag;
 #define UID_LENGTH 12
 unsigned char CID;
 unsigned char CONF[5];
-// unsigned char UID[UID_LENGTH];
-// unsigned char UCID[UCID_LENGTH];
 unsigned char DPID[4];
 
 void UART0_ini_115200(void)
@@ -60,7 +58,7 @@ void UART0_ini_115200(void)
     set_T1M;
     clr_BRCK;        //Serial port 0 baud rate clock source = Timer1
 
-    TH1 = (unsigned char)(256 - (1037500/115200));               /*16 MHz */
+    TH1 = (unsigned char)(256 - (1037500/115200));  /* ISP Rom is always 16.6 MHz */
     set_TR1;
     ES=1;
     EA=1;
@@ -138,8 +136,8 @@ void READ_COMPANY_ID(void){
 
 void TM0_ini(void)
 {
-  TH0=TL0=0;    //interrupt timer 140us
-  set_TR0;      //Start timer0
+  TH0=TL0=0;     // Interrupt timer 140us
+  set_TR0;       // Start timer0
   set_PSH;       // Serial port 0 interrupt level2
   set_ET0;
 }
@@ -186,7 +184,7 @@ void Serial_ISR (void) __interrupt 4
     if(bufhead ==1)
     {
       g_timer1Over=0;
-      g_timer1Counter=90; //for check uart timeout using
+      g_timer1Counter=90; // Set timeout for UART idle checking.
     }
     if(bufhead == 64)
     {
@@ -263,20 +261,20 @@ END_DUMP:
 void update(uint8_t start_count){
   for(count=start_count;count<PACKSIZE;count++)
   {
-//              g_timer0Counter=Timer0Out_Counter;
-    IAPCN = BYTE_PROGRAM_AP;          //program byte
+    // g_timer0Counter=Timer0Out_Counter;
+    IAPCN = BYTE_PROGRAM_AP;          // Program byte
     IAPAL = current_address&0xff;
     IAPAH = (current_address>>8)&0xff;
     IAPFD = uart_rcvbuf[count];
     
     ISP_SET_IAPGO;
 
-    IAPCN = BYTE_READ_AP;              // program byte verify
+    IAPCN = BYTE_READ_AP;              // Verify program byte
 
     if(IAPFD!=uart_rcvbuf[count])      // if not correct
       while(1); // Error state, loop forever
-//              if (CHPCON==0x43)              //if error flag set, program error stop ISP
-//              while(1);
+      // if (CHPCON==0x43)              //if error flag set, program error stop ISP
+      // while(1);
     
     g_totalchecksum=g_totalchecksum+uart_rcvbuf[count];
     current_address++;
@@ -308,7 +306,7 @@ void set_addrs(){
 }
 
 void finish_read_config() {
-  READ_CONFIG();                        /*Read new CONFIG*/  
+  READ_CONFIG();
   Package_checksum();
   uart_txbuf[8] =CONF[0];
   uart_txbuf[9] =CONF[1];
@@ -334,7 +332,6 @@ void erase_ap(uint16_t addr, uint16_t page_count){
   }
 }
 
-// ******* MAIN! *******
 void main (void)
 {
 
@@ -343,14 +340,10 @@ void main (void)
 #ifdef  isp_with_wdt
   TA=0x55;TA=0xAA;WDCON=0x07;
 #endif
-//uart initial for ISP programmer GUI, always use 115200 baudrate
+  // Always use 115200 baud rate to maintain compatibility with other ISP programs
   UART0_ini_115200();
   TM0_ini();
 	EA  =1 ;
-//	P11_PushPull_Mode;
-//	CKDIV = 50;					//HIRC devider 160
-//	set_CLOEN;
-//	while(1);
   g_timer0Over=0;
   g_timer0Counter=Timer0Out_Counter;
   g_programflag=0;
@@ -360,7 +353,7 @@ while(1)
 {
         if(bUartDataReady == TRUE)
         {
-          EA=0; //DISABLE ALL INTERRUPT
+          EA=0; // Disable all interrupts
           if (g_dumpflag==1)
           {
             dump();
@@ -377,7 +370,7 @@ while(1)
             {
               Package_checksum();
               Send_64byte_To_UART0();    
-              g_timer0Counter=0; //clear timer 0 for no reset
+              g_timer0Counter=0; // ISP connection made, stop ISP connection timeout
               g_timer0Over=0;
               break;
             }
@@ -403,7 +396,7 @@ while(1)
               break;
             }
 
-            //please for ISP programmer GUI, ID always use following rule to transmit.
+            // Always follow this convention for getting the DeviceID for compatibility with ISP programs
             case CMD_GET_DEVICEID:
             {
               READ_DEVICE_ID();
@@ -448,7 +441,7 @@ while(1)
             {
               READ_CONFIG();
               Package_checksum();
-              // check last bit of first config byte
+              // Check last bit of first config byte
 
               uart_txbuf[8] = (CONF[0] & 0x80) ? APMODE : LDMODE;
               
@@ -472,14 +465,14 @@ while(1)
             
             case CMD_UPDATE_CONFIG:
             {
-              set_CFUEN;                  /*Erase CONFIG */
+              set_CFUEN;                  // Erase CONFIG
               IAPCN = PAGE_ERASE_CONFIG;
               IAPAL = 0x00;
               IAPAH = 0x00;
               IAPFD = 0xFF;
               ISP_SET_IAPGO;
 
-              IAPCN = BYTE_PROGRAM_CONFIG;        /*Program CONFIG*/ 
+              IAPCN = BYTE_PROGRAM_CONFIG;  // Program CONFIG
               
               IAPFD=uart_rcvbuf[8];
               for (count=9;count<13;count++)
@@ -504,7 +497,7 @@ while(1)
             }
             case CMD_UPDATE_APROM:
             {
-//              g_timer0Counter=Timer0Out_Counter;
+              // g_timer0Counter=Timer0Out_Counter;
               set_addrs();
               // TODO: check if the mask is correct (should be 0xFF80 since page size is 128)
               erase_ap((start_address&0xFF80), end_address);
@@ -528,14 +521,14 @@ while(1)
 
           EA=1;
       }
-      /*For connect timer out   */
+      // ISP connection timeout
       if(g_timer0Over==1)
       {
         nop;
         goto _APROM;
       }
       
-      /*for uart time out or buffer error  */
+      // uart has timed out or there was a buffer error
        if(g_timer1Over==1)
       {
        if((bufhead<64)&&(bufhead>0)||(bufhead>64))
@@ -548,7 +541,7 @@ while(1)
 _APROM:
     MODIFY_HIRC_16();
     clr_IAPEN;
-    TA = 0xAA; TA = 0x55; CHPCON = 0x80;                   //software reset enable boot from APROM
+    TA = 0xAA; TA = 0x55; CHPCON = 0x80;  // Software reset, enable boot from APROM
     /* Trap the CPU */
     while(1);  
 }
