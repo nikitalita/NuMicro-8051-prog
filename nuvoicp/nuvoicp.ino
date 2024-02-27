@@ -14,6 +14,18 @@
 #endif
 
 
+#ifdef ARDUINO_AVR_MEGA2560
+#define CACHED_ROM_READ 0
+#endif
+
+// NOTE: If your sketch ends up being too big to fit on the device, you can try setting CACHED_ROM_READ to 0
+#ifndef CACHED_ROM_READ
+#define CACHED_ROM_READ 1
+#else
+#define CACHED_ROM_READ 0
+#endif
+#if CACHED_ROM_READ
+
 
 
 #define DISCONNECTED_STATE  0
@@ -169,12 +181,7 @@ void update(unsigned char* pkt, int len)
   update_size -= n;
 }
 
-// TODO: Remove this for MCUs with smaller RAMs
-#ifndef ARDUINO_AVR_MEGA2560
-#define CACHED_ROM_READ 1
-#endif
-#ifdef CACHED_ROM_READ
-
+#if CACHED_ROM_READ
 byte read_buff[FLASH_SIZE];
 bool read_buff_valid = false;
 #define INVALIDATE_CACHE read_buff_valid = false
@@ -192,7 +199,7 @@ void dump(unsigned char* pkt)
 
   // uint16_t checksum = 0;
 
-#ifdef CACHED_ROM_READ
+#if CACHED_ROM_READ
   // hack to make reads faster
   if (!read_buff_valid) {
     // we're going to read the entire thing into memory
@@ -489,9 +496,7 @@ void loop()
         {
         DEBUG_PRINT("CMD_ISP_MASS_ERASE\n");
 
-#ifdef CACHED_ROM_READ
-          read_buff_valid = false;
-#endif
+          INVALIDATE_CACHE;
           if (!mass_erase_checked(false)) break;
           tx_pkt();
         }
