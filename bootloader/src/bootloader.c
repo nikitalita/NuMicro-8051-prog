@@ -222,16 +222,14 @@ if(g_timer0Counter)
 
 //#define  isp_with_wdt
 
-
 #ifdef isp_with_wdt
-//set_IAPGO_WDCLR not defined
-#define ISP_SET_IAPGO set_IAPGO
+#define set_IAPGO_WDCLR   BIT_TMP=EA;EA=0;set_WDCLR;TA=0xAA;TA=0x55;IAPTRG|=SET_BIT0;EA=BIT_TMP
+#define ISP_SET_IAPGO set_IAPGO_WDCLR
 #else
 #define ISP_SET_IAPGO set_IAPGO
 #endif
 
 
-#define set_IAPTRG_IAPGO_WDCLR   BIT_TMP=EA;EA=0;set_WDCON_WDCLR;TA=0xAA;TA=0x55;IAPTRG|=0x01;EA=BIT_TMP
 
 unsigned int __xdata start_address,end_address;
 
