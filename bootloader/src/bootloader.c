@@ -248,10 +248,9 @@ void dump()
     if (++current_address == end_address)
     {
       g_dumpflag = 0;
-      goto END_DUMP;
+      break;
     }
   }
-END_DUMP:
   Package_checksum();
   Send_64byte_To_UART0();
 }
@@ -286,10 +285,9 @@ void update(uint8_t start_count)
       // if (start_count != INITIAL_UPDATE_PKT_START){
       //   g_timer0Over =1; // boot APROM
       // }
-      goto END_UPDATE;
+      break;
     }
   }
-END_UPDATE:
   Package_checksum();
   uart_txbuf[8] = g_totalchecksum & 0xff;
   uart_txbuf[9] = (g_totalchecksum >> 8) & 0xff;
