@@ -318,12 +318,12 @@ void finish_read_config()
   Send_64byte_To_UART0();
 }
 
-void erase_ap(uint16_t addr, uint16_t page_count)
+void erase_ap(uint16_t addr, uint16_t end_addr)
 {
   set_APUEN;
   IAPFD = 0xFF; // Erase must set IAPFD = 0xFF
   IAPCN = PAGE_ERASE_AP;
-  for (; addr < page_count; addr += PAGE_SIZE)
+  for (; addr < end_addr; addr += PAGE_SIZE)
   {
     IAPAL = LOBYTE(addr);
     IAPAH = HIBYTE(addr);
@@ -452,7 +452,7 @@ void main(void)
 
       case CMD_ERASE_ALL:
       {
-        erase_ap(0x0000, APROM_PAGE_COUNT);
+        erase_ap(0x0000, APROM_SIZE);
         Package_checksum();
         Send_64byte_To_UART0();
         break;
@@ -511,7 +511,7 @@ void main(void)
       case CMD_ISP_PAGE_ERASE:
       {
         set_addrs();
-        erase_ap((start_address & 0xFF80), 1);
+        erase_ap((start_address & 0xFF80), (start_address & 0xFF80) + PAGE_SIZE);
         Package_checksum();
         Send_64byte_To_UART0();
         break;
