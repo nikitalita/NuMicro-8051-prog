@@ -13,3 +13,4 @@ NOTE: If you want to run nuvoprogpy with pigpio, you have to either run python a
 sudo chgrp kmem $non_syslink_python_binary_path
 sudo setcap cap_sys_rawio,cap_dac_override+eip $non_syslink_python_binary_path
 ```
+and make sure that you are in the `kmem` group
