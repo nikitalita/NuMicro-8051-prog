@@ -236,7 +236,7 @@ char * cmd_enum_to_string(int cmd)
     case CMD_GET_DEVICEID: return "CMD_GET_DEVICEID";
     case CMD_RESET: return "CMD_RESET";
     case CMD_GET_FLASHMODE: return "CMD_GET_FLASHMODE";
-    case CMD_UPDATE_DATAFLASH: return "CMD_UPDATE_DATAFLASH";
+    case CMD_UPDATE_WHOLE_ROM: return "CMD_UPDATE_WHOLE_ROM";
     case CMD_WRITE_CHECKSUM: return "CMD_WRITE_CHECKSUM";
     case CMD_RESEND_PACKET: return "CMD_RESEND_PACKET";
     case CMD_READ_ROM: return "CMD_READ_ROM";
@@ -523,8 +523,8 @@ void loop()
         start_dump(dump_addr, dump_size, pkt);
         break;
 
-      case CMD_UPDATE_DATAFLASH:
-        DEBUG_PRINT("CMD_UPDATE_DATAFLASH\n");
+      case CMD_UPDATE_WHOLE_ROM:
+        DEBUG_PRINT("CMD_UPDATE_WHOLE_ROM\n");
         INVALIDATE_CACHE;
         preserved_ldrom_sz = 0;
         if (!mass_erase_checked(true)) break;

@@ -50,38 +50,57 @@ except Exception as e:
     from config import *
     from nuvoprog import NuvoProg
 
-CMD_UPDATE_APROM = 0xa0
-CMD_UPDATE_CONFIG = 0xa1
-CMD_READ_CONFIG = 0xa2
-CMD_ERASE_ALL = 0xa3
-CMD_SYNC_PACKNO = 0xa4
-CMD_GET_FWVER = 0xa6
-CMD_RUN_APROM = 0xab
-CMD_RUN_LDROM = 0xac
-CMD_CONNECT = 0xae
-CMD_GET_DEVICEID = 0xb1
+# Standard commands
+CMD_UPDATE_APROM      =  0xa0
+CMD_UPDATE_CONFIG     =  0xa1
+CMD_READ_CONFIG       =  0xa2
+CMD_ERASE_ALL         =  0xa3
+CMD_SYNC_PACKNO       =  0xa4
+CMD_GET_FWVER         =  0xa6
+CMD_RUN_APROM         =  0xab
+CMD_CONNECT           =  0xae
+CMD_GET_DEVICEID      =  0xb1
+CMD_RESET             =  0xad  # not implemented in default N76E003 ISP rom
+CMD_GET_FLASHMODE     =  0xCA  # not implemented in default N76E003 ISP rom
+CMD_RUN_LDROM         =  0xac  # not implemented in default N76E003 ISP rom
 
-# FW version that we know we can use the extended commands on
+# Not implemented yet
+CMD_RESEND_PACKET     =  0xFF  # not implemented in default N76E003 ISP rom
+
+# Extended commands
+CMD_READ_ROM          =  0xa5 # non-official
+CMD_GET_UID           =  0xb2 # non-official
+CMD_GET_CID           =  0xb3 # non-official
+CMD_GET_UCID          =  0xb4 # non-official
+CMD_GET_BANDGAP       =  0xb5 # non-official
+CMD_ISP_PAGE_ERASE    =  0xD5 # non-official
+
+# Arduino ISP-to-ICP bridge only
+CMD_UPDATE_WHOLE_ROM  =  0xE1 # non-official
+CMD_ISP_MASS_ERASE    =  0xD6 # non-official
+
+# ** Unsupported by N76E003 **
+# Dataflash commands (when a chip has the ability to deliniate between data and program flash)
+CMD_UPDATE_DATAFLASH  =  0xC3
+# SPI flash commands
+CMD_ERASE_SPIFLASH    =  0xD0
+CMD_UPDATE_SPIFLASH   =  0xD1
+# CAN commands
+CAN_CMD_READ_CONFIG   =  0xA2000000
+CAN_CMD_RUN_APROM     =  0xAB000000
+CAN_CMD_GET_DEVICEID  =  0xB1000000
+
+# Deprecated, no ISP programmer uses these
+CMD_READ_CHECKSUM     =  0xC8
+CMD_WRITE_CHECKSUM    =  0xC9
+CMD_SET_INTERFACE     =  0xBA
+
+# The modes returned by CMD_GET_FLASHMODE
+APMODE = 1
+LDMODE = 2
+
 EXTENDED_CMDS_FW_VER = 0xD0
-
-CMD_RESET = 0xad   # not implemented in default N76E003 ISP rom
-CMD_GET_FLASHMODE = 0xCA  # not implemented in default N76E003 ISP rom
-CMD_READ_ROM = 0xa5   # non-official
-CMD_GET_UID = 0xb2   # non-official
-CMD_GET_CID = 0xb3   # non-official
-CMD_GET_UCID = 0xb4   # non-official
-CMD_ISP_PAGE_ERASE = 0xD5   # non-official
-
-# not implemented yet
-CMD_WRITE_CHECKSUM = 0xC9  # not implemented in default N76E003 ISP rom
-CMD_RESEND_PACKET = 0xFF  # not implemented in default N76E003 ISP rom
-
-
-# special commands for NuvoICP arduino sketch
 ICP_BRIDGE_FW_VER = 0xE0
-
-CMD_UPDATE_DATAFLASH = 0xC3  # not implemented in default N76E003 ISP rom
-CMD_ISP_MASS_ERASE = 0xD6   # non-official
 
 PKT_CMD_START = 0
 PKT_CMD_SIZE = 4
@@ -529,7 +548,7 @@ class NuvoISP(NuvoProg):
         cmd_name = CMD_UPDATE_APROM
         if update_dataflash:
             self._fail_if_not_icp_bridge()
-            cmd_name = CMD_UPDATE_DATAFLASH
+            cmd_name = CMD_UPDATE_WHOLE_ROM
         cmd = bytes([cmd_name]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff]) + \
             bytes(2) + bytes([flen & 0xff, (flen >> 8) & 0xff]) + \
             bytes(2) + bytes(data[0:48])
