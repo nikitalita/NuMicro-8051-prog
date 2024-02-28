@@ -27,7 +27,7 @@
 #define CMD_RESEND_PACKET    0xFF  // not implemented in default N76E003 ISP rom
 
 // Arduino ISP-to-ICP bridge only
-#define CMD_UPDATE_DATAFLASH    0xC3  // not implemented in default N76E003 ISP rom
+#define CMD_UPDATE_WHOLE_ROM    0xE1  // not implemented in default N76E003 ISP rom
 #define CMD_ISP_MASS_ERASE      0xD6 // non-official
 
 

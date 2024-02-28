@@ -80,7 +80,7 @@ CMD_RESEND_PACKET = 0xFF  # not implemented in default N76E003 ISP rom
 # special commands for NuvoICP arduino sketch
 ICP_BRIDGE_FW_VER = 0xE0
 
-CMD_UPDATE_DATAFLASH = 0xC3  # not implemented in default N76E003 ISP rom
+CMD_UPDATE_WHOLE_ROM = 0xE1  # not implemented in default N76E003 ISP rom
 CMD_ISP_MASS_ERASE = 0xD6   # non-official
 
 PKT_CMD_START = 0
@@ -529,7 +529,7 @@ class NuvoISP(NuvoProg):
         cmd_name = CMD_UPDATE_APROM
         if update_dataflash:
             self._fail_if_not_icp_bridge()
-            cmd_name = CMD_UPDATE_DATAFLASH
+            cmd_name = CMD_UPDATE_WHOLE_ROM
         cmd = bytes([cmd_name]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff]) + \
             bytes(2) + bytes([flen & 0xff, (flen >> 8) & 0xff]) + \
             bytes(2) + bytes(data[0:48])
