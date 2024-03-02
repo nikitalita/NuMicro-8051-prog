@@ -54,8 +54,12 @@ struct gpiod_line *dat_line, *rst_line, *clk_line, *trigger_line;
 int pgm_init(void)
 {
 	int ret;
-
-	chip = gpiod_chip_open_by_name("gpiochip0");
+	// Pi 5 compatibility: check for the existence of gpiochip4
+	chip = gpiod_chip_open_by_name("gpiochip4");
+	if (!chip) {
+		// Pi 3-4
+		chip = gpiod_chip_open_by_name("gpiochip0");
+	}
 	if (!chip)
 	{
 		fprintf(stderr, "Open chip failed\n");
