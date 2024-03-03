@@ -158,7 +158,7 @@ void pgm_print(const char *msg)
 	fprintf(stderr,"%s", msg);
 }
 #ifdef _DEBUG
-#define DEBUG_PRINT(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
+#define DEBUG_PRINT(msg, ...) fprintf(stderr, msg)
 #else
 #define DEBUG_PRINT(msg, ...)
 #endif
@@ -166,27 +166,27 @@ int get_prev_flags(struct gpiod_line * line){
 	int ret = 0;
 	if (gpiod_line_is_open_drain(line)){
 		ret |= GPIOD_LINE_REQUEST_FLAG_OPEN_DRAIN;
-		DEBUG_PRINT("line is open drain\n")
+		DEBUG_PRINT("line is open drain\n");
 	}
 	if (gpiod_line_is_open_source(line)){
 		ret |= GPIOD_LINE_REQUEST_FLAG_OPEN_SOURCE;
-		DEBUG_PRINT("line is open source\n")
+		DEBUG_PRINT("line is open source\n");
 	}
 	// if (gpiod_line_is_active_low(line)){
 	// 	ret |= GPIOD_LINE_REQUEST_FLAG_ACTIVE_LOW;
-	// 	DEBUG_PRINT("line is active low\n")
+	// 	DEBUG_PRINT("line is active low\n");
 	// }
 	if (gpiod_line_bias(line) == GPIOD_LINE_BIAS_DISABLE){
 		ret |= GPIOD_LINE_REQUEST_FLAG_BIAS_DISABLE;
-		DEBUG_PRINT("line is bias disabled\n")
+		DEBUG_PRINT("line is bias disabled\n");
 	} else if (gpiod_line_bias(line) == GPIOD_LINE_BIAS_PULL_UP){
 		ret |= GPIOD_LINE_REQUEST_FLAG_BIAS_PULL_UP;
-		DEBUG_PRINT("line is bias pull up\n")
+		DEBUG_PRINT("line is bias pull up\n");
 	} else if (gpiod_line_bias(line) == GPIOD_LINE_BIAS_PULL_DOWN){
 		ret |= GPIOD_LINE_REQUEST_FLAG_BIAS_PULL_DOWN;
-		DEBUG_PRINT("line is bias pull down\n")
+		DEBUG_PRINT("line is bias pull down\n");
 	} else if (gpiod_line_bias(line) == GPIOD_LINE_BIAS_AS_IS){
-		DEBUG_PRINT("line is bias unknown\n")
+		DEBUG_PRINT("line is bias unknown\n");
 	}
 	return ret;
 }
@@ -203,22 +203,22 @@ void pgm_release_pin(struct gpiod_line * line){
 
 void pgm_release_non_reset_pins(void){
 	if (dat_line) {
-		DEBUG_PRINT("Releasing dat line\n")
+		DEBUG_PRINT("Releasing dat line\n");
 		pgm_release_pin(dat_line);
 	}
 	if (clk_line) {
-		DEBUG_PRINT("Releasing clk line\n")
+		DEBUG_PRINT("Releasing clk line\n");
 		pgm_release_pin(clk_line);
 	}
 	if (trigger_line) {
-		DEBUG_PRINT("Releasing trigger line\n")
+		DEBUG_PRINT("Releasing trigger line\n");
 		pgm_release_pin(trigger_line);
 	}
 }
 
 void pgm_release_rst(void) {
 	if (rst_line) {
-		DEBUG_PRINT("Releasing rst line\n")
+		DEBUG_PRINT("Releasing rst line\n");
 		pgm_release_pin(rst_line);
 	}
 }
