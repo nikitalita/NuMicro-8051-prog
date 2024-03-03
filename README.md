@@ -19,6 +19,10 @@ nuvoispy: Python library and command-line tool for ISP programming
 - python3-pip
 - Arduino IDE (if building nuvoicp for Arduino)
 
+### Raspberry Pi 5 note
+
+If you plan to use the ICP programmer with the Pi 5, ensure that `pcie_aspm=off` is added to `/boot/firmware/cmdline.txt`. This will increase power consumption if you are using an NVME drive, but this will ensure that there are no random delays added to GPIO ops which will result in a failed flash write.
+
 ## bootloader
 
 ### Build:
