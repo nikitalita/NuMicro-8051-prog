@@ -24,8 +24,9 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #pragma once
-
+#ifdef PRINT_CONFIG_EN
 #include "config.h"
+#endif
 
 // N76E003 device constants
 #define N76E003_DEVID	    0x3650

@@ -35,6 +35,7 @@
 
 #include "icp.h"
 #include "pgm.h"
+#include "config.h"
 #define N76E003_DEVID	0x3650
 
 typedef struct _device_info{
