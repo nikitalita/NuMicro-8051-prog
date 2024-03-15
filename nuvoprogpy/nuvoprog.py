@@ -66,7 +66,7 @@ class NuvoProg:
     def write_config(self, config):
         raise NotImplementedError
 
-    def program_data(self, aprom_data, ldrom_data=bytes(), config=None, ldrom_config_override=True) -> bool:
+    def program_data(self, aprom_data, ldrom_data=bytes(), config=None, verify=True, ldrom_config_override=True) -> bool:
         raise NotImplementedError
 
     def program(self, write_file, ldrom_file="", config=None, ldrom_override=True) -> bool:

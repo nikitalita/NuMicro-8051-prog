@@ -796,7 +796,7 @@ class NuvoISP(NuvoProg):
         aprom_data = wf.read()
         wf.close()
 
-        return self.program_data(aprom_data, ldrom_data, config, ldrom_override, _lock=_lock)
+        return self.program_data(aprom_data, ldrom_data, config=config, verify_flash=None, ldrom_config_override=ldrom_override, _lock=_lock)
 
     def verify_flash(self, data, report_unmatched_bytes=False, addr=APROM_ADDR, rom_size=FLASH_SIZE) -> bool:
         """

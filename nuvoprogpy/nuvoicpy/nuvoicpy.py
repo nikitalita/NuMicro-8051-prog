@@ -480,7 +480,7 @@ class NuvoICP:
         # pad to the next highest KB
         return data + bytes([0xFF] * (1024 - (len(data) % 1024)))
 
-    def program_data(self, aprom_data, ldrom_data=bytes(), config: ConfigFlags = None, ldrom_config_override=True) -> bool:
+    def program_data(self, aprom_data, ldrom_data=bytes(), config: ConfigFlags = None, verify=True, ldrom_config_override=True, _erase=True) -> bool:
         self._fail_if_not_init()
         if len(ldrom_data) > 0:
             ldrom_size = len(ldrom_data)
@@ -535,13 +535,25 @@ class NuvoICP:
                 # Pad with 0xFF
                 aprom_data += bytes([0xFF] * (aprom_size - len(aprom_data)))
 
-        self.mass_erase()
+        if _erase:
+            self.mass_erase()
+
         dev_id = self.get_device_id()
         if dev_id != N76E003_DEVID:
             # failed to reenter ICP mode
-            eprint("Failed to reenter ICP mode.")
+            err_str = "Failed to reenter ICP mode after mass erase."
+            if not _erase:
+                err_str = "Failed to find device."
+            eprint(err_str)
             return False
 
+        cid = self.get_cid()
+        if cid == 0xFF or cid == 0x00:
+            self.reenter_icp()
+            cid = self.get_cid()
+            if cid == 0xFF or cid == 0x00:
+                eprint("Device locked or not found.")
+                return False
         if len(ldrom_data) > 0:
             config = self.program_ldrom(ldrom_data, config, True)
             if not config:
@@ -553,31 +565,32 @@ class NuvoICP:
         self.print_vb("Programming APROM (%d KB)..." % (aprom_size / 1024))
         self.icp.write_flash(APROM_ADDR, aprom_data)
         self.print_vb("APROM programmed.")
-        combined_data = aprom_data + ldrom_data
-        if not self.verify_flash(combined_data):
-            self.print_vb("Verification failed.")
-            return False
-        self.print_vb("ROM data verified.")
-        # check that the config was really written
-        self.reenter_icp()
-        new_config = self.read_config()
-        if str(new_config) != str(config):
-            eprint("Config verification failed.")
-            if not self.silent:
-                self.print_vb("Expected:")
-                config.print_config()
-                self.print_vb("Got:")
-                new_config.print_config()
-            return False
-        self.print_vb("Config verified.")
-        self.print_vb("Verification succeeded.")
+        if verify:
+            combined_data = aprom_data + ldrom_data
+            if not self.verify_flash(combined_data):
+                self.print_vb("Verification failed.")
+                return False
+            self.print_vb("ROM data verified.")
+            # check that the config was really written
+            self.reenter_icp()
+            new_config = self.read_config()
+            if str(new_config) != str(config):
+                eprint("Config verification failed.")
+                if not self.silent:
+                    self.print_vb("Expected:")
+                    config.print_config()
+                    self.print_vb("Got:")
+                    new_config.print_config()
+                return False
+            self.print_vb("Config verified.")
+            self.print_vb("Verification succeeded.")
 
-        self.print_vb("\nResulting Device info:")
-        devinfo = self.get_device_info()
-        self.print_vb(devinfo)
-        self.print_vb()
-        if not self.silent:
-            config.print_config()
+            self.print_vb("\nResulting Device info:")
+            devinfo = self.get_device_info()
+            self.print_vb(devinfo)
+            self.print_vb()
+            if not self.silent:
+                config.print_config()
         self.print_vb("Finished programming!\n")
         return True
 
@@ -612,7 +625,7 @@ class NuvoICP:
         ldrom_data = bytes()
         if lf:
             ldrom_data = lf.read()
-        return self.program_data(aprom_data, ldrom_data, config, ldrom_override)
+        return self.program_data(aprom_data, ldrom_data, config=config, ldrom_config_override=ldrom_override)
 
 
 def print_usage():
