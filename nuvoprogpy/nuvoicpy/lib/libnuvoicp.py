@@ -14,7 +14,7 @@ if platform.system() != 'Linux':
 # so every time we call anything that calls gpioInitialise(), we need to override the signal handlers
 def catch_ctrlc(signum, frame):
     if signum == signal.SIGINT:
-        raise KeyboardInterrupt("Caught SIGTERM")
+        raise KeyboardInterrupt("Caught SIGINT")
     elif signum == signal.SIGTERM:
         # raise a non-KeyboardInterrupt exception
         raise Exception("Caught SIGTERM")
@@ -28,6 +28,7 @@ def override_signals():
 class LibICP:
     def __init__(self, libname="gpiod"):
         # Load the shared library
+        self.libname = libname
         if libname.lower() == "pigpio":
             self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-pigpio.so")
         elif libname.lower() == "gpiod":
@@ -126,7 +127,8 @@ class LibICP:
         ret = self.lib.icp_init(ctypes.c_uint8(do_reset))
         if ret == 0:  # PGM initialized
             # This ends up calling gpioInitialise(), so take the signals back
-            override_signals()
+            if self.libname == "pigpio":
+                override_signals()
             return True
         # ret != 0 means PGM not initialized, don't override signals
         return False
@@ -219,6 +221,7 @@ class LibICP:
 class LibPGM:
     def __init__(self, libname="gpiod"):
         # Load the shared library
+        self.libname = libname
         if libname.lower() == "pigpio":
             self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-pigpio.so")
         elif libname.lower() == "gpiod":
@@ -278,7 +281,8 @@ class LibPGM:
         ret = self.lib.pgm_init()
         if ret < 0:  # PGM failed to initialize
             # This ends up calling gpioInitialise(), so take the signals back
-            override_signals()
+            if self.libname == "pigpio":
+                override_signals()
             return True
         return False
 
