@@ -75,9 +75,19 @@ void test_serase(){
 	icp_mass_erase();
 	printf("\n");
 }
+
+void test_speed(){
+	pgm_init();
+	while(1){
+		pgm_set_trigger(1);
+		pgm_set_trigger(0);
+	}
+	pgm_deinit(0);
+}
 int main() {
 	printf("testing...");
-	test_serase();
+	// test_serase();
+	test_speed();
 	return 0;
 }
 #endif
