@@ -562,6 +562,10 @@ void loop()
           state = UPDATING_STATE;
         tx_pkt();
         break;
+      default:
+        DEBUG_PRINT("unknown command 0x%02x\n", cmd);
+        fail_pkt();
+        break;
     }
   }
 }
