@@ -1,6 +1,8 @@
-# nuvoprog
+# NUMicro-8051-prog
 
 This derived from Gregory McGarry's work here: https://github.com/gmcgarry/nuvoprog
+
+This currently only supports the N76E003, but it could be extended to other Nuvoton 8051 chips, like the MS51FB9AE ([see here](https://github.com/vladimir-dudnik/MS51FB9AE-pgm-rpi)).
 
 This provides the following packages:
 
@@ -8,6 +10,7 @@ bootloader: custom ISP bootloader with extended ISP commands
 nuvoicp: Custom ICP library and command-line tool
 nuvoicpy: Python bindings and command-line tool for nuvoicp (for Raspberry Pi Only)
 nuvoispy: Python library and command-line tool for ISP programming
+
 
 ### build requirements:
 - sdcc
@@ -33,6 +36,8 @@ Just run `make` in the bootloader directory
 This is designed for both the Raspberry Pi and Arduino targets.
 
 Raspberry Pi can be compiled linked with either pigpio or libgpiod.
+pigpio was added primarily because it has around 10x lower latency than libgpiod, which is useful for glitching attacks.
+Note: pigpio only supports Pi 4 and lower, Pi 5 can only be used with libgpiod.
 
 The Arduino version implements the ISP protocol, and acts like a regular ISP programmer with extended functionality. It can be used with `nuvoispy`.
 
@@ -69,7 +74,7 @@ and make sure that you are in the `kmem` group.
 
 #### Install:
 
-Just run `pip install .`
+Just run `pip install -e .`
 
 ### nuvoispy
 
@@ -81,4 +86,4 @@ NOTE: Right now, the two packages are joined together in the same package, which
 
 #### Install:
 
-Just run `pip install.`
+Just run `pip -e install .`
