@@ -39,9 +39,30 @@ volatile __bit g_dumpflag;
 
 #define UCID_LENGTH 0x30
 #define UID_LENGTH 12
+
 unsigned char CID;
 unsigned char CONF[5];
 unsigned char DPID[4];
+unsigned char hircmap[2];
+
+// #define ISP_SET_IAPGO_NO_EA TA=0xAA;TA=0x55;IAPTRG|=SET_BIT0;
+#ifdef isp_with_wdt
+// set_WDCLR without disabling interrupts
+#define _set_WDCLR TA=0xAA;TA=0x55;WDCON|=SET_BIT6;
+#define set_IAPGO_WDCLR \
+  BIT_TMP = EA;         \
+  EA = 0;               \
+  _set_WDCLR;           \
+  TA = 0xAA;            \
+  TA = 0x55;            \
+  IAPTRG |= SET_BIT0;   \
+  EA = BIT_TMP
+#define ISP_SET_IAPGO set_IAPGO_WDCLR
+#else
+#define ISP_SET_IAPGO set_IAPGO
+
+#endif
+
 
 void UART0_ini_115200(void)
 {
@@ -61,45 +82,6 @@ void UART0_ini_115200(void)
   EA = 1;
 }
 
-void MODIFY_HIRC_16588(void)
-{
-  UINT8 hircmap0, hircmap1;
-  UINT16 trimvalue16bit;
-  hircmap0 = RCTRIM0;
-  hircmap1 = RCTRIM1;
-  trimvalue16bit = ((hircmap0 << 1) + (hircmap1 & 0x01));
-  trimvalue16bit = trimvalue16bit - 14;
-  hircmap1 = trimvalue16bit & 0x01;
-  hircmap0 = trimvalue16bit >> 1;
-  TA = 0XAA;
-  TA = 0X55;
-  RCTRIM0 = hircmap0;
-  TA = 0XAA;
-  TA = 0X55;
-  RCTRIM1 = hircmap1;
-  /* Clear power on flag */
-  PCON &= CLR_BIT4;
-}
-
-void MODIFY_HIRC_16(void)
-{
-  unsigned char __data hircmap0, hircmap1;
-  IAPAH = 0x00;
-  IAPAL = 0x30;
-  IAPCN = READ_UID;
-  set_IAPGO;
-  hircmap0 = IAPFD;
-  IAPAL = 0x31;
-  set_IAPGO;
-  hircmap1 = IAPFD;
-
-  TA = 0XAA;
-  TA = 0X55;
-  RCTRIM0 = hircmap0;
-  TA = 0XAA;
-  TA = 0X55;
-  RCTRIM1 = hircmap1;
-}
 void BYTE_READ_FUNC(uint8_t cmd, uint8_t start, uint8_t len, uint8_t *buf)
 {
   uint8_t i;
@@ -108,28 +90,56 @@ void BYTE_READ_FUNC(uint8_t cmd, uint8_t start, uint8_t len, uint8_t *buf)
   IAPAL = start;
   for (i = 0; i < len - 1; i++)
   {
-    set_IAPGO;
+    ISP_SET_IAPGO;
     buf[i] = IAPFD;
     IAPAL++;
   }
   // get the last one
-  set_IAPGO;
+  ISP_SET_IAPGO;
   buf[i] = IAPFD;
 }
 
-void READ_DEVICE_ID(void)
-{
-  BYTE_READ_FUNC(BYTE_READ_ID, 0x00, 4, DPID);
+void READ_HIRCMAP(void){
+  BYTE_READ_FUNC(READ_UID, 0x30, 2, hircmap);
 }
+
+void SET_HIRCMAP(void){
+  TA = 0XAA;
+  TA = 0X55;
+  RCTRIM0 = hircmap[0];
+  TA = 0XAA;
+  TA = 0X55;
+  RCTRIM1 = hircmap[1];
+}
+
+void MODIFY_HIRC_16588(void)
+{
+  UINT16 trimvalue16bit;
+  READ_HIRCMAP();
+  // trimvalue16bit = ((hircmap[0] << 1) + (hircmap[1] & 0x01));
+  // trimvalue16bit = trimvalue16bit - 14;
+  // hircmap[1] = trimvalue16bit & 0x01;
+  // hircmap[0] = trimvalue16bit >> 1;
+  // -7 (111) on the high bits is the same as doing -14 (1110) on the whole number
+  hircmap[0] -= 7;
+  SET_HIRCMAP();
+  /* Clear power on flag */
+  PCON &= CLR_BIT4;
+}
+
+void MODIFY_HIRC_16(void)
+{
+  READ_HIRCMAP();
+  SET_HIRCMAP();
+}
+#define READ_DEVICE_ID() BYTE_READ_FUNC(BYTE_READ_ID, 0x00, 4, DPID);
+
 void READ_CONFIG(void)
 {
   BYTE_READ_FUNC(BYTE_READ_CONFIG, 0x00, 5, CONF);
 }
 
-void READ_COMPANY_ID(void)
-{
-  BYTE_READ_FUNC(READ_CID, 0x00, 1, &CID);
-}
+#define READ_COMPANY_ID() BYTE_READ_FUNC(READ_CID, 0x00, 1, &CID);
 
 void TM0_ini(void)
 {
@@ -212,24 +222,6 @@ void Timer0_ISR(void) __interrupt 1
     }
   }
 }
-
-// #define  isp_with_wdt
-
-#ifdef isp_with_wdt
-// set_WDCLR without disabling interrupts
-#define _set_WDCLR TA=0xAA;TA=0x55;WDCON|=SET_BIT6;
-#define set_IAPGO_WDCLR \
-  BIT_TMP = EA;         \
-  EA = 0;               \
-  _set_WDCLR;           \
-  TA = 0xAA;            \
-  TA = 0x55;            \
-  IAPTRG |= SET_BIT0;   \
-  EA = BIT_TMP
-#define ISP_SET_IAPGO set_IAPGO_WDCLR
-#else
-#define ISP_SET_IAPGO set_IAPGO
-#endif
 
 unsigned int __xdata start_address, end_address;
 
@@ -432,13 +424,6 @@ void main(void)
         Send_64byte_To_UART0();
         break;
       }
-      // case CMD_GET_BANDGAP:
-      // {
-      //   BYTE_READ_FUNC(READ_UID, 0x0C, 2, &uart_txbuf[8]);
-      //   Package_checksum();
-      //   Send_64byte_To_UART0();
-      //   break;
-      // }
       case CMD_GET_FLASHMODE:
       {
         READ_CONFIG();
