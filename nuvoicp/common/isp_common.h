@@ -78,3 +78,5 @@
 #define DUMP_PKT_CHECKSUM_SIZE   0 // disabled for now
 #define DUMP_DATA_START          PKT_HEADER_END //(DUMP_PKT_CHECKSUM_START + DUMP_PKT_CHECKSUM_SIZE)
 #define DUMP_DATA_SIZE           56  //(PACKSIZE - DUMP_DATA_START)
+
+#define CHECK_SEQUENCE_NO 0 // TODO: turn this on when we know the sequence number is working

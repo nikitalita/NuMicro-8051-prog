@@ -151,9 +151,13 @@ void setup()
 
 unsigned char pkt[PACKSIZE];
 int pktsize = 0;
+int g_packno = 0;
 
 void tx_pkt()
 {
+  g_packno += 1;
+  pkt[4] = g_packno & 0xff;
+  pkt[5] = (g_packno >> 8) & 0xff;
 #ifdef _DEBUG
   icp_outputf("sending packet\n");
   for (int i = 0; i < PACKSIZE; i++)
@@ -379,10 +383,20 @@ void loop()
 
     DEBUG_PRINT("received %d-byte packet, %s (0x%02x), seqno 0x%04x, checksum 0x%04x\n", PACKSIZE, cmd_enum_to_string(cmd), cmd, seqno, checksum);
 
+    g_packno++;
     pkt[0] = checksum & 0xff;
     pkt[1] = (checksum >> 8) & 0xff;
-
-    if (state == DUMPING_STATE) {
+#if CHECK_SEQUENCE_NO
+    if (g_packno != seqno)
+    {
+      DEBUG_PRINT("seqno mismatch, expected 0x%04x, got 0x%04x\n", g_packno, seqno);
+      state = COMMAND_STATE;
+      tx_pkt();
+      return;
+    }
+#endif
+    if (state == DUMPING_STATE)
+    {
       dump(pkt);
       if (dump_size == 0)
         state = COMMAND_STATE;
@@ -427,9 +441,22 @@ void loop()
         tx_pkt();
         break;
       case CMD_SYNC_PACKNO:
+      {
         DEBUG_PRINT("CMD_SYNC_PACKNO\n");
+#if CHECK_SEQUENCE_NO
+        int seqnoCopy = (pkt[9] << 8) | pkt[8];
+        if (seqnoCopy != seqno)
+        {
+          g_packno = -1; // incremented by tx_pkt
+        }
+        else
+#endif
+        {
+          g_packno = seqno;
+        }
         tx_pkt();
-        break;
+      }
+      break;
       case CMD_GET_CID:
         {
         DEBUG_PRINT("CMD_GET_CID\n");

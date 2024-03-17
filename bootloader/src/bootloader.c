@@ -17,6 +17,10 @@
 #define LDROM_ADDRESS APROM_SIZE
 #define PAGE_MASK 0xFF80
 
+#define COMMAND_STATE       0
+#define UPDATING_STATE      1
+#define DUMPING_STATE       2
+
 // How long to wait for an ISP connection before booting into APROM
 #define Timer0Out_Counter 200 // About 1 second
 
@@ -31,11 +35,11 @@ volatile uint8_t __data count;
 volatile uint16_t __data g_timer0Counter;
 volatile uint32_t __data g_checksum;
 volatile uint32_t __data g_totalchecksum;
+volatile uint8_t __data g_packNo[2] = {0,0};
 volatile __bit bUartDataReady;
 volatile __bit g_timer0Over;
 volatile __bit g_timer1Over;
-volatile __bit g_programflag;
-volatile __bit g_dumpflag;
+volatile uint8_t g_state = COMMAND_STATE;
 
 #define UCID_LENGTH 0x30
 #define UID_LENGTH 12
@@ -114,7 +118,6 @@ void SET_HIRCMAP(void){
 
 void MODIFY_HIRC_16588(void)
 {
-  UINT16 trimvalue16bit;
   READ_HIRCMAP();
   // trimvalue16bit = ((hircmap[0] << 1) + (hircmap[1] & 0x01));
   // trimvalue16bit = trimvalue16bit - 14;
@@ -148,6 +151,19 @@ void TM0_ini(void)
   set_PSH;       // Serial port 0 interrupt level2
   set_ET0;
 }
+#if CHECK_SEQUENCE_NO
+uint8_t check_g_packno(void){
+  if (g_packNo[0] != uart_rcvbuf[4] || g_packNo[1] != uart_rcvbuf[5]){
+    return FALSE;
+  }
+  return TRUE;
+}
+#endif
+void inc_g_packno(void){
+  g_packNo[0]++;
+  if (g_packNo[0] == 0x00)
+    g_packNo[1]++;
+}
 
 void Package_checksum(void)
 {
@@ -158,8 +174,9 @@ void Package_checksum(void)
   }
   uart_txbuf[0] = g_checksum & 0xff;
   uart_txbuf[1] = (g_checksum >> 8) & 0xff;
-  uart_txbuf[4] = uart_rcvbuf[4] + 1;
-  uart_txbuf[5] = uart_rcvbuf[5];
+  inc_g_packno();
+  uart_txbuf[4] = g_packNo[0];
+  uart_txbuf[5] = g_packNo[1];
   if (uart_txbuf[4] == 0x00)
     uart_txbuf[5]++;
 }
@@ -239,7 +256,7 @@ void dump()
     // g_totalchecksum+=uart_txbuf[count];
     if (++current_address == end_address)
     {
-      g_dumpflag = 0;
+      g_state = COMMAND_STATE;
       break;
     }
   }
@@ -272,7 +289,7 @@ void update(uint8_t start_count)
 
     if (current_address == end_address)
     {
-      g_programflag = 0;
+      g_state = COMMAND_STATE;
       // Specification implies that this shouldn't boot the APROM after programming.
       // if (start_count != INITIAL_UPDATE_PKT_START){
       //   g_timer0Over =1; // boot APROM
@@ -340,19 +357,30 @@ void main(void)
   EA = 1;
   g_timer0Over = 0;
   g_timer0Counter = Timer0Out_Counter;
-  g_programflag = 0;
-  g_dumpflag = 0;
+  g_state = COMMAND_STATE;
 
   while (1)
   {
     if (bUartDataReady == TRUE)
     {
       EA = 0; // Disable all interrupts
-      if (g_dumpflag == 1)
+      inc_g_packno();
+#if CHECK_SEQUENCE_NO
+      if (!check_g_packno()){
+        Package_checksum();
+        Send_64byte_To_UART0();
+        g_state = COMMAND_STATE;
+        continue;
+      }
+#endif
+      if (uart_rcvbuf[0] != 0) {  // Dump/Update over (possibly prematurely)
+        g_state = COMMAND_STATE;
+      } 
+      else if (g_state == DUMPING_STATE)
       {
         dump();
       }
-      else if (g_programflag == 1)
+      else if (g_state == UPDATING_STATE)
       {
         update(8);
       }
@@ -360,7 +388,25 @@ void main(void)
       switch (uart_rcvbuf[0])
       {
       case CMD_CONNECT:
+        g_packNo[0] = 0;
+        g_packNo[1] = 0;
+        goto _CONN_COMMON;
       case CMD_SYNC_PACKNO:
+#if CHECK_SEQUENCE_NO
+      // set the pack number to the received pack number
+        if (uart_rcvbuf[4] != uart_rcvbuf[8] || uart_rcvbuf[5] != uart_rcvbuf[9])
+        {
+          g_packNo[0] = 0xFF;
+          g_packNo[1] = 0xFF; // So that it rolls over to 0 when we transmit
+        }
+        else
+#endif
+        {
+          g_packNo[0] = uart_rcvbuf[4];
+          g_packNo[1] = uart_rcvbuf[5];
+        }
+          // fallthrough
+_CONN_COMMON:
       {
         Package_checksum();
         Send_64byte_To_UART0();
@@ -478,7 +524,7 @@ void main(void)
       {
         set_addrs();
         g_totalchecksum = 0;
-        g_dumpflag = 1;
+        g_state = DUMPING_STATE;
         dump();
         break;
       }
@@ -488,8 +534,7 @@ void main(void)
         set_addrs();
         erase_ap((start_address & PAGE_MASK), end_address);
         g_totalchecksum = 0;
-        g_programflag = 1;
-
+        g_state = UPDATING_STATE;
         update(16);
         break;
       }
@@ -543,3 +588,4 @@ _APROM:
   while (1)
     ;
 }
+ 

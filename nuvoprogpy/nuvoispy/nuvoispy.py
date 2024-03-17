@@ -99,6 +99,8 @@ CMD_SET_INTERFACE     =  0xBA
 APMODE = 1
 LDMODE = 2
 
+CHECK_SEQUENCE_NO = False # turn this on when we know it's working
+
 EXTENDED_CMDS_FW_VER = 0xD0
 ICP_BRIDGE_FW_VER = 0xE0
 
@@ -303,15 +305,18 @@ class NuvoISP(NuvoProg):
         rx = self.read_serial(PACKSIZE)
         self._connected = False
 
+    def _get_seq_num_bytes(self):
+        return bytes([self.seq_num & 0xff, (self.seq_num >> 8) & 0xff]) + bytes(2)
+
     def _cmd_packet_header(self, cmd):
         self.seq_num = self.seq_num + 1
-        return bytes([cmd]) + bytes(3) + bytes([self.seq_num & 0xff, (self.seq_num >> 8) & 0xff]) + bytes(2)
+        return bytes([cmd]) + bytes(3) + self._get_seq_num_bytes()
 
     def _pad_packet(self, packet):
         return packet + bytes(PACKSIZE - len(packet))
 
-    def _cmd_packet(self, cmd):
-        return self._pad_packet(self._cmd_packet_header(cmd))
+    def _cmd_packet(self, cmd, data=bytes()):
+        return self._pad_packet(self._cmd_packet_header(cmd) + data)
 
     def _wait_for_packet(self, max_retries, timeout=None):
         if timeout is None:
@@ -385,7 +390,13 @@ class NuvoISP(NuvoProg):
 
     def _connect(self, retry=True):
         self._connect_req(retry)
-        self.send_cmd(self._cmd_packet(CMD_SYNC_PACKNO))
+        self.seq_num = 1
+        data = self._get_seq_num_bytes()
+        # ++seq_num when _cmd_packet is called, so we need to reset it here
+        self.seq_num = 0
+        success, data = self.send_cmd(self._cmd_packet(CMD_SYNC_PACKNO, data))
+        if not success or (CHECK_SEQUENCE_NO and data[0] != 2): 
+            raise Exception("Failed to sync sequence number")
         self.fw_ver = self.get_fwver()
         self._connected = True
 
@@ -424,6 +435,8 @@ class NuvoISP(NuvoProg):
             if (nbytes < PACKSIZE):
                 tries += 1
                 if (tries > max_read_tries):
+                    if CHECK_SEQUENCE_NO:
+                        raise TimeoutError("Too many read retries, aborting!")
                     print("Re-sending packet!")
                     self.write_serial(tx)
                 continue
@@ -437,8 +450,14 @@ class NuvoISP(NuvoProg):
                     if fail_on_checksum_error:
                         raise ChecksumError("Invalid checksum received!")
                     success = False
+                elif CHECK_SEQUENCE_NO:
+                    rseq_num = (rx[4] & 0xff) + ((rx[5] & 0xff) << 8)
+                    if rseq_num != self.seq_num + 1:
+                        if fail_on_checksum_error:
+                            raise ChecksumError("Invalid sequence number received!")
+                        success = False
+                self.seq_num += 1
                 break
-
         return success, rx
 
     def get_fwver(self):
@@ -538,8 +557,7 @@ class NuvoISP(NuvoProg):
     def page_erase(self, addr):
         self._fail_if_not_init()
         self._fail_if_not_extended()
-        cmd = bytes([CMD_ISP_PAGE_ERASE]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff])
-        return self.send_cmd(self._cmd_packet(cmd))
+        return self.send_cmd(self._cmd_packet(CMD_ISP_PAGE_ERASE, bytes([addr & 0xff, (addr >> 8) & 0xff])))
 
     def update_flash(self, addr, data, size, update_dataflash=False):
         self._fail_if_not_init()
@@ -549,22 +567,22 @@ class NuvoISP(NuvoProg):
         if update_dataflash:
             self._fail_if_not_icp_bridge()
             cmd_name = CMD_UPDATE_WHOLE_ROM
-        cmd = bytes([cmd_name]) + bytes(7) + bytes([addr & 0xff, (addr >> 8) & 0xff]) + \
+        pkt = self._cmd_packet(CMD_UPDATE_APROM, bytes([addr & 0xff, (addr >> 8) & 0xff]) + \
             bytes(2) + bytes([flen & 0xff, (flen >> 8) & 0xff]) + \
-            bytes(2) + bytes(data[0:48])
+            bytes(2) + bytes(data[0:48]))
 
-        # Program first block of 48 bytes (1 second delay because it has to erase the flash first)
-        self.send_cmd(cmd, 1)
+        # Program first block of 48 bytes (8 second delay because it has to erase the flash first)
+        self.send_cmd(pkt, 8)
         ipos += 48
         while (ipos <= flen):
             self.update_progress_bar("Programming Rom", ipos, flen)
             # Program remaing blocks (56 byte)
             if ((ipos + 56) < flen):
-                cmd = bytes(8) + bytes(data[ipos:ipos+56])
+                sdata = bytes(data[ipos:ipos+56])
             else:
                 # Last block
-                cmd = bytes(8) + bytes(data[ipos:flen]) + bytes(56-(flen-ipos))
-            self.send_cmd(cmd)
+                sdata = bytes(data[ipos:flen]) + bytes(56-(flen-ipos))
+            self.send_cmd(self._cmd_packet(CMD_UPDATE_APROM, sdata))
             ipos += 56
         self.update_progress_bar("Programming Rom", flen, flen)
 
@@ -582,7 +600,7 @@ class NuvoISP(NuvoProg):
         self._fail_if_not_extended()
         step_size = DUMP_DATA_SIZE
         data = bytes()
-        first_packet = self._pad_packet(self._cmd_packet_header(CMD_READ_ROM) + bytes([start_addr & 0xff, (start_addr >> 8) & 0xff]) +
+        first_packet = self._cmd_packet(CMD_READ_ROM, bytes([start_addr & 0xff, (start_addr >> 8) & 0xff]) +
                                         bytes(2) + bytes([length & 0xff, (length >> 8) & 0xff]))
         addr = start_addr
         end_addr = start_addr + length
@@ -613,9 +631,7 @@ class NuvoISP(NuvoProg):
 
     def write_config(self, config: ConfigFlags):
         self._fail_if_not_init()
-        self.seq_num = self.seq_num + 1
-        pkt = bytes([CMD_UPDATE_CONFIG]) + bytes(3) + bytes([self.seq_num & 0xff, (self.seq_num >> 8)
-                                                            & 0xff]) + bytes(2) + config.to_bytes() + config.to_bytes() + bytes(PACKSIZE-18)
+        pkt = self._cmd_packet(CMD_UPDATE_CONFIG, config.to_bytes() + config.to_bytes())
         self.send_cmd(pkt)
 
     @staticmethod
