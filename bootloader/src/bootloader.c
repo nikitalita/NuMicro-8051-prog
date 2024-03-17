@@ -501,7 +501,15 @@ void main(void)
         Send_64byte_To_UART0();
         break;
       }
+      default: // Invalid command (or CMD_RESEND_PACKET, which we can't support because of lack of memory)
+      {
+        Package_checksum();
+        uart_txbuf[0] = ~uart_txbuf[0];
+        uart_txbuf[1] = ~uart_txbuf[1];
+        Send_64byte_To_UART0();
+        break;
       }
+      } // end of switch
       bUartDataReady = FALSE;
       bufhead = 0;
 
