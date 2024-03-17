@@ -525,6 +525,7 @@ void main(void)
   }
 
 _APROM:
+  EA = 0; // Disable all interrupts
   MODIFY_HIRC_16();
   clr_IAPEN;
   TA = 0xAA;
