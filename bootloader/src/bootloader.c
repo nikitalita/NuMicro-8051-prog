@@ -1,13 +1,27 @@
+/*---------------------------------------------------------------------------------------------------------*/
+/*                                                                                                         */
+/* SPDX-License-Identifier: Apache-2.0                                                                     */
+/* Copyright(c) 2023 Nuvoton Technology Corp. All rights reserved.                                         */
+/* Copyright(c) 2023-2024 Nikita Lita. Some rights reserved.                                               */
+/*                                                                                                         */
+/*---------------------------------------------------------------------------------------------------------*/
+
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 
-#include "N76E003.h"
-#include "Common.h"
-#include "SFR_Macro.h"
-#include "Function_define.h"
 #include "isp_uart0.h"
 #include "isp_common.h"
+
+#include "numicro_8051.h"
+#define P03_PushPull_Mode P03_PUSHPULL_MODE
+#define P12_PushPull_Mode P12_PUSHPULL_MODE
+#define P05_PushPull_Mode P05_PUSHPULL_MODE
+#define P03_Quasi_Mode P03_QUASI_MODE
+#define P05_Quasi_Mode P05_QUASI_MODE
+#define P12_Quasi_Mode P12_QUASI_MODE
+#define P06_Quasi_Mode P06_QUASI_MODE
+#define P07_Quasi_Mode P07_QUASI_MODE
 
 // bootloader-specific constants
 #define FW_VERSION 0xD0 // Supports extended commands
@@ -70,8 +84,15 @@ unsigned char hircmap[2];
 // NOTE: This is being done for code-size optimization; currently there are no cases where we need to set IAPGO when interrupts are enabled
 // This means that interrupts MUST be disabled before calling ISP_SET_IAPGO
 #define ISP_SET_IAPGO set_IAPGO_NO_EA
-
 #endif
+
+// More code-size optimization
+// We always use SFR page 0, so no need to switch pages
+// NOTE: if any other SFR settings are added, please ensure that they do not need page 1,
+// or if so, modify these things accordingly.
+// You can tell if they do if the macros have the form `set_SFRS_SFRPAGE;foo&=0x01`
+#define clr_BRCK_NO_PG_CLR T3CON&=0xDF
+#define set_PSH_NO_PG_CLR  IPH|=0x10
 
 
 void UART0_ini_115200(void)
@@ -84,7 +105,7 @@ void UART0_ini_115200(void)
 
   set_SMOD; // UART0 Double Rate Enable
   set_T1M;
-  clr_BRCK; // Serial port 0 baud rate clock source = Timer1
+  clr_BRCK_NO_PG_CLR; // Serial port 0 baud rate clock source = Timer1
 
   TH1 = (unsigned char)(256 - (1037500 / 115200)); /* ISP Rom is always 16.6 MHz */
   set_TR1;
@@ -154,7 +175,7 @@ void TM0_ini(void)
 {
   TH0 = TL0 = 0; // Interrupt timer 140us
   set_TR0;       // Start timer0
-  set_PSH;       // Serial port 0 interrupt level2
+  set_PSH_NO_PG_CLR; // Serial port 0 interrupt level2
   set_ET0;
 }
 #if CHECK_SEQUENCE_NO
@@ -199,7 +220,7 @@ void Send_64byte_To_UART0(void)
   }
 }
 
-void Serial_ISR(void) __interrupt 4
+void Serial_ISR(void) __interrupt(4)
 {
   if (RI == 1)
   {
@@ -225,7 +246,7 @@ void Serial_ISR(void) __interrupt 4
   }
 }
 
-void Timer0_ISR(void) __interrupt 1
+void Timer0_ISR(void) __interrupt(1)
 {
   if (g_timer0Counter)
   {
@@ -377,6 +398,8 @@ void main(void)
   set_led_online(0);
   set_led_connected(0);
   set_error_led(0);
+  EA = 0;
+  clr_SFRS_SFRPAGE; // always use SFR page 0; we don't use any SFRs on page 1.
   set_IAPEN;
   MODIFY_HIRC_16588();
 #ifdef isp_with_wdt
