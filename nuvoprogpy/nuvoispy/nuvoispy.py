@@ -717,13 +717,15 @@ class NuvoISP(NuvoProg):
                 sdata = bytes(data[ipos:flen]) + bytes(56-(flen-ipos))
             _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_FORMAT2_CONTINUATION, sdata))
             ipos += 56
+        self.update_progress_bar("Programming Rom", flen, flen)
         # check the checksum
         update_checksum = unpack_u16(rx_pkt.data)
         our_checksum = calc_checksum(data)
         if update_checksum != our_checksum:
             # raise ChecksumError("Checksum mismatch: {} != {}".format(update_checksum, our_checksum))
-            print("WARNING: Checksum mismatch: {} != {}".format(update_checksum, our_checksum))
-        self.update_progress_bar("Programming Rom", flen, flen)
+            self.print_vb("WARNING: Checksum mismatch: {} != {}".format(update_checksum, our_checksum))
+            return False
+        return True
 
     def write_flash(self, addr, data) -> bool:
         self._fail_if_not_init()
@@ -751,10 +753,11 @@ class NuvoISP(NuvoProg):
             else:
                 _, rx = self.send_cmd(self._cmd_packet(CMD_FORMAT2_CONTINUATION))
 
-            min = PACKSIZE-step_size
-            max = PACKSIZE if (addr + step_size <=
-                               end_addr) else end_addr - addr + min
-            data += rx[min:max]
+            if (addr + step_size <= end_addr):
+                max = len(rx.data) 
+            else:
+                max = end_addr - addr
+            data += rx.data[:max]
             addr += step_size
         return data
 
@@ -847,11 +850,12 @@ class NuvoISP(NuvoProg):
         update_flashrom = False
         read_config = self.read_config()
         cid = self.get_cid()
-        if (read_config.is_locked() or cid == 0xFF):
+        locked = read_config.is_locked() or cid == 0xFF
+        if locked:
             if not self.is_icp_bridge:
                 raise Exception("ERROR: Device is locked and cannot override. Not programming...")
             elif ldrom_data is None:
-                raise Exception("ERROR: Device is locked; must provide LDROM data to overwrite. Not programming...")
+                raise Exception("ERROR: Device is locked; must provide LDROM data to overwrite. Not programming...")                
         if not (ldrom_data is None):
             if not self.is_icp_bridge:
                 raise ExtendedCmdsNotSupported("Programming the LDROM is only supported when using the ICP bridge.")
@@ -874,11 +878,18 @@ class NuvoISP(NuvoProg):
         combined_data = aprom_data + ldrom_data
         self.print_vb("Programming Rom (%d KB)..." % (len(combined_data) / 1024))
         # no need to erase, as the update commands will do it for us
-        self.update_flash(APROM_ADDR, combined_data, len(combined_data), update_flashrom)
+        verified_success = self.update_flash(APROM_ADDR, combined_data, len(combined_data), update_flashrom)
         self.write_config(write_config)
 
+        if not verified_success:
+            eprint("Device reported incorrect checksum, verification failed!")
+            # check if this is locked and the config unlocks it; if so, we should still write the config
+            if locked and write_config.is_locked() == False:
+                self.print_vb("Writing config anyway to ensure unlocked...")
+                self.write_config(write_config)
+            return False
         self.print_vb("ROM programmed.")
-        if verify_flash is None:
+        if verify_flash is None: # vs. False
             verify_flash = self.supports_extended_cmds
         if verify_flash:
             self._fail_if_not_extended()
@@ -900,7 +911,7 @@ class NuvoISP(NuvoProg):
                     new_config.print_config()
                 return False
             self.print_vb("Config verified.")
-            self.print_vb("Verification succeeded.")
+            verified_success = True
 
         self.print_vb("\nResulting Device info:")
         devinfo = self.get_device_info()
@@ -908,6 +919,8 @@ class NuvoISP(NuvoProg):
         self.print_vb()
         if not self.silent:
             write_config.print_config()
+        if verified_success:
+            self.print_vb("Verification succeeded!")
         self.print_vb("Finished programming!\n")
         return True
 
