@@ -633,7 +633,7 @@ def print_usage():
     print("written by Nikitalita\n")
     print("Usage:")
     print("\t[-h, --help:                       print this help]")
-    print("\t[-u, --status:                     print the connected device info and configuration and exit.]")
+    print("\t[-u, --status:                     print the connected device info and configuration and exit\n\t\tIf -c is specified, it will also write it to the specified config file.]")
     print("\t[-r, --read=<filename>             read entire flash to file]")
     print("\t[-w, --write=<filename>            write file to APROM/entire flash (if LDROM is disabled)]")
     print("\t[-l, --ldrom=<filename>            write file to LDROM]")
@@ -712,6 +712,8 @@ def main() -> int:
     # check to see if the files exist before we start the ICP
     for filename in [write_file, ldrom_file, config_file]:
         if (filename and filename != "") and not os.path.isfile(filename):
+            if filename == config_file and config_dump_cmd:
+                continue
             eprint("ERROR: %s does not exist.\n\n" % filename)
             print_usage()
             return 2
@@ -786,6 +788,9 @@ def main() -> int:
                 eprint("Config read failed!!")
                 return 1
             cfg.print_config()
+            # if -c is specified, write it to a file
+            if config_file != "":
+                cfg.to_json_file(config_file)
             return 0
         elif read:
             print(devinfo)
