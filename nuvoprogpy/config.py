@@ -322,6 +322,7 @@ class ConfigFlags(ctypes.LittleEndianStructure):
     def __str__(self) -> str:
         return " ".join(["%02X" % b for b in self.to_bytes()])
 
+    @staticmethod
     def from_json(json):
         # check that key exists
         config = ConfigFlags()
@@ -347,6 +348,7 @@ class ConfigFlags(ctypes.LittleEndianStructure):
             config.set_wdt(json['WDT_enable'], keep_active)
         return config
 
+    @staticmethod
     def from_json_file(filename):
         try:
             with open(filename, "r") as f:
