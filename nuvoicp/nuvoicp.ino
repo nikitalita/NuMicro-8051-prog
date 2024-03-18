@@ -395,7 +395,11 @@ void loop()
       return;
     }
 #endif
-    if (state == DUMPING_STATE)
+    if (cmd != CMD_FORMAT2_CONTINUATION)
+    {
+      state = COMMAND_STATE;
+    }
+    else if (state == DUMPING_STATE)
     {
       dump(pkt);
       if (dump_size == 0)
@@ -403,7 +407,8 @@ void loop()
       tx_pkt();
       return;
     }
-    if (state == UPDATING_STATE) {
+    else if (state == UPDATING_STATE)
+    {
       update(&pkt[8], SEQ_UPDATE_PKT_SIZE);
       if (update_size == 0) {
         state = COMMAND_STATE;
@@ -418,13 +423,14 @@ void loop()
     switch (cmd) {
       case CMD_CONNECT:
         {
-        DEBUG_PRINT("CMD_CONNECT\n");
-        INVALIDATE_CACHE;
-        icp_init(true);
-        delayMicroseconds(10);
-        tx_pkt();
-        digitalWrite(BUILTIN_LED, LOW);
-        icp_outputf("Connected!\n");
+          g_packno = 0;
+          DEBUG_PRINT("CMD_CONNECT\n");
+          INVALIDATE_CACHE;
+          icp_init(true);
+          delayMicroseconds(10);
+          tx_pkt();
+          digitalWrite(BUILTIN_LED, LOW);
+          icp_outputf("Connected!\n");
         } break;
       case CMD_GET_FWVER:
         pkt[8] = FW_VERSION;

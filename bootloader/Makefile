@@ -36,7 +36,7 @@ MCU_MODEL = mcs51
 
 CFLAGS = -I$(INCDIR) -I$(INCDIR2) -m$(MCU_MODEL) --model-$(MODEL) --out-fmt-ihx --no-xinit-opt $(DEFS) --peep-file peep.def
 CFLAGS+= --code-size 2048 --opt-code-size --fomit-frame-pointer --peep-asm --peep-return --std-c11 --acall-ajmp
-LFLAGS = -m$(MCU_MODEL) --model-$(MODEL) --out-fmt-ihx $(DEFS)
+LFLAGS = --code-size 2048 -m$(MCU_MODEL) --model-$(MODEL) --out-fmt-ihx $(DEFS)
 
 # ------------------------------------------------------
 # Recepies, see GNU MAKE manual

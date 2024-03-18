@@ -49,21 +49,27 @@ unsigned char CONF[5];
 unsigned char DPID[4];
 unsigned char hircmap[2];
 
-// #define ISP_SET_IAPGO_NO_EA TA=0xAA;TA=0x55;IAPTRG|=SET_BIT0;
+#define set_IAPGO_NO_EA TA=0xAA;TA=0x55;IAPTRG|=SET_BIT0;
 #ifdef isp_with_wdt
 // set_WDCLR without disabling interrupts
-#define _set_WDCLR TA=0xAA;TA=0x55;WDCON|=SET_BIT6;
+#define set_WDCLR_NO_EA TA=0xAA;TA=0x55;WDCON|=SET_BIT6;
 #define set_IAPGO_WDCLR \
   BIT_TMP = EA;         \
   EA = 0;               \
-  _set_WDCLR;           \
+  set_WDCLR_NO_EA;      \
   TA = 0xAA;            \
   TA = 0x55;            \
   IAPTRG |= SET_BIT0;   \
   EA = BIT_TMP
-#define ISP_SET_IAPGO set_IAPGO_WDCLR
+#define set_IAPGO_WDCLR_NO_EA \
+  set_IAPGO_NO_EA;            \
+  set_WDCLR_NO_EA;     
+
+#define ISP_SET_IAPGO set_IAPGO_WDCLR_NO_EA
 #else
-#define ISP_SET_IAPGO set_IAPGO
+// NOTE: This is being done for code-size optimization; currently there are no cases where we need to set IAPGO when interrupts are enabled
+// This means that interrupts MUST be disabled before calling ISP_SET_IAPGO
+#define ISP_SET_IAPGO set_IAPGO_NO_EA
 
 #endif
 
@@ -340,10 +346,37 @@ void erase_ap(uint16_t addr, uint16_t end_addr)
     ISP_SET_IAPGO;
   }
 }
+// #define _DEBUG_LEDS 1
+#ifdef _DEBUG_LEDS
+#define enableLEDs    P03_PushPull_Mode; P12_PushPull_Mode; P05_PushPull_Mode;
+#define disableLEDs   P03_Quasi_Mode; P05_Quasi_Mode; P12_Quasi_Mode;
+#define set_led_connected(val)  P03 = val
+#define set_error_led(val)  P05 = val
+#define set_led_online(val)  P12 = val
+#define flash_error_led() { \
+  for (count = 0; count < 7; count++) { \
+    P05 = ~P05;                       \
+    for (uint8_t i = 0; i < 255; i++)  \
+      for (uint8_t j = 0; j < 255; j++) \
+        ; \
+  } \
+}
+
+#else
+#define enableLEDs
+#define disableLEDs
+#define set_led_connected(val)
+#define set_error_led(val)
+#define set_led_online(val)
+#define flash_error_led()
+#endif
 
 void main(void)
 {
-
+  enableLEDs;
+  set_led_online(0);
+  set_led_connected(0);
+  set_error_led(0);
   set_IAPEN;
   MODIFY_HIRC_16588();
 #ifdef isp_with_wdt
@@ -358,7 +391,7 @@ void main(void)
   g_timer0Over = 0;
   g_timer0Counter = Timer0Out_Counter;
   g_state = COMMAND_STATE;
-
+  set_led_online(1);
   while (1)
   {
     if (bUartDataReady == TRUE)
@@ -370,19 +403,21 @@ void main(void)
         Package_checksum();
         Send_64byte_To_UART0();
         g_state = COMMAND_STATE;
-        continue;
+        goto _end_of_switch;
       }
 #endif
-      if (uart_rcvbuf[0] != 0) {  // Dump/Update over (possibly prematurely)
+      if (uart_rcvbuf[0] != CMD_FORMAT2_CONTINUATION) {  // Dump/Update over (possibly prematurely)
         g_state = COMMAND_STATE;
       } 
       else if (g_state == DUMPING_STATE)
       {
         dump();
+        goto _end_of_switch;
       }
       else if (g_state == UPDATING_STATE)
       {
         update(8);
+        goto _end_of_switch;
       }
 
       switch (uart_rcvbuf[0])
@@ -390,6 +425,7 @@ void main(void)
       case CMD_CONNECT:
         g_packNo[0] = 0;
         g_packNo[1] = 0;
+        set_led_connected(1);
         goto _CONN_COMMON;
       case CMD_SYNC_PACKNO:
 #if CHECK_SEQUENCE_NO
@@ -555,6 +591,7 @@ _CONN_COMMON:
         break;
       }
       } // end of switch
+_end_of_switch:
       bUartDataReady = FALSE;
       bufhead = 0;
 
@@ -564,6 +601,7 @@ _CONN_COMMON:
     if (g_timer0Over == 1)
     {
       nop;
+      flash_error_led();
       goto _APROM;
     }
 
@@ -580,6 +618,9 @@ _CONN_COMMON:
 _APROM:
   EA = 0; // Disable all interrupts
   MODIFY_HIRC_16();
+  set_led_connected(0);
+  set_led_online(0);
+  disableLEDs;
   clr_IAPEN;
   TA = 0xAA;
   TA = 0x55;

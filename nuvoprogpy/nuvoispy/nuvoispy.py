@@ -90,6 +90,8 @@ CAN_CMD_READ_CONFIG   =  0xA2000000
 CAN_CMD_RUN_APROM     =  0xAB000000
 CAN_CMD_GET_DEVICEID  =  0xB1000000
 
+CMD_FORMAT2_CONTINUATION = 0 # update and dump require this
+
 # Deprecated, no ISP programmer uses these
 CMD_READ_CHECKSUM     =  0xC8
 CMD_WRITE_CHECKSUM    =  0xC9
@@ -120,6 +122,8 @@ DUMP_DATA_SIZE = (PACKSIZE - DUMP_DATA_START)
 DEFAULT_SER_BAUD = 115200
 DEFAULT_SER_TIMEOUT = 0.01  # 10ms
 
+DEFAULT_UNIX_PORT = "/dev/ttyAMA0"
+DEFAULT_WIN_PORT = "COM1"
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -140,6 +144,69 @@ class ExtendedCmdsNotSupported(Exception):
 class ChecksumError(Exception):
     pass
 
+def cmd_to_str(cmd):
+    if cmd == CMD_UPDATE_APROM:
+        return "CMD_UPDATE_APROM"
+    elif cmd == CMD_UPDATE_CONFIG:
+        return "CMD_UPDATE_CONFIG"
+    elif cmd == CMD_READ_CONFIG:
+        return "CMD_READ_CONFIG"
+    elif cmd == CMD_ERASE_ALL:
+        return "CMD_ERASE_ALL"
+    elif cmd == CMD_SYNC_PACKNO:
+        return "CMD_SYNC_PACKNO"
+    elif cmd == CMD_GET_FWVER:
+        return "CMD_GET_FWVER"
+    elif cmd == CMD_RUN_APROM:
+        return "CMD_RUN_APROM"
+    elif cmd == CMD_CONNECT:
+        return "CMD_CONNECT"
+    elif cmd == CMD_GET_DEVICEID:
+        return "CMD_GET_DEVICEID"
+    elif cmd == CMD_RESET:
+        return "CMD_RESET"
+    elif cmd == CMD_GET_FLASHMODE:
+        return "CMD_GET_FLASHMODE"
+    elif cmd == CMD_RUN_LDROM:
+        return "CMD_RUN_LDROM"
+    elif cmd == CMD_RESEND_PACKET:
+        return "CMD_RESEND_PACKET"
+    elif cmd == CMD_READ_ROM:
+        return "CMD_READ_ROM"
+    elif cmd == CMD_GET_UID:
+        return "CMD_GET_UID"
+    elif cmd == CMD_GET_CID:
+        return "CMD_GET_CID"
+    elif cmd == CMD_GET_UCID:
+        return "CMD_GET_UCID"
+    elif cmd == CMD_GET_BANDGAP:
+        return "CMD_GET_BANDGAP"
+    elif cmd == CMD_ISP_PAGE_ERASE:
+        return "CMD_ISP_PAGE_ERASE"
+    elif cmd == CMD_UPDATE_WHOLE_ROM:
+        return "CMD_UPDATE_WHOLE_ROM"
+    elif cmd == CMD_ISP_MASS_ERASE:
+        return "CMD_ISP_MASS_ERASE"
+    elif cmd == CMD_UPDATE_DATAFLASH:
+        return "CMD_UPDATE_DATAFLASH"
+    elif cmd == CMD_ERASE_SPIFLASH:
+        return "CMD_ERASE_SPIFLASH"
+    elif cmd == CMD_UPDATE_SPIFLASH:
+        return "CMD_UPDATE_SPIFLASH"
+    elif cmd == CMD_READ_CHECKSUM:
+        return "CMD_READ_CHECKSUM"
+    elif cmd == CMD_WRITE_CHECKSUM:
+        return "CMD_WRITE_CHECKSUM"
+    elif cmd == CMD_SET_INTERFACE:
+        return "CMD_SET_INTERFACE"
+    elif cmd == CAN_CMD_READ_CONFIG:
+        return "CAN_CMD_READ_CONFIG"
+    elif cmd == CAN_CMD_RUN_APROM:
+        return "CAN_CMD_RUN_APROM"
+    elif cmd == CAN_CMD_GET_DEVICEID:
+        return "CAN_CMD_GET_DEVICEID"
+    else:
+        return str(0)
 
 def progress_bar(text, value, endvalue, bar_length=54):
     percent = float(value) / endvalue
@@ -148,10 +215,70 @@ def progress_bar(text, value, endvalue, bar_length=54):
 
     print("\r{0}: [{1}] {2}%".format(text, arrow +
           spaces, int(round(percent * 100))), end='\r')
+    
+
+def pack_u16(val):
+    return bytes([val & 0xff, (val >> 8) & 0xff])
+def pack_u32(val):
+    return bytes([val & 0xff, (val >> 8) & 0xff, (val >> 16) & 0xff, (val >> 24) & 0xff])
+def unpack_u16(data):
+    return (data[0] & 0xff) + ((data[1] & 0xff) << 8)
+def unpack_u32(data):
+    return (data[0] & 0xff) + ((data[1] & 0xff) << 8) + ((data[2] & 0xff) << 16) + ((data[3] & 0xff) << 24)
+
+def calc_checksum(data):
+    txsum = 0
+    for i in range(len(data)):
+        txsum += data[i]
+    return txsum & 0xffff
+
+class ISPPacket:
+    seq_num = 0
+    _first = 0
+    data = bytes()
+    def __init__(self, cmd, seqnum=0, data=bytes()):
+        self._first = cmd
+        self.data = data
+        self.seq_num = seqnum
+    @staticmethod
+    def _pad_packet(pkt_bytes):
+        return pkt_bytes + bytes(PACKSIZE - len(pkt_bytes))
+    @staticmethod
+    def from_bytes(data):
+        seq_num = unpack_u32(data[4:8])
+        cmd = unpack_u32(data[0:4])
+        return ISPPacket(cmd, seq_num, data[8:])
+    def to_bytes(self):
+        return self._pad_packet(pack_u32(self._first) + pack_u32(self.seq_num) + self.data)
+    def _get_checksum(self):
+        return calc_checksum(self.to_bytes())
+    def _get_cmd(self):
+        return self._first
+    @property
+    def cmd(self):
+        return self._get_cmd()
+    @property
+    def checksum(self):
+        return self._get_checksum()
+    
+class ACKPacket(ISPPacket):
+    def _get_cmd(self):
+        return 0
+    def _get_checksum(self):
+        return (self._first & 0xffff)
+    @staticmethod
+    def from_bytes(data):
+        seq_num = unpack_u16(data[4:8])
+        cmd = unpack_u16(data[0:2])
+        return ACKPacket(cmd, seq_num, data[8:])
 
 
+
+
+
+    
 class NuvoISP(NuvoProg):
-    def __init__(self, serial_rate=DEFAULT_SER_BAUD, serial_timeout=DEFAULT_SER_TIMEOUT, serial_port=("COM1" if platform.system() == "Windows" else "/dev/ttyACM0"), open_wait: float = 0.2, silent=False):
+    def __init__(self, serial_rate=DEFAULT_SER_BAUD, serial_timeout=DEFAULT_SER_TIMEOUT, serial_port=(DEFAULT_WIN_PORT if platform.system() == "Windows" else DEFAULT_UNIX_PORT), open_wait: float = 0.2, silent=False):
         """
         NuvoISP constructor
         ------
@@ -159,7 +286,7 @@ class NuvoISP(NuvoProg):
         #### Keyword args:
             serial_rate (int): Serial baud rate
             serial_timeout (float): Serial timeout in seconds
-            serial_port (str): Serial port to use (default = "COM1" on Windows, "/dev/ttyACM0" on Linux)
+            serial_port (str): Serial port to use (default = "COM1" on Windows, "/dev/serial0" on Linux)
             open_wait (float): Time to wait for the serial port to open before sending commands (default = 0.2s)
             silent (bool): If True, suppresses all output
 
@@ -300,29 +427,21 @@ class NuvoISP(NuvoProg):
 
     def _disconnect(self):
         cmd = self._cmd_packet(CMD_RUN_APROM)
-        self.write_serial(cmd)
+        self.seq_num += 1
+        self._send_cmd(cmd)
+        # don't bother reading the response
         time.sleep(self.serial_timeout)
-        rx = self.read_serial(PACKSIZE)
+        self.flush_serial()
         self._connected = False
 
-    def _get_seq_num_bytes(self):
-        return bytes([self.seq_num & 0xff, (self.seq_num >> 8) & 0xff]) + bytes(2)
-
-    def _cmd_packet_header(self, cmd):
-        self.seq_num = self.seq_num + 1
-        return bytes([cmd]) + bytes(3) + self._get_seq_num_bytes()
-
-    def _pad_packet(self, packet):
-        return packet + bytes(PACKSIZE - len(packet))
-
     def _cmd_packet(self, cmd, data=bytes()):
-        return self._pad_packet(self._cmd_packet_header(cmd) + data)
+        return ISPPacket(cmd, 0, data)
 
-    def _wait_for_packet(self, max_retries, timeout=None):
+    def _wait_for_packet(self, max_retries, timeout=None, size=PACKSIZE):
         if timeout is None:
             timeout = self.serial_timeout
         retries = 0
-        while (self.get_serial_inwaiting() < PACKSIZE):
+        while (self.get_serial_inwaiting() < size):
             if retries > max_retries:
                 return False
             retries += 1
@@ -341,8 +460,24 @@ class NuvoISP(NuvoProg):
         reopen_wait = first_wait
         first_try = True
         while not connected:
+            if send_retries > MAX_SEND_RETRIES:
+                if not retry or connect_retries == MAX_CONNECT_RETRIES:
+                    raise NoDevice("Device not found!")
+                connect_retries += 1
+                send_retries = 0
+                reopen_wait = first_wait * connect_retries
+                self.print_vb("Attempting to reconnect... (backoff = {}s)".format(first_wait))
+                self.reopen_serial()
+                time.sleep(reopen_wait)
+                # self._disconnect()  # in case the device does not reset on opening serial and we're still connected
+                # time.sleep(0.2)
+                first_try = True
+                self.print_vb("If not using the arduino ICP programmer, hit reset on the chip")
+            self.flush_serial()
+            self.seq_num = 0
             cmd = self._cmd_packet(CMD_CONNECT)
-            self.write_serial(cmd)
+            send_retries += 1
+            self._send_cmd(cmd)
             if first_try:
                 first_try = False
                 time.sleep(first_wait)
@@ -350,75 +485,66 @@ class NuvoISP(NuvoProg):
                 time.sleep(self.serial_timeout)
 
             if not self._wait_for_packet(MAX_READ_RETRIES):
-                send_retries += 1
-                # the device likely reset on opening serial and we didn't wait long enough, try again
-                if send_retries == MAX_SEND_RETRIES:
-                    if not retry or connect_retries == MAX_CONNECT_RETRIES:
-                        raise NoDevice
-                    connect_retries += 1
-                    send_retries = 0
-                    reopen_wait = first_wait * connect_retries
-                    self.print_vb("Attempting to reconnect... (backoff = {}s)".format(first_wait))
-                    self.reopen_serial()
-                    time.sleep(reopen_wait)
-                    # self._disconnect()  # in case the device does not reset on opening serial and we're still connected
-                    # time.sleep(0.2)
-                    first_try = True
-                    self.print_vb("If not using the arduino ICP programmer, hit reset on the chip")
                 continue
 
             if self.get_serial_inwaiting() < PACKSIZE:
                 raise ConnectionError("Shouldn't get here")
-
-            # we sent too many connection packets
-            if self.get_serial_inwaiting() > PACKSIZE:
-                if self.get_serial_inwaiting() % PACKSIZE != 0:
-                    self._wait_for_packet(MAX_READ_RETRIES)
-                    if self.get_serial_inwaiting() % PACKSIZE != 0:
-                        self.flush_serial() # try again
-                        continue
-                packets_in_waiting = int(self.get_serial_inwaiting() / PACKSIZE)
-            else:
-                packets_in_waiting = 1
-
+            rx = self.read_serial(PACKSIZE)
+            # we sent too many connection packets or there's preceding garbage on the serial port
+            if self.get_serial_inwaiting() > 0:
+                read_packet_retry = 5 # in-case the chip is just spewing garbage on the serial port forever
+                while self.get_serial_inwaiting():
+                    rx += self.read_serial(self.get_serial_inwaiting())
+                    read_packet_retry -= 1
+                    if read_packet_retry == 0:
+                        break
+                # get the last 64 bytes
+                rx = rx[len(rx)-PACKSIZE:]
             # check all the received packets
-            for i in range(int(packets_in_waiting)):
-                rx = self.read_serial(PACKSIZE)
-                if NuvoISP.verify_chksum(cmd, rx):
-                    # print("Got valid reply")
-                    connected = True
+            rx_pkt = ACKPacket.from_bytes(rx)
+            if cmd.checksum == rx_pkt.checksum:
+                # print("Got valid reply")
+                connected = True
+                # self.print_vb("Received sequence number: " + str(rx_pkt.seq_num))
 
     def _connect(self, retry=True):
         self._connect_req(retry)
-        self.seq_num = 1
-        data = self._get_seq_num_bytes()
-        # ++seq_num when _cmd_packet is called, so we need to reset it here
+        data = pack_u32(1)
+        # ++seq_num when send_cmd is called, so we need to reset it here
         self.seq_num = 0
-        success, data = self.send_cmd(self._cmd_packet(CMD_SYNC_PACKNO, data))
-        if not success or (CHECK_SEQUENCE_NO and data[0] != 2): 
+        success, rx_pkt = self.send_cmd(self._cmd_packet(CMD_SYNC_PACKNO, data))
+        if not success or (CHECK_SEQUENCE_NO and rx_pkt.seq_num != 2): 
             raise Exception("Failed to sync sequence number")
         self.fw_ver = self.get_fwver()
         self._connected = True
 
-    def send_cmd(self, tx, max_timeout=None, fail_on_checksum_error=True):
+    def _send_cmd(self, tx: ISPPacket, max_timeout=None):
+        tx.seq_num = self.seq_num
         if max_timeout is None:
             max_timeout = self.serial_timeout
-
         # todo: only have 5 retries
         sent = False
         retries = 0
         MAX_SEND_TRIES = 5
         while not sent:
             try:
-                self.write_serial(tx)
+                self.write_serial(tx.to_bytes())
                 sent = True
             except serial.SerialTimeoutException:
                 retries = retries + 1
                 if (retries > MAX_SEND_TRIES):
-                    raise TimeoutError("Too many retries, aborting!")
+                    raise TimeoutError("Too many retries sending packet, aborting!")
                 self.print_vb("Timeout sending packet, retrying...")
                 time.sleep(max_timeout)
 
+    def send_cmd(self, tx_pkt: ISPPacket, max_timeout=None, fail_on_checksum_error=True):
+        # sequence number increments by 1 for every packet send and every packet receieved
+        self.seq_num += 1
+        tx_pkt.seq_num = self.seq_num
+        # self.print_vb("Sending sequence number: {} ({})".format(tx_pkt.seq_num, cmd_to_str(tx_pkt.cmd)))
+        if max_timeout is None:
+            max_timeout = self.serial_timeout
+        self._send_cmd(tx_pkt, max_timeout)
         tries = 0
         success = True
 
@@ -428,6 +554,7 @@ class NuvoISP(NuvoProg):
             DEFAULT_MAX_TRIES * int(math.ceil(max_timeout / self.serial_timeout)))
         # if we have a smaller max timeout, then we sleep for that on every read attempt, otherwise we sleep for the default timeout
         read_timeout = self.serial_timeout if (max_timeout >= self.serial_timeout) else max_timeout
+        rx = bytes()
         while True:
             time.sleep(read_timeout)
             nbytes = self.get_serial_inwaiting()
@@ -438,36 +565,38 @@ class NuvoISP(NuvoProg):
                     if CHECK_SEQUENCE_NO:
                         raise TimeoutError("Too many read retries, aborting!")
                     print("Re-sending packet!")
-                    self.write_serial(tx)
+                    self.flush_serial()
+                    self._send_cmd(tx_pkt, max_timeout)
                 continue
+            break
+        rx = self.read_serial(PACKSIZE)
+        if (len(rx) != PACKSIZE):
+            raise Exception("FAILED TO READ FROM SERIAL PORT!")
 
-            rx = self.read_serial(PACKSIZE)
-
-            if (len(rx) != PACKSIZE):
-                continue
-            else:
-                if not NuvoISP.verify_chksum(tx, rx):
-                    if fail_on_checksum_error:
-                        raise ChecksumError("Invalid checksum received!")
-                    success = False
-                elif CHECK_SEQUENCE_NO:
-                    rseq_num = (rx[4] & 0xff) + ((rx[5] & 0xff) << 8)
-                    if rseq_num != self.seq_num + 1:
-                        if fail_on_checksum_error:
-                            raise ChecksumError("Invalid sequence number received!")
-                        success = False
-                self.seq_num += 1
-                break
-        return success, rx
+        rx_pkt = ACKPacket.from_bytes(rx)
+        # self.print_vb("Received sequence number: " + str(rx_pkt.seq_num))
+        if tx_pkt.checksum != rx_pkt.checksum:
+            if fail_on_checksum_error:
+                raise ChecksumError("Invalid checksum received!")
+            success = False
+        elif CHECK_SEQUENCE_NO:
+            rseq_num = (rx[4] & 0xff) + ((rx[5] & 0xff) << 8)
+            if rseq_num != self.seq_num + 1:
+                if fail_on_checksum_error:
+                    raise ChecksumError("Invalid sequence number received!")
+                success = False
+        # sequence number increments by 1 for every packet send and every packet receieved
+        self.seq_num += 1
+        return success, rx_pkt
 
     def get_fwver(self):
-        _, rx = self.send_cmd(self._cmd_packet(CMD_GET_FWVER))
-        return rx[8]
+        _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_GET_FWVER))
+        return rx_pkt.data[0]
 
     def init(self, retry=True, check_for_device=True):
         self.reopen_serial()
         time.sleep(self.open_wait)
-        self.print_vb("Connecting...")
+        self.print_vb("Connecting on serial port {}...".format(self.serial_port))
         self.print_vb("If not using the arduino ICP programmer, hit reset on the chip")
         self._connect(retry)
         self.print_vb("Connected!")
@@ -497,42 +626,46 @@ class NuvoISP(NuvoProg):
 
     def get_device_id(self) -> int:
         self._fail_if_not_init()
-        _, rx = self.send_cmd(self._cmd_packet(CMD_GET_DEVICEID))
-        return (rx[9] << 8) + rx[8]
+        _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_GET_DEVICEID))
+        return unpack_u32(rx_pkt.data)
 
-    def get_cid(self):
+    def get_cid(self) -> int:
         self._fail_if_not_init()
         self._fail_if_not_extended()
-        _, rx = self.send_cmd(self._cmd_packet(CMD_GET_CID))
-        return rx[8]
+        _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_GET_CID))
+        return rx_pkt.data[0]
 
     def get_uid(self):
         self._fail_if_not_init()
         self._fail_if_not_extended()
-        _, rx = self.send_cmd(self._cmd_packet(CMD_GET_UID))
-        ret = rx[8:20]
+        _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_GET_UID))
+        ret = rx_pkt.data[0:12]
         return ret
 
     def get_ucid_test(self):
         self._fail_if_not_init()
         self._fail_if_not_extended()
-        _, rx = self.send_cmd(self._cmd_packet(CMD_GET_UCID))
-        return rx[8:44]
+        _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_GET_UCID))
+        # return rx[8:44]
+        return rx_pkt.data[0:36]
 
     def get_ucid(self):
         self._fail_if_not_init()
         self._fail_if_not_extended()
-        _, rx = self.send_cmd(self._cmd_packet(CMD_GET_UCID))
-        return rx[8:24]
+        _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_GET_UCID))
+        # return rx[8:24]
+        return rx_pkt.data[0:16]
 
     def read_config(self):
         self._fail_if_not_init()
-        _, rx = self.send_cmd(self._cmd_packet(CMD_READ_CONFIG))
-        return ConfigFlags(rx[8:13])
+        _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_READ_CONFIG))
+        return ConfigFlags(rx_pkt.data[:5])
 
     def erase_aprom(self):
         self._fail_if_not_init()
-        _, rx = self.send_cmd(self._cmd_packet(CMD_ERASE_ALL), 1)
+        success, rx = self.send_cmd(self._cmd_packet(CMD_ERASE_ALL), 1)
+        if not success:
+            raise Exception("Erase failed!")
 
     def mass_erase(self, _reconnect=True):
         self._fail_if_not_init()
@@ -557,7 +690,7 @@ class NuvoISP(NuvoProg):
     def page_erase(self, addr):
         self._fail_if_not_init()
         self._fail_if_not_extended()
-        return self.send_cmd(self._cmd_packet(CMD_ISP_PAGE_ERASE, bytes([addr & 0xff, (addr >> 8) & 0xff])))
+        self.send_cmd(self._cmd_packet(CMD_ISP_PAGE_ERASE, bytes([addr & 0xff, (addr >> 8) & 0xff])))
 
     def update_flash(self, addr, data, size, update_dataflash=False):
         self._fail_if_not_init()
@@ -567,12 +700,12 @@ class NuvoISP(NuvoProg):
         if update_dataflash:
             self._fail_if_not_icp_bridge()
             cmd_name = CMD_UPDATE_WHOLE_ROM
-        pkt = self._cmd_packet(CMD_UPDATE_APROM, bytes([addr & 0xff, (addr >> 8) & 0xff]) + \
-            bytes(2) + bytes([flen & 0xff, (flen >> 8) & 0xff]) + \
-            bytes(2) + bytes(data[0:48]))
+        addr_pckd = pack_u32(addr)
+        flen_pckd = pack_u32(flen)
+        pkt = self._cmd_packet(cmd_name, addr_pckd + flen_pckd + bytes(data[0:48]))
 
         # Program first block of 48 bytes (8 second delay because it has to erase the flash first)
-        self.send_cmd(pkt, 8)
+        _, rx_pkt = self.send_cmd(pkt, 8)
         ipos += 48
         while (ipos <= flen):
             self.update_progress_bar("Programming Rom", ipos, flen)
@@ -582,8 +715,14 @@ class NuvoISP(NuvoProg):
             else:
                 # Last block
                 sdata = bytes(data[ipos:flen]) + bytes(56-(flen-ipos))
-            self.send_cmd(self._cmd_packet(CMD_UPDATE_APROM, sdata))
+            _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_FORMAT2_CONTINUATION, sdata))
             ipos += 56
+        # check the checksum
+        update_checksum = unpack_u16(rx_pkt.data)
+        our_checksum = calc_checksum(data)
+        if update_checksum != our_checksum:
+            # raise ChecksumError("Checksum mismatch: {} != {}".format(update_checksum, our_checksum))
+            print("WARNING: Checksum mismatch: {} != {}".format(update_checksum, our_checksum))
         self.update_progress_bar("Programming Rom", flen, flen)
 
     def write_flash(self, addr, data) -> bool:
@@ -610,7 +749,7 @@ class NuvoISP(NuvoProg):
             if addr == start_addr:
                 _, rx = self.send_cmd(first_packet, 1)
             else:
-                _, rx = self.send_cmd(self._cmd_packet(0))
+                _, rx = self.send_cmd(self._cmd_packet(CMD_FORMAT2_CONTINUATION))
 
             min = PACKSIZE-step_size
             max = PACKSIZE if (addr + step_size <=
@@ -734,8 +873,7 @@ class NuvoISP(NuvoProg):
 
         combined_data = aprom_data + ldrom_data
         self.print_vb("Programming Rom (%d KB)..." % (len(combined_data) / 1024))
-        if not update_flashrom:
-            self.erase_aprom()
+        # no need to erase, as the update commands will do it for us
         self.update_flash(APROM_ADDR, combined_data, len(combined_data), update_flashrom)
         self.write_config(write_config)
 
@@ -854,7 +992,7 @@ def print_usage():
     print("written by Steve Markgraf <steve@steve-m.de>\n")
     print("Usage:")
     print("\t[-h, --help:                       print this help]")
-    print("\t[-p, --port=<port>                 serial port to use (default: /dev/ttyACM0 on *nix, COM1 on windows)]")
+    print("\t[-p, --port=<port>                 serial port to use (default: {} on *nix, {} on windows)]".format(DEFAULT_UNIX_PORT, DEFAULT_WIN_PORT))
     print("\t[-b, --baud=<baudrate>             baudrate to use (default: 115200)]")
     print("\t[-u, --status:                     print the connected device info and configuration and exit.]")
     print("\t[-r, --read=<filename>             read entire flash to file]")
@@ -864,7 +1002,6 @@ def print_usage():
     print("\t[-k, --lock                        lock the chip after programming (default: False)]")
     print("\t[-c, --config <filename>           use config file for writing (overrides --lock)]")
     print("\t[-s, --silent                      silence all output except for errors]")
-
 
 def main() -> int:
     argv = sys.argv[1:]
@@ -876,9 +1013,9 @@ def main() -> int:
         print_usage()
         return 2
 
-    port = "/dev/ttyACM0"
+    port = DEFAULT_UNIX_PORT
     if (platform.system() == "Windows"):
-        port = "COM1"
+        port = DEFAULT_WIN_PORT
     baud = DEFAULT_SER_BAUD
     config_dump_cmd = False
     read = False
@@ -907,14 +1044,14 @@ def main() -> int:
             config_dump_cmd = True
         elif opt == "-r" or opt == "--read":
             read = True
-            read_file = arg
+            read_file = arg.strip()
         elif opt == "-w" or opt == "--write":
-            write_file = arg
+            write_file = arg.strip()
             write = True
         elif opt == "-l" or opt == "--ldrom":
-            ldrom_file = arg
+            ldrom_file = arg.strip()
         elif opt == "-c" or opt == "--config":
-            config_file = arg
+            config_file = arg.strip()
         elif opt == "-s" or opt == "--silent":
             silent = True
         elif opt == "-n" or opt == "--no-ldrom":

@@ -12,6 +12,7 @@
 #define CMD_RESET                0xad  // not implemented in default N76E003 ISP rom
 #define CMD_GET_FLASHMODE        0xCA  // not implemented in default N76E003 ISP rom
 #define CMD_RUN_LDROM            0xac  // not implemented in default N76E003 ISP rom
+#define CMD_FORMAT2_CONTINUATION 0x00 // not explicitly in the spec, but it's the command(s) sent after an initial CMD_UPDATE_APROM
 
 // Not implemented yet
 #define CMD_RESEND_PACKET        0xFF  // not implemented in default N76E003 ISP rom
