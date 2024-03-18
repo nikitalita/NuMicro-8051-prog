@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall -DPRINT_CONFIG_EN -DDYNAMIC_DELAY
+CFLAGS = -g -Wall -DPRINT_CONFIG_EN
 
 #LDFLAGS = -lgpiod
 DEV_OBJ = stub.o

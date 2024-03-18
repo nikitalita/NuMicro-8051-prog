@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -DRPI -DPRINT_CONFIG_EN -DDYNAMIC_DELAY
+CFLAGS = -Wall -DRPI -DPRINT_CONFIG_EN
 USER := $(shell whoami)
 set_cap_on_nuvoicp_CMD = sudo chown "${USER}:kmem" nuvoicp && sudo setcap cap_sys_rawio,cap_dac_override+eip nuvoicp
 

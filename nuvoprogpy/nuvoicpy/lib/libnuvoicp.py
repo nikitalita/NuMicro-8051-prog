@@ -97,24 +97,6 @@ class LibICP:
         self.lib.icp_page_erase.argtypes = [ctypes.c_uint32]
         self.lib.icp_page_erase.restype = None
 
-        self.lib.icp_set_cmd_bit_delay.argtypes = [ctypes.c_int]
-        self.lib.icp_set_cmd_bit_delay.restype = None
-
-        self.lib.icp_set_read_bit_delay.argtypes = [ctypes.c_int]
-        self.lib.icp_set_read_bit_delay.restype = None
-
-        self.lib.icp_set_write_bit_delay.argtypes = [ctypes.c_int]
-        self.lib.icp_set_write_bit_delay.restype = None
-
-        self.lib.icp_get_cmd_bit_delay.argtypes = []
-        self.lib.icp_get_cmd_bit_delay.restype = ctypes.c_int
-
-        self.lib.icp_get_read_bit_delay.argtypes = []
-        self.lib.icp_get_read_bit_delay.restype = ctypes.c_int
-
-        self.lib.icp_get_write_bit_delay.argtypes = []
-        self.lib.icp_get_write_bit_delay.restype = ctypes.c_int
-
         # Wrapper functions
 
     def send_entry_bits(self) -> None:
@@ -198,25 +180,6 @@ class LibICP:
 
     def page_erase(self, addr):
         self.lib.icp_page_erase(ctypes.c_uint32(addr))
-
-    def set_read_bit_delay(self, val):
-        self.lib.icp_set_read_bit_delay(ctypes.c_int(val))
-
-    def set_cmd_bit_delay(self, val):
-        self.lib.icp_set_cmd_bit_delay(ctypes.c_int(val))
-
-    def set_write_bit_delay(self, val):
-        self.lib.icp_set_write_bit_delay(ctypes.c_int(val))
-
-    def get_read_bit_delay(self):
-        return int(self.lib.icp_get_read_bit_delay())
-
-    def get_cmd_bit_delay(self):
-        return int(self.lib.icp_get_cmd_bit_delay())
-
-    def get_write_bit_delay(self):
-        return int(self.lib.icp_get_write_bit_delay())
-
 
 class LibPGM:
     def __init__(self, libname="gpiod"):

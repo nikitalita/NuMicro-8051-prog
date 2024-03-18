@@ -97,50 +97,6 @@ void icp_mass_erase(void);
 void icp_page_erase(uint32_t addr);
 void icp_outputf(const char *fmt, ...);
 
-#ifdef DYNAMIC_DELAY
-/**
- * Sets the delay between each bit of the CMD sequence sent to the device.
- * Only functional on RasPi; NOP on other targets
- * 
- * @param delay_us Delay in microseconds
-*/
-void icp_set_cmd_bit_delay(int delay_us);
-/**
- * Sets the delay between each bit read from the device during `icp_read_byte()`
- * Only functional on RasPi; NOP on other targets
- * 
- * @param delay_us Delay in microseconds
-*/
-void icp_set_read_bit_delay(int delay_us);
-/**
- * Sets the delay between each bit written to the device during `icp_write_byte()`
- * Only functional on RasPi; NOP on other targets
- * 
- * @param delay_us Delay in microseconds
-*/
-void icp_set_write_bit_delay(int delay_us);
-#endif
-/**
- * Gets the delay between each bit written to the device during `icp_write_byte()`
- * 
- * @return Delay in microseconds
-*/
-int icp_get_cmd_bit_delay();
-
-/**
- * Gets the delay between each bit read from the device during `icp_read_byte()`
- * 
- * @return Delay in microseconds
-*/
-int icp_get_read_bit_delay();
-
-/**
- * Gets the delay between each bit of the CMD sequence sent to the device.
- * 
- * @return Delay in microseconds
-*/
-int icp_get_write_bit_delay();
-
 // disabled for microcontroller targets to avoid storing a large number of strings in flash
 #ifdef PRINT_CONFIG_EN
 void print_config(config_flags flags);

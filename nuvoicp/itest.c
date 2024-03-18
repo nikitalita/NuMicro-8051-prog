@@ -5,11 +5,6 @@
 #include <stdio.h>
 #ifndef ARDUINO
 
-static void static_test_delay(){
-	printf("static delay before set: %d\n", icp_get_cmd_bit_delay());
-	icp_set_cmd_bit_delay(20);
-	printf("static delay after set: %d\n", icp_get_cmd_bit_delay());
-}
 
 void test_sleep() {
 	pgm_init();
@@ -31,12 +26,6 @@ void test(){
 	pgm_deinit(0);
 	printf("done\n");
 	// printf("result: %d\n", result);
-}
-
-void test_delay_get(){
-	printf("delay before set: %d\n", icp_get_cmd_bit_delay());
-	icp_set_cmd_bit_delay(4);
-	printf("delay after set: %d\n", icp_get_cmd_bit_delay());
 }
 void test_trigger(){
 	pgm_init();

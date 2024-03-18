@@ -330,8 +330,8 @@ class ConfigFlags(ctypes.LittleEndianStructure):
             config.set_lock(json['lock'])
         if 'boot_from_ldrom' in json and type(json['boot_from_ldrom']) == bool:
             config.set_ldrom_boot(json['boot_from_ldrom'])
-        if 'ldrom_size' in json and json['ldrom_size'] >= 0 and json['ldrom_size'] <= 4:
-            config.set_ldrom_size_kb(json['ldrom_size'])
+        if 'ldrom_size' in json and json['ldrom_size'] >= 0 and json['ldrom_size'] <= 4096:
+            config.set_ldrom_size(json['ldrom_size'])
         if 'OCD_enable' in json and type(json['OCD_enable']) == bool:
             config.set_ocd_enable(json['OCD_enable'])
         if 'brownout_detect' in json and type(json['brownout_detect']) == bool:
@@ -360,7 +360,7 @@ class ConfigFlags(ctypes.LittleEndianStructure):
         return json.dumps({
             "lock": self.is_locked(),
             "boot_from_ldrom": self.is_ldrom_boot(),
-            "ldrom_size": self.get_ldrom_size_kb(),
+            "ldrom_size": self.get_ldrom_size(),
             "OCD_enable": self.is_ocd_enabled(),
             "brownout_detect": self.is_brownout_detect(),
             "brownout_reset": self.is_brownout_reset(),

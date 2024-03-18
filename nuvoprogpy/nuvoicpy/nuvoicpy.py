@@ -127,49 +127,6 @@ class NuvoICP:
         if not self.pgm.init():
             raise PGMInitException("Unable to initialize PGM module")
 
-    @property
-    def CMD_BIT_DELAY(self) -> int:
-        """
-        The delay between each bit sent to the device during `icp_send_cmd()` in microseconds
-
-        #### Returns:
-            int
-        """
-        return self.icp.get_cmd_bit_delay()
-
-    @CMD_BIT_DELAY.setter
-    def CMD_BIT_DELAY(self, delay_us):
-        self.icp.set_cmd_bit_delay(delay_us)
-
-    @property
-    def READ_BIT_DELAY(self) -> int:
-        """
-        The delay between each bit read from the device during `icp_read_byte()` in microseconds
-
-        #### Returns:
-            int: The current READ_BIT_DELAY value
-        """
-        return self.icp.get_read_bit_delay()
-
-    @READ_BIT_DELAY.setter
-    def READ_BIT_DELAY(self, delay_us):
-        self.icp.set_read_bit_delay(delay_us)
-
-    @property
-    def WRITE_BIT_DELAY(self) -> int:
-        """
-        The delay between each bit written to the device during `icp_write_byte()` in microseconds
-        ------
-
-        #### Returns:
-            int: The current WRITE_BIT_DELAY value
-        """
-        return self.icp.get_write_bit_delay()
-
-    @WRITE_BIT_DELAY.setter
-    def WRITE_BIT_DELAY(self, delay_us):
-        self.icp.set_write_bit_delay(delay_us)
-
     def retry(self) -> bool:
         """
         Attempt to retry entering ICP Programming mode

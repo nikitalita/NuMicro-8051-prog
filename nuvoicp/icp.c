@@ -36,16 +36,6 @@
 static int program_time = 20;
 static int page_erase_time = 5000;
 
-#ifdef DYNAMIC_DELAY
-static int ICP_CMD_DELAY = DEFAULT_BIT_DELAY;
-static int ICP_READ_DELAY = DEFAULT_BIT_DELAY;
-static int ICP_WRITE_DELAY = DEFAULT_BIT_DELAY;
-#else
-#define ICP_CMD_DELAY DEFAULT_BIT_DELAY
-#define ICP_READ_DELAY DEFAULT_BIT_DELAY
-#define ICP_WRITE_DELAY DEFAULT_BIT_DELAY
-#endif
-
 // to avoid overhead from calling usleep() for 0 us
 #define USLEEP(x) if (x > 0) pgm_usleep(x)
 
@@ -82,7 +72,7 @@ static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 
 static void icp_send_command(uint8_t cmd, uint32_t dat)
 {
-	icp_bitsend((dat << 6) | cmd, 24, ICP_CMD_DELAY);
+	icp_bitsend((dat << 6) | cmd, 24, DEFAULT_BIT_DELAY);
 }
 
 int send_reset_seq(uint32_t reset_seq, int len){
@@ -211,27 +201,27 @@ void icp_exit(void)
 static uint8_t icp_read_byte(int end)
 {
 	pgm_dat_dir(0);
-	USLEEP(ICP_READ_DELAY);
+	USLEEP(DEFAULT_BIT_DELAY);
 	uint8_t data = 0;
 	int i = 8;
 
 	while (i--) {
-		USLEEP(ICP_READ_DELAY);
+		USLEEP(DEFAULT_BIT_DELAY);
 		int state = pgm_get_dat();
 		pgm_set_clk(1);
-		USLEEP(ICP_READ_DELAY);
+		USLEEP(DEFAULT_BIT_DELAY);
 		pgm_set_clk(0);
 		data |= (state << i);
 	}
 
 	pgm_dat_dir(1);
-	USLEEP(ICP_READ_DELAY);
+	USLEEP(DEFAULT_BIT_DELAY);
 	pgm_set_dat(end);
-	USLEEP(ICP_READ_DELAY);
+	USLEEP(DEFAULT_BIT_DELAY);
 	pgm_set_clk(1);
-	USLEEP(ICP_READ_DELAY);
+	USLEEP(DEFAULT_BIT_DELAY);
 	pgm_set_clk(0);
-	USLEEP(ICP_READ_DELAY);
+	USLEEP(DEFAULT_BIT_DELAY);
 	pgm_set_dat(0);
 
 	return data;
@@ -239,7 +229,7 @@ static uint8_t icp_read_byte(int end)
 
 static void icp_write_byte(uint8_t data, uint8_t end, uint32_t delay1, uint32_t delay2)
 {
-	icp_bitsend(data, 8, ICP_WRITE_DELAY);
+	icp_bitsend(data, 8, DEFAULT_BIT_DELAY);
 
 	pgm_set_dat(end);
 	USLEEP(delay1);
@@ -345,27 +335,6 @@ void icp_outputf(const char *s, ...)
   vsnprintf(buf, 160, s, ap);
   va_end(ap);
   pgm_print(buf);
-}
-
-#ifdef DYNAMIC_DELAY
-void icp_set_cmd_bit_delay(int delay_us) {
-	ICP_CMD_DELAY = delay_us;
-}
-void icp_set_read_bit_delay(int delay_us) {
-	ICP_READ_DELAY = delay_us;
-}
-void icp_set_write_bit_delay(int delay_us) {
-	ICP_WRITE_DELAY = delay_us;
-}
-#endif
-int icp_get_cmd_bit_delay() {
-	return ICP_CMD_DELAY;
-}
-int icp_get_read_bit_delay() {
-	return ICP_READ_DELAY;
-}
-int icp_get_write_bit_delay() {
-	return ICP_WRITE_DELAY;
 }
 
 #ifdef PRINT_CONFIG_EN
