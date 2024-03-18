@@ -296,6 +296,9 @@ void icp_read_ucid(uint8_t * buf)
 
 uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data)
 {
+	if (len == 0) {
+		return 0;
+	}
 	icp_send_command(CMD_READ_FLASH, addr);
 
 	for (uint32_t i = 0; i < len; i++){
@@ -306,6 +309,9 @@ uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data)
 
 uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 {
+	if (len == 0) {
+		return 0;
+	}
 	icp_send_command(CMD_WRITE_FLASH, addr);
 	int delay1 = program_time;
 	for (uint32_t i = 0; i < len; i++) {
