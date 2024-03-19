@@ -79,6 +79,7 @@ void pgm_deinit(uint8_t leave_reset_high)
 
 
 #ifdef _DEBUG
+#include <stdarg.h>
 void pgm_debug_outputf(const char *s, ...)
 {
   char buf[160];
@@ -116,7 +117,9 @@ uint64_t pgm_get_time(){
 }
 
 void pgm_print(const char * msg){
+#ifdef _DEBUG
     Serial2.print(msg);
+#endif
 }
 
 } // extern "C"

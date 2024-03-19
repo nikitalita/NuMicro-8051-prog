@@ -1,5 +1,5 @@
 //#define _DEBUG
-
+#include <stdint.h>
 #include "icp.h"
 #include "pgm.h"
 #include "config.h"
@@ -13,6 +13,10 @@
 #define BUILTIN_LED LED_BUILTIN
 #endif
 
+// Change this setting if your target board doesn't have reset set to high by default
+// 0: sets Reset pin to high-impedence (i.e. neutral) after programming
+// 1: leaves Reset pin high after programming
+#define LEAVE_RESET_HIGH 0
 
 #ifdef ARDUINO_AVR_MEGA2560
 #define CACHED_ROM_READ 0
@@ -30,7 +34,6 @@
 #define UPDATING_STATE      2
 #define DUMPING_STATE       3
 
-#define _DEBUG 1
 int state;
 #define XSTR(x) STR(x)
 #define STR(x) #x
@@ -40,7 +43,7 @@ int state;
 #define DEBUG_PRINT(...) icp_outputf(__VA_ARGS__)
 #define DEBUG_PRINT_BYTEARR(arr, len) \
   for (int i = 0; i < len; i++) \
-    icp_outputf(" %02x", arr[i]); \
+    icp_outputf(" %02x", (arr)[i]); \
   icp_outputf("\n");
 
 
@@ -172,13 +175,16 @@ void tx_pkt()
 
 int update_addr = 0x0000;
 int update_size = 0;
-int preserved_ldrom_sz = 0;
-
+// int preserved_ldrom_sz = 0;
+uint32_t g_update_checksum = 0;
 void update(unsigned char* pkt, int len)
 {
   int n = len > update_size ? update_size : len;
   DEBUG_PRINT("writing %d bytes to flash at addr 0x%04x\n", n, update_addr);
   update_addr = icp_write_flash(update_addr, n, pkt);
+  // update the checksum
+  for (int i = 0; i < n; i++)
+    g_update_checksum += pkt[i];
   update_size -= n;
 }
 
@@ -225,7 +231,7 @@ uint8_t cid;
 uint32_t saved_device_id;
 
 #ifdef _DEBUG
-char * cmd_enum_to_string(int cmd)
+const char * cmd_enum_to_string(int cmd)
 {
   switch (cmd) {
     case CMD_UPDATE_APROM: return "CMD_UPDATE_APROM";
@@ -298,21 +304,21 @@ int read_ldrom_size() {
   return get_ldrom_size(&flags);
 }
 
-int preserve_ldrom(int update_addr, int update_size, int ldrom_size){
-  int current_aprom_size = FLASH_SIZE - ldrom_size;
-  int ldrom_addr = APROM_FLASH_ADDR + current_aprom_size;
-  // if there's no ldrom or the update to be written will overwrite the ldrom, don't preserve
-  if (ldrom_size == 0 || update_addr + update_size > ldrom_addr) {
-    preserved_ldrom_sz = 0;
-  } else {
-    preserved_ldrom_sz = icp_read_flash(ldrom_addr, ldrom_size, LDROM_BUF);
-    if (preserved_ldrom_sz != ldrom_size) {
-      preserved_ldrom_sz = 0;
-      return -1;
-    }
-  }
-  return ldrom_size;
-}
+// int preserve_ldrom(int update_addr, int update_size, int ldrom_size){
+//   int current_aprom_size = FLASH_SIZE - ldrom_size;
+//   int ldrom_addr = APROM_FLASH_ADDR + current_aprom_size;
+//   // if there's no ldrom or the update to be written will overwrite the ldrom, don't preserve
+//   if (ldrom_size == 0 || update_addr + update_size > ldrom_addr) {
+//     preserved_ldrom_sz = 0;
+//   } else {
+//     preserved_ldrom_sz = icp_read_flash(ldrom_addr, ldrom_size, LDROM_BUF);
+//     if (preserved_ldrom_sz != ldrom_size) {
+//       preserved_ldrom_sz = 0;
+//       return -1;
+//     }
+//   }
+//   return ldrom_size;
+// }
 
 void start_dump(int addr, int size, unsigned char * pkt){
   config_flags flags;
@@ -412,11 +418,14 @@ void loop()
       update(&pkt[8], SEQ_UPDATE_PKT_SIZE);
       if (update_size == 0) {
         state = COMMAND_STATE;
-        if (preserved_ldrom_sz > 0){
-          icp_write_flash(APROM_FLASH_ADDR + FLASH_SIZE - preserved_ldrom_sz, preserved_ldrom_sz, LDROM_BUF);
-          preserved_ldrom_sz = 0;
-        }
+        // if (preserved_ldrom_sz > 0){
+        //   icp_write_flash(APROM_FLASH_ADDR + FLASH_SIZE - preserved_ldrom_sz, preserved_ldrom_sz, LDROM_BUF);
+        //   preserved_ldrom_sz = 0;
+        // }
       }
+      // Specification is unclear about how long the checksum is supposed to be; we assume 16-bit
+      pkt[8] = g_update_checksum & 0xff;
+      pkt[9] = (g_update_checksum >> 8) & 0xff;
       tx_pkt();
       return;
     }
@@ -545,6 +554,7 @@ void loop()
         DEBUG_PRINT("exiting from ICP and running aprom...\n");
         INVALIDATE_CACHE;
         icp_exit();
+        pgm_deinit(LEAVE_RESET_HIGH);
         tx_pkt();
         digitalWrite(BUILTIN_LED, HIGH);
         state = DISCONNECTED_STATE;
@@ -557,9 +567,10 @@ void loop()
         break;
 
       case CMD_UPDATE_WHOLE_ROM:
+        g_update_checksum = 0;
         DEBUG_PRINT("CMD_UPDATE_WHOLE_ROM\n");
         INVALIDATE_CACHE;
-        preserved_ldrom_sz = 0;
+        // preserved_ldrom_sz = 0;
         if (!mass_erase_checked(true)) break;
         update_addr = (pkt[9] << 8) | pkt[8];
         update_size = (pkt[13] << 8) | pkt[12];
@@ -570,21 +581,27 @@ void loop()
         tx_pkt();
         break;
 
-      case CMD_UPDATE_APROM:
+      case CMD_UPDATE_APROM: {
+        g_update_checksum = 0;
         update_addr = (pkt[9] << 8) | pkt[8];
         update_size = (pkt[13] << 8) | pkt[12];
         DEBUG_PRINT("CMD_UPDATE_APROM (addr: %d, size: %d)\n", update_addr, update_size);
         read_config(&flags);
+        
         cid = icp_read_cid();
-        preserved_ldrom_sz = 0;
-        // device is locked, we'll need to do a mass erase
-        if (flags.LOCK == 0 || cid == 0xFF) {
-          // If the update is not the full FLASH_SIZE, we should just fail here
-          if (update_size != FLASH_SIZE) {
-            DEBUG_PRINT("Device is locked and update size is not equal to the full APROM size, failing\n");
-            fail_pkt();
-            break;
+        int ldrom_size = get_ldrom_size(&flags);
+        // Specification states that we need to erase the aprom when we receive this command
+        if (update_addr + update_size > FLASH_SIZE - ldrom_size) {
+          // if the update would overwrite the ldrom, we should do a mass erase
+          if (!mass_erase_checked(true)) break;
+        } else if (flags.LOCK != 0 && cid != 0xFF) {
+          // device is not locked, we need to erase only the areas we're going to write to
+          uint16_t start_addr = update_addr & 0xFF80;
+          uint16_t end_addr = (start_addr + update_size);
+          for (uint16_t curr_addr = update_addr; curr_addr < end_addr; curr_addr += PAGE_SIZE){
+            icp_page_erase(curr_addr);
           }
+        } else { // device is locked, we'll need to do a mass erase
           if (!mass_erase_checked(true)) break;
         }
         INVALIDATE_CACHE;
@@ -594,7 +611,7 @@ void loop()
         if (update_size > 0)
           state = UPDATING_STATE;
         tx_pkt();
-        break;
+      } break;
       default:
         DEBUG_PRINT("unknown command 0x%02x\n", cmd);
         fail_pkt();

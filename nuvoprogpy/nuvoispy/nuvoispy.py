@@ -780,15 +780,21 @@ class NuvoISP(NuvoProg):
     def check_ldrom_size(size) -> bool:
         if size > LDROM_MAX_SIZE:
             return False
-        if size % 1024 != 0:
-            return False
         return True
-
+    def _pad_if_necessary(self, data):
+        if not data:
+            return data
+        if len(data) % 1024 != 0:
+            data += bytes([0xFF]* (1024 - (len(data) % 1024)))
+        return data
     def _check_ldrom_config(self, config: ConfigFlags, ldrom_size, ldrom_data=None, override=True) -> tuple[ConfigFlags, bytes]:
         if config.get_ldrom_size() != ldrom_size:
-            self.print_vb("WARNING: LDROM size does not match config: %d KB vs %d KB" % (
-                ldrom_size / 1024, config.get_ldrom_size_kb()))
-            if override:
+            self.print_vb("WARNING: LDROM size does not match config: %dB vs %dB" % (
+                ldrom_size, config.get_ldrom_size()))
+            if config.get_ldrom_size() - len(ldrom_data) < 1024:
+                self.print_vb("LDROM will be padded with 0xFF.")
+                ldrom_data = ldrom_data + bytes([0xFF] * (config.get_ldrom_size() - len(ldrom_data)))
+            elif override:
                 self.print_vb("Overriding LDROM size in config.")
                 config.set_ldrom_size(ldrom_size)
             else:
