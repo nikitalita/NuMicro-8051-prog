@@ -451,7 +451,7 @@ class NuvoISP(NuvoProg):
     def _connect_req(self, retry=True):
         time.sleep(self.serial_timeout)
         MAX_CONNECT_RETRIES = 3
-        MAX_SEND_RETRIES = 50
+        MAX_SEND_RETRIES = 200
         MAX_READ_RETRIES = 5
         connect_retries = 0
         send_retries = 0
@@ -466,7 +466,7 @@ class NuvoISP(NuvoProg):
                 connect_retries += 1
                 send_retries = 0
                 reopen_wait = first_wait * connect_retries
-                self.print_vb("Attempting to reconnect... (backoff = {}s)".format(first_wait))
+                self.print_vb("Attempting to reconnect... (backoff = {}s)".format(reopen_wait))
                 self.reopen_serial()
                 time.sleep(reopen_wait)
                 # self._disconnect()  # in case the device does not reset on opening serial and we're still connected
