@@ -31,9 +31,11 @@
 #define LDROM_ADDRESS APROM_SIZE
 #define PAGE_MASK 0xFF80
 
-#define COMMAND_STATE       0
-#define UPDATING_STATE      1
-#define DUMPING_STATE       2
+#define DISCONNECTED_STATE  0
+#define CONNECTING_STATE    1
+#define COMMAND_STATE       2
+#define UPDATING_STATE      3
+#define DUMPING_STATE       4
 
 // How long to wait for an ISP connection before booting into APROM
 #define Timer0Out_Counter 200 // About 1 second
@@ -47,8 +49,8 @@ volatile uint16_t __data AP_size;
 volatile uint8_t __data g_timer1Counter;
 volatile uint8_t __data count;
 volatile uint16_t __data g_timer0Counter;
-volatile uint32_t __data g_checksum;
-volatile uint32_t __data g_totalchecksum;
+volatile uint16_t __data g_checksum; // spec doesn't specify length of checksum, but ISP tools check for a 16-bit number
+volatile uint16_t __data g_totalchecksum; // spec doesn't specify length of checksum, but ISP tools check for a 16-bit number
 volatile uint8_t __data g_packNo[2] = {0,0};
 volatile __bit bUartDataReady;
 volatile __bit g_timer0Over;
@@ -199,13 +201,15 @@ void Package_checksum(void)
   {
     g_checksum = g_checksum + uart_rcvbuf[count];
   }
+  inc_g_packno();
   uart_txbuf[0] = g_checksum & 0xff;
   uart_txbuf[1] = (g_checksum >> 8) & 0xff;
-  inc_g_packno();
-  uart_txbuf[4] = g_packNo[0];
+  uart_txbuf[2] = 0; // just in case they try to read it as a 32-bit number
+  uart_txbuf[3] = 0;
+  uart_txbuf[4] = g_packNo[0]; // Spec technically has these as 32-bit numbers, so pad with zeros
   uart_txbuf[5] = g_packNo[1];
-  if (uart_txbuf[4] == 0x00)
-    uart_txbuf[5]++;
+  uart_txbuf[6] = 0;
+  uart_txbuf[7] = 0;
 }
 
 void Send_64byte_To_UART0(void)
@@ -222,14 +226,39 @@ void Send_64byte_To_UART0(void)
 
 void Serial_ISR(void) __interrupt(4)
 {
-  if (RI == 1)
-  {
-    uart_rcvbuf[bufhead++] = SBUF;
-    clr_RI; // Clear RI (Receive Interrupt).
-  }
   if (TI == 1)
   {
     clr_TI; // Clear TI (Transmit Interrupt).
+  }
+  if (RI == 1)
+  {
+    uint8_t tmp = SBUF;
+    uart_rcvbuf[bufhead++] = tmp;
+    clr_RI; // Clear RI (Receive Interrupt).
+    
+    // If we're not yet connected, ignore all bytes until we get a CMD_CONNECT
+    if (g_state == DISCONNECTED_STATE) {
+      // bufhead is now 1, so tmp holds bufhead[0]
+      if (tmp == CMD_CONNECT)
+      {
+        g_state = CONNECTING_STATE;
+      } else { // otherwise, reset
+        bufhead = 0;
+      }
+    } else if (g_state == CONNECTING_STATE) {
+      // CMD is 32-bit little endian, CMD_CONNECT is 0x000000ae; if bufhead 1-3 is not 0, reset
+      // bufhead == 2 means tmp holds bufhead[1], bufhead == 3 means tmp holds bufhead[2], etc.
+      if (bufhead < 5){
+        if (tmp != 0) {
+          bufhead = 0;
+          g_state = DISCONNECTED_STATE;
+          g_timer1Over = 0; // reset timeout
+          g_timer1Counter = 0;
+        }
+      } else { // legit packet, start processing
+        g_state = COMMAND_STATE;
+      }
+    }
   }
   if (bufhead == 1)
   {
@@ -631,7 +660,7 @@ _end_of_switch:
     // uart has timed out or there was a buffer error
     if (g_timer1Over == 1)
     {
-      if ((bufhead < 64) && (bufhead > 0) || (bufhead > 64))
+      if ((bufhead != 64))
       {
         bufhead = 0;
       }
