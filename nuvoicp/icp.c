@@ -3,7 +3,8 @@
  * https://github.com/steve-m/N76E003-playground
  *
  * Copyright (c) 2021 Steve Markgraf <steve@steve-m.de>
- *
+ * Copyright (c) 2023-2024 Nikita Lita
+ * 
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
  * "Software"), to deal in the Software without restriction, including
@@ -41,17 +42,8 @@ static int page_erase_time = 6000;
 
 #ifdef _DEBUG
 #define DEBUG_PRINT(x) icp_outputf(x)
-// time measurement
-static unsigned long usstart_time = 0;
-static unsigned long usend_time = 0;
-#define DEBUG_TIMER_START usstart_time = pgm_get_time();
-#define DEBUG_TIMER_END usend_time = pgm_get_time();
-#define DEBUG_PRINT_TIME(funcname) icp_outputf(#funcname " took %d us\n", usend_time - usstart_time)
 #else
 #define DEBUG_PRINT(x)
-#define TIMER_START
-#define DEBUG_TIMER_END
-#define DEBUG_PRINT_TIME(funcname)
 #endif
 #define ENTRY_BIT_DELAY 60
 
@@ -67,7 +59,7 @@ static void icp_bitsend(uint32_t data, int len, uint32_t udelay)
 			pgm_set_clk(1);
 			USLEEP(udelay);
 			pgm_set_clk(0);
-	}	
+	}
 }
 
 static void icp_send_command(uint8_t cmd, uint32_t dat)
@@ -271,12 +263,6 @@ void icp_read_uid(uint8_t * buf)
 		icp_send_command(CMD_READ_UID, i);
 		buf[i] = icp_read_byte(1);
 	}
-	// __uint128_t ret = 0;
-	// for (uint8_t  i = 0; i < 12; i++) {
-	// 	icp_send_command(CMD_READ_UID, i);
-	// 	ret |= (icp_read_byte(1) << (i * 8));
-	// }
-	// return ret;
 }
 
 void icp_read_ucid(uint8_t * buf)
@@ -285,13 +271,6 @@ void icp_read_ucid(uint8_t * buf)
 		icp_send_command(CMD_READ_UID, i + 0x20);
 		buf[i] = icp_read_byte(1);
 	}
-
-	// __uint128_t ret = 0;
-	// for (uint8_t i = 0; i < 16; i++) {
-	// 	icp_send_command(CMD_READ_UID, i + 0x20);
-	// 	ret |= (icp_read_byte(1) << (i * 8));
-	// }
-	// return ret;
 }
 
 uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data)
