@@ -226,13 +226,14 @@ void Send_64byte_To_UART0(void)
 
 void Serial_ISR(void) __interrupt(4)
 {
+  uint8_t tmp;
   if (TI == 1)
   {
     clr_TI; // Clear TI (Transmit Interrupt).
   }
   if (RI == 1)
   {
-    uint8_t tmp = SBUF;
+    tmp = SBUF;
     uart_rcvbuf[bufhead++] = tmp;
     clr_RI; // Clear RI (Receive Interrupt).
     
@@ -243,17 +244,15 @@ void Serial_ISR(void) __interrupt(4)
       {
         g_state = CONNECTING_STATE;
       } else { // otherwise, reset
-        bufhead = 0;
+        goto _RESET_BUF;
       }
     } else if (g_state == CONNECTING_STATE) {
       // CMD is 32-bit little endian, CMD_CONNECT is 0x000000ae; if bufhead 1-3 is not 0, reset
       // bufhead == 2 means tmp holds bufhead[1], bufhead == 3 means tmp holds bufhead[2], etc.
       if (bufhead < 5){
         if (tmp != 0) {
-          bufhead = 0;
           g_state = DISCONNECTED_STATE;
-          g_timer1Over = 0; // reset timeout
-          g_timer1Counter = 0;
+          goto _RESET_BUF;
         }
       } else { // legit packet, start processing
         g_state = COMMAND_STATE;
@@ -267,8 +266,8 @@ void Serial_ISR(void) __interrupt(4)
   }
   if (bufhead == 64)
   {
-
     bUartDataReady = TRUE;
+_RESET_BUF:
     g_timer1Counter = 0;
     g_timer1Over = 0;
     bufhead = 0;
@@ -396,6 +395,13 @@ void erase_ap(uint16_t addr, uint16_t end_addr)
     ISP_SET_IAPGO;
   }
 }
+
+void send_fail_packet(){
+  Package_checksum();
+  uart_txbuf[0] = ~uart_txbuf[0];
+  uart_txbuf[1] = ~uart_txbuf[1];
+  Send_64byte_To_UART0();
+}
 // #define _DEBUG_LEDS 1
 #ifdef _DEBUG_LEDS
 #define enableLEDs    P03_PushPull_Mode; P12_PushPull_Mode; P05_PushPull_Mode;
@@ -449,16 +455,17 @@ void main(void)
     if (bUartDataReady == TRUE)
     {
       EA = 0; // Disable all interrupts
+      uint8_t cmd = uart_rcvbuf[0];
       inc_g_packno();
 #if CHECK_SEQUENCE_NO
-      if (!check_g_packno()){
+      if (cmd != CMD_CONNECT && cmd != CMD_SYNC_PACKNO && !check_g_packno()){
         Package_checksum();
         Send_64byte_To_UART0();
         g_state = COMMAND_STATE;
         goto _end_of_switch;
       }
 #endif
-      if (uart_rcvbuf[0] != CMD_FORMAT2_CONTINUATION) {  // Dump/Update over (possibly prematurely)
+      if (cmd != CMD_FORMAT2_CONTINUATION) {  // Dump/Update over (possibly prematurely)
         g_state = COMMAND_STATE;
       } 
       else if (g_state == DUMPING_STATE)
@@ -472,7 +479,7 @@ void main(void)
         goto _end_of_switch;
       }
 
-      switch (uart_rcvbuf[0])
+      switch (cmd)
       {
       case CMD_CONNECT:
         g_packNo[0] = 0;
@@ -620,6 +627,12 @@ _CONN_COMMON:
       {
         // g_timer0Counter=Timer0Out_Counter;
         set_addrs();
+        // Don't try and overwrite the LDROM
+        if (end_address > LDROM_ADDRESS){
+          // fail
+          send_fail_packet();
+          break;
+        }
         erase_ap((start_address & PAGE_MASK), end_address);
         g_totalchecksum = 0;
         g_state = UPDATING_STATE;
@@ -636,11 +649,8 @@ _CONN_COMMON:
       }
       default: // Invalid command (or CMD_RESEND_PACKET, which we can't support because of lack of memory)
       {
-        Package_checksum();
-        uart_txbuf[0] = ~uart_txbuf[0];
-        uart_txbuf[1] = ~uart_txbuf[1];
-        Send_64byte_To_UART0();
-        break;
+          send_fail_packet();
+          break;
       }
       } // end of switch
 _end_of_switch:

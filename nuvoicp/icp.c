@@ -34,7 +34,7 @@
 
 // These are MCU dependent (default for N76E003)
 static int program_time = 20;
-static int page_erase_time = 5000;
+static int page_erase_time = 6000;
 
 // to avoid overhead from calling usleep() for 0 us
 #define USLEEP(x) if (x > 0) pgm_usleep(x)
@@ -324,7 +324,7 @@ uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 void icp_mass_erase(void)
 {
 	icp_send_command(CMD_MASS_ERASE, 0x3A5A5);
-	icp_write_byte(0xff, 1, 50000, 500);
+	icp_write_byte(0xff, 1, 65000, 500);
 }
 
 void icp_page_erase(uint32_t addr)

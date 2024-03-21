@@ -33,8 +33,8 @@ typedef struct _config_flags {
 	uint8_t unk4_0:4;   // 4:0-3
 	/**
 	 * 4:4-7 | WDT enable 
-	 * 	1111 = WDT is Disabled. WDT can be used as a general purpose timer via software control
-	 *  0101 = WDT is Enabled as a time-out reset timer and it stops running during Idle or Power-down mode.
+	 * 	1111 (0xF) = WDT is Disabled. WDT can be used as a general purpose timer via software control
+	 *  0101 (0x5) = WDT is Enabled as a time-out reset timer and it stops running during Idle or Power-down mode.
 	 *  Others = WDT is Enabled as a time-out reset timer and it keeps running during Idle or Power-down mode.
 	 */
 	uint8_t WDTEN:4;    

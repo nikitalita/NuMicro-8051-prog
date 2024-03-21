@@ -78,7 +78,7 @@ void pgm_deinit(uint8_t leave_reset_high)
 }
 
 
-#ifdef _DEBUG
+#ifdef TEST_USLEEP
 #include <stdarg.h>
 void pgm_debug_outputf(const char *s, ...)
 {
