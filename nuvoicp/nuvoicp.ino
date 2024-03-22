@@ -1,7 +1,7 @@
 //#define _DEBUG
 #include <stdint.h>
-#include "icp.h"
-#include "pgm.h"
+#include "n51_icp.h"
+#include "n51_pgm.h"
 #include "config.h"
 #include <Arduino.h>
 #include <assert.h>

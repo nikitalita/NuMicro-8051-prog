@@ -208,7 +208,7 @@ def build(setup_kwargs):
                 "nuvoicp-gpiod",
                 {
                     "sources": [
-                        "nuvoicp/icp.c",
+                        "nuvoicp/n51_icp.c",
                         "nuvoicp/rpi.c",
                         "nuvoicp/main.c",
                     ],
@@ -222,7 +222,7 @@ def build(setup_kwargs):
                 "nuvoicp-pigpio",
                 {
                     "sources": [
-                        "nuvoicp/icp.c",
+                        "nuvoicp/n51_icp.c",
                         "nuvoicp/rpi-pigpio.c",
                         "nuvoicp/main.c",
                     ],

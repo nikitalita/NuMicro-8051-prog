@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <pigpio.h>
 
-#include "pgm.h"
+#include "n51_pgm.h"
 
 #ifdef DEBUG
 #include "print_caps.h"

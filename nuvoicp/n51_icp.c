@@ -29,8 +29,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "config.h"
-#include "icp.h"
-#include "pgm.h"
+#include "n51_icp.h"
+#include "n51_pgm.h"
 #include "delay.h"
 
 // These are MCU dependent (default for N76E003)

@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#include "pgm.h"
+#include "n51_pgm.h"
 /* Lolin(WeMOS) D1 mini */
 /* 80MHz: 1 cycle = 12.5ns */
 #ifndef ARDUINO_AVR_MEGA2560

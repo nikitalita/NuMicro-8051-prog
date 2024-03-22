@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include "pgm.h"
+#include "n51_pgm.h"
 
 /* GPIO line numbers for RPi, must be changed for other SBCs */
 #define GPIO_DAT 20

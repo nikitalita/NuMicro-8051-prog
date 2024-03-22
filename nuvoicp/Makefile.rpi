@@ -44,11 +44,11 @@ default: all
 
 
 all: pigpio-target nuvoicp set_cap_on_nuvoicp
-nuvoicp: main.o icp.o $(DEV_OBJ)
+nuvoicp: main.o n51_icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o nuvoicp $^ $(LDFLAGS)
-shared: main.o icp.o $(DEV_OBJ)
+shared: main.o n51_icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -shared -o libnuvoicp-$(LIBNAME).so $^ $(LDFLAGS)
-test: itest.o icp.o $(DEV_OBJ)
+test: itest.o n51_icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o itest $^ $(LDFLAGS)
 clean:
 	rm -f nuvoicp *.o libnuvoicp-*.so

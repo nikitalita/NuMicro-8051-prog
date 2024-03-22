@@ -60,7 +60,7 @@ For Arduino, use the Arduino IDE and open the `nuvoicp.ino` file.
 ### nuvoicpy
 
 These are python bindings for the Raspberry Pi compiled versions of `nuvoicp`. It also provides a command-line ICP programmer.
-This could possibly be repurposed for other SBCs with the appropriate GPIO, but this requires implementing a device file for the GPIO in `nuvoicp` (look at `pgm.h` for details). 
+This could possibly be repurposed for other SBCs with the appropriate GPIO, but this requires implementing a device file for the GPIO in `nuvoicp` (look at `n51_pgm.h` for details). 
 
 This is compatible with both pigpio and libgpiod, and can be changed at runtime by passing the library name in to the NuvoICP constructor.
 

@@ -1,6 +1,6 @@
 
-#include "pgm.h"
-#include "icp.h"
+#include "n51_pgm.h"
+#include "n51_icp.h"
 
 #include <stdio.h>
 #ifndef ARDUINO

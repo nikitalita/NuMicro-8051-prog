@@ -33,8 +33,8 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "icp.h"
-#include "pgm.h"
+#include "n51_icp.h"
+#include "n51_pgm.h"
 #include "config.h"
 #define N76E003_DEVID	0x3650
 
