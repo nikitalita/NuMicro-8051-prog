@@ -38,13 +38,13 @@
 #define FLASH_SIZE	        (18 * 1024)
 
 // ICP Commands
-#define CMD_READ_UID		0x04
-#define CMD_READ_CID		0x0b
-#define CMD_READ_DEVICE_ID	0x0c
-#define CMD_READ_FLASH		0x00
-#define CMD_WRITE_FLASH		0x21
-#define CMD_MASS_ERASE		0x26
-#define CMD_PAGE_ERASE		0x22
+#define N51ICP_CMD_READ_UID		    0x04
+#define N51ICP_CMD_READ_CID		    0x0b
+#define N51ICP_CMD_READ_DEVICE_ID	0x0c
+#define N51ICP_CMD_READ_FLASH		0x00
+#define N51ICP_CMD_WRITE_FLASH		0x21
+#define N51ICP_CMD_MASS_ERASE		0x26
+#define N51ICP_CMD_PAGE_ERASE		0x22
 
 
 // ICP Entry sequence

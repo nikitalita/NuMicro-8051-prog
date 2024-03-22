@@ -58,7 +58,7 @@ void test_serase(){
 	printf("Expected:\n");
 
 	N51PGM_init();
-	test_send_command(CMD_MASS_ERASE, 0x3A5A5);
+	test_send_command(N51ICP_CMD_MASS_ERASE, 0x3A5A5);
 	test_bitsend(0xff, 8, 1);
 	printf("\nActuyal:\n");
 	N51ICP_mass_erase();
