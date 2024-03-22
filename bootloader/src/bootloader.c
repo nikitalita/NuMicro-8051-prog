@@ -59,22 +59,23 @@ volatile uint8_t g_state = COMMAND_STATE;
 
 #define UCID_LENGTH 0x30
 #define UID_LENGTH 12
+#define CONFIG_LENGTH 5
 
 unsigned char CID;
-unsigned char CONF[5];
+unsigned char CONF[CONFIG_LENGTH];
 unsigned char DPID[4];
 unsigned char hircmap[2];
 
-#define set_IAPGO_NO_EA TA=0xAA;TA=0x55;IAPTRG|=SET_BIT0;
+#define ta_enable TA = 0xAA;TA = 0x55;
+#define set_IAPGO_NO_EA ta_enable;IAPTRG|=SET_BIT0;
 #ifdef isp_with_wdt
 // set_WDCLR without disabling interrupts
-#define set_WDCLR_NO_EA TA=0xAA;TA=0x55;WDCON|=SET_BIT6;
+#define set_WDCLR_NO_EA ta_enable;WDCON|=SET_BIT6;
 #define set_IAPGO_WDCLR \
   BIT_TMP = EA;         \
   EA = 0;               \
   set_WDCLR_NO_EA;      \
-  TA = 0xAA;            \
-  TA = 0x55;            \
+  ta_enable;            \
   IAPTRG |= SET_BIT0;   \
   EA = BIT_TMP
 #define set_IAPGO_WDCLR_NO_EA \
@@ -121,15 +122,12 @@ void BYTE_READ_FUNC(uint8_t cmd, uint8_t start, uint8_t len, uint8_t *buf)
   IAPCN = cmd;
   IAPAH = 0x00;
   IAPAL = start;
-  for (i = 0; i < len - 1; i++)
+  for (i = 0; i < len; i++)
   {
     ISP_SET_IAPGO;
     buf[i] = IAPFD;
     IAPAL++;
   }
-  // get the last one
-  ISP_SET_IAPGO;
-  buf[i] = IAPFD;
 }
 
 void READ_HIRCMAP(void){
@@ -166,10 +164,7 @@ void MODIFY_HIRC_16(void)
 }
 #define READ_DEVICE_ID() BYTE_READ_FUNC(BYTE_READ_ID, 0x00, 4, DPID);
 
-void READ_CONFIG(void)
-{
-  BYTE_READ_FUNC(BYTE_READ_CONFIG, 0x00, 5, CONF);
-}
+#define READ_CONFIG() BYTE_READ_FUNC(BYTE_READ_CONFIG, 0x00, CONFIG_LENGTH, CONF);
 
 #define READ_COMPANY_ID() BYTE_READ_FUNC(READ_CID, 0x00, 1, &CID);
 
@@ -370,16 +365,11 @@ void set_addrs()
 
 void finish_read_config()
 {
-  READ_CONFIG();
   Package_checksum();
-  uart_txbuf[8] = CONF[0];
-  uart_txbuf[9] = CONF[1];
-  uart_txbuf[10] = CONF[2];
-  uart_txbuf[11] = CONF[3];
-  uart_txbuf[12] = CONF[4];
-  uart_txbuf[13] = 0xff;
-  uart_txbuf[14] = 0xff;
-  uart_txbuf[15] = 0xff;
+  BYTE_READ_FUNC(BYTE_READ_CONFIG, 0x00, CONFIG_LENGTH, &uart_txbuf[8]);
+  for (uint8_t i = 8+CONFIG_LENGTH; i < 16; i++){
+    uart_txbuf[i] = 0xff;
+  }
   Send_64byte_To_UART0();
 }
 
@@ -429,6 +419,13 @@ void send_fail_packet(){
 
 void main(void)
 {
+  // Disable POR as recommended by N73E003 Series Errata Sheet
+  // TODO: Not enabling for now, verify this later
+  // ta_enable;
+  // PORDIS = 0x5A;
+  // ta_enable;
+  // PORDIS = 0xA5;
+
   enableLEDs;
   set_led_online(0);
   set_led_connected(0);
@@ -691,4 +688,3 @@ _APROM:
   while (1)
     ;
 }
- 

@@ -396,6 +396,7 @@ __sfr __no_init volatile unsigned char PDTEN       @ 0xF9; //TA Protection
 __sfr __no_init volatile unsigned char PDTCNT      @ 0xFA; //TA Protection
 __sfr __no_init volatile unsigned char PMEN        @ 0xFB;
 __sfr __no_init volatile unsigned char PMD         @ 0xFC;
+__sfr __no_init volatile unsigned char PORDIS      @ 0xFD; //TA Protection
 __sfr __no_init volatile unsigned char EIP1        @ 0xFE;
 __sfr __no_init volatile unsigned char EIPH1       @ 0xFF;
 

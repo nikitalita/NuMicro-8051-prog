@@ -161,6 +161,7 @@ sfr PDTEN       = 0xF9; //TA Protection
 sfr PDTCNT      = 0xFA; //TA Protection
 sfr PMEN        = 0xFB;
 sfr PMD         = 0xFC;
+sfr PORDIS      = 0xFD; //TA Protection
 sfr EIP1        = 0xFE;
 sfr EIPH1       = 0xFF;
 
