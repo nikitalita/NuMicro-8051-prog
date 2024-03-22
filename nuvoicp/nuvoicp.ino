@@ -79,18 +79,18 @@ uint8_t LDROM_BUF[LDROM_MAX_SIZE];
 
 #ifdef _DEBUG
 #pragma message "DEBUG MODE!!!"
-#define DEBUG_PRINT(...) icp_outputf(__VA_ARGS__)
+#define DEBUG_PRINT(...) N51ICP_outputf(__VA_ARGS__)
 #define DEBUG_PRINT_BYTEARR(arr, len) \
   for (int i = 0; i < len; i++) \
-    icp_outputf(" %02x", (arr)[i]); \
-  icp_outputf("\n");
+    N51ICP_outputf(" %02x", (arr)[i]); \
+  N51ICP_outputf("\n");
 
 
 static unsigned long usstart_time = 0;
 static unsigned long usend_time = 0;
-#define TIMER_START usstart_time = pgm_get_time();
-#define TIMER_END usend_time = pgm_get_time();
-#define PRINT_TIME(funcname) icp_outputf(#funcname " took %lu us\n", usend_time - usstart_time)
+#define TIMER_START usstart_time = N51PGM_get_time();
+#define TIMER_END usend_time = N51PGM_get_time();
+#define PRINT_TIME(funcname) N51ICP_outputf(#funcname " took %lu us\n", usend_time - usstart_time)
 #define TIME_FUNCTION(funcname, ...) \
 		TIMER_START; \
 		funcname(__VA_ARGS__); \
@@ -107,24 +107,24 @@ void _debug_outputf(const char *s, ...)
   va_start(ap, s);
   vsnprintf(buf, 160, s, ap);
   va_end(ap);
-  pgm_print(buf);
+  N51PGM_print(buf);
 }
 
 // #define USLEEP(x) \
 // 	TIMER_START; \
-// 	if (x > 0) pgm_usleep(x);\
+// 	if (x > 0) N51PGM_usleep(x);\
 // 	TIMER_END; \
 // 	DEBUG_PRINT("USLEEP(%lu) took %lu us\n", x, usend_time - usstart_time);
 #define USLEEP(x) \
 	if (x > 0) {\
 		if (x < 500){\
-			pgm_usleep(x);\
+			N51PGM_usleep(x);\
 		}\
 		else { \
 			TIMER_START; \
-			pgm_usleep(x);\
+			N51PGM_usleep(x);\
 			TIMER_END; \
-			icp_outputf("USLEEP(%lu) took %lu us\n", x, usend_time - usstart_time);\
+			N51ICP_outputf("USLEEP(%lu) took %lu us\n", x, usend_time - usstart_time);\
 		}\
 	};
 
@@ -181,25 +181,25 @@ void setup()
   test_usleep();
 #endif
 #ifdef DEBUG_START_PRINT
-  icp_init();
-  DEBUG_PRINT("DEVICEID\t\t\t0x%02x\n", icp_read_device_id());
-  DEBUG_PRINT("CID\t\t\t0x%02x\n", icp_read_cid());
-  DEBUG_PRINT("UID\t\t\t0x%024x\n", icp_read_uid());
-  DEBUG_PRINT("UCID\t\t\t0x%032x\n", icp_read_ucid());
+  N51ICP_init();
+  DEBUG_PRINT("DEVICEID\t\t\t0x%02x\n", N51ICP_read_device_id());
+  DEBUG_PRINT("CID\t\t\t0x%02x\n", N51ICP_read_cid());
+  DEBUG_PRINT("UID\t\t\t0x%024x\n", N51ICP_read_uid());
+  DEBUG_PRINT("UCID\t\t\t0x%032x\n", N51ICP_read_ucid());
 #ifdef PRINT_CONFIG_EN
-  icp_dump_config();
+  N51ICP_dump_config();
 #endif
   uint8_t buf[16];
   uint16_t addr = 0;
   while (addr < 256) {
-    icp_read_flash(addr, sizeof(buf), buf);
+    N51ICP_read_flash(addr, sizeof(buf), buf);
     DEBUG_PRINT("%04x: ", addr);
     for (int i = 0; i < sizeof(buf); i++)
       DEBUG_PRINT("%02x ", buf[i]);
     DEBUG_PRINT("\n");
     addr += sizeof(buf);
   }
-  icp_deinit();
+  N51ICP_deinit();
 #endif // DEBUG_START_PRINT
 #endif // _DEBUG
 }
@@ -267,7 +267,7 @@ void update(unsigned char* data, int len)
 {
   int n = len > update_size ? update_size : len;
   DEBUG_PRINT("writing %d bytes to flash at addr 0x%04x\n", n, update_addr);
-  update_addr = icp_write_flash(update_addr, n, data);
+  update_addr = N51ICP_write_flash(update_addr, n, data);
   // update the checksum
   for (int i = 0; i < n; i++)
     g_update_checksum += data[i];
@@ -291,7 +291,7 @@ void dump()
     // dump x bytes at a time
 #define READ_CHUNK FLASH_SIZE
     for (read_addr = 0; read_addr < FLASH_SIZE; read_addr += READ_CHUNK){
-      icp_read_flash(read_addr, READ_CHUNK, &read_buff[read_addr]);
+      N51ICP_read_flash(read_addr, READ_CHUNK, &read_buff[read_addr]);
       delayMicroseconds(1);
     }
     read_buff_valid = true;
@@ -299,7 +299,7 @@ void dump()
   memcpy(data_buf, &read_buff[dump_addr], n);
   dump_addr += n;
 #else
-  dump_addr = icp_read_flash(dump_addr, n, data_buf);
+  dump_addr = N51ICP_read_flash(dump_addr, n, data_buf);
 #endif
   dump_size -= n;
 }
@@ -346,16 +346,16 @@ void fail_pkt(){
 
 bool mass_erase_checked(bool check_device_id = false){
   INVALIDATE_CACHE;
-  uint8_t cid = icp_read_cid();
-  icp_mass_erase();
-  pgm_usleep(500000); // half a second
+  uint8_t cid = N51ICP_read_cid();
+  N51ICP_mass_erase();
+  N51PGM_usleep(500000); // half a second
   if (cid == 0xFF || cid == 0x00){
-    icp_reentry(5000, 1000, 10);
+    N51ICP_reentry(5000, 1000, 10);
   }
   if (check_device_id){
-    uint32_t devid = icp_read_device_id();
+    uint32_t devid = N51ICP_read_device_id();
     if (devid != N76E003_DEVID){
-      icp_reentry(5000, 1000, 10);
+      N51ICP_reentry(5000, 1000, 10);
       if (devid != N76E003_DEVID) {
         DEBUG_PRINT("Failed to find device after mass erase! failing...\n");
         fail_pkt();
@@ -368,7 +368,7 @@ bool mass_erase_checked(bool check_device_id = false){
 
 
 void read_config(config_flags *flags) {
-  icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)flags);
+  N51ICP_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)flags);
 }
 int get_ldrom_size(config_flags *flags){
   return (flags->LDS < 3 ? 4 : (7 - flags->LDS)) * 1024;
@@ -383,12 +383,12 @@ int read_ldrom_size() {
 void start_dump(int addr, int size){
   config_flags flags;
   read_config(&flags);
-  uint8_t cid = icp_read_cid();
+  uint8_t cid = N51ICP_read_cid();
   if (cid == 0xFF || cid == 0x00){
     // attempt reentry if lock bit is unlocked
     if (flags.LOCK == 1) {
-      icp_reentry(5000, 1000, 10);
-      cid = icp_read_cid(); 
+      N51ICP_reentry(5000, 1000, 10);
+      cid = N51ICP_read_cid(); 
     }
     if (cid == 0xFF || cid == 0x00) {
       DEBUG_PRINT("Device is locked, cannot dump\n");
@@ -418,8 +418,8 @@ void reset_conn() {
   DEBUG_PRINT("Disconnecting...\n");
   if (state > WAITING_FOR_CONNECT_CMD) {
     disable_connect_led();
-    icp_exit();
-    pgm_deinit(LEAVE_RESET_HIGH);
+    N51ICP_exit();
+    N51PGM_deinit(LEAVE_RESET_HIGH);
   }
   state = DISCONNECTED_STATE;
 }
@@ -454,7 +454,7 @@ void loop()
       if (rx_bufhead < 5) {
         if (tmp != 0){
           DEBUG_PRINT("0NOT\n");
-          state = DISCONNECTED_STATE; 
+          state = DISCONNECTED_STATE;
           reset_buf();
           return;
         }
@@ -525,7 +525,7 @@ void loop()
           INVALIDATE_CACHE;
           if (state == WAITING_FOR_CONNECT_CMD) {
             state = WAITING_FOR_SYNCNO;
-            icp_init(true);
+            N51ICP_init(true);
             enable_connect_led();
           } else if (state == WAITING_FOR_SYNCNO) {
             // Don't send back a packet if we just connected and are waiting for syncno
@@ -577,7 +577,7 @@ void loop()
       case CMD_GET_CID:
         {
         DEBUG_PRINT("CMD_GET_CID\n");
-        uint8_t id = icp_read_cid();
+        uint8_t id = N51ICP_read_cid();
         DEBUG_PRINT("received cid of 0x%02x\n", id);
         tx_buf[8] = id;
         tx_buf[9] = 0;
@@ -587,25 +587,25 @@ void loop()
         } break;
       case CMD_GET_UID:
         {
-        icp_read_uid(&tx_buf[8]);
+        N51ICP_read_uid(&tx_buf[8]);
         DEBUG_PRINT("received uid of ");
         DEBUG_PRINT_BYTEARR(&tx_buf[8], 12);
         send_pkt();
         } break;
       case CMD_GET_UCID:
         {
-        // __uint128_t id = icp_read_ucid();
+        // __uint128_t id = N51ICP_read_ucid();
         // DEBUG_PRINT("received ucid of 0x%08x\n", id);
         // for (int i = 0; i < 16; i++)
         //   rx_buf[8 + i] = (id >> (i * 8)) & 0xff;
-        icp_read_ucid(&tx_buf[8]);
+        N51ICP_read_ucid(&tx_buf[8]);
         DEBUG_PRINT("received ucid of ");
         DEBUG_PRINT_BYTEARR(&tx_buf[8], 16);
         send_pkt();
         } break;
       case CMD_GET_DEVICEID:
         {
-        uint32_t id = icp_read_device_id();
+        uint32_t id = N51ICP_read_device_id();
         DEBUG_PRINT("received device id of 0x%04x\n", id);
         tx_buf[8] = id & 0xff;
         tx_buf[9] = (id >> 8) & 0xff;
@@ -615,7 +615,7 @@ void loop()
         } break;
       case CMD_READ_CONFIG:
         DEBUG_PRINT("CMD_READ_CONFIG\n");
-        icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, &tx_buf[8]);
+        N51ICP_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, &tx_buf[8]);
         // set the rest of the packet to FF
         memset(&tx_buf[8 + CFG_FLASH_LEN], 0xFF, PACKSIZE - 8 - CFG_FLASH_LEN);
         send_pkt();
@@ -631,8 +631,8 @@ void loop()
           break;
         }
 #endif
-        icp_page_erase(CFG_FLASH_ADDR);
-        icp_write_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, &rx_buf[8]);
+        N51ICP_page_erase(CFG_FLASH_ADDR);
+        N51ICP_write_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, &rx_buf[8]);
         send_pkt();
       } break;
       case CMD_ERASE_ALL: // Erase all only erases the AP ROM, so we have to page erase the APROM area
@@ -644,7 +644,7 @@ void loop()
         DEBUG_PRINT("ldrom_size: %d\n", ldrom_size);
         DEBUG_PRINT("Erasing %d bytes of APROM\n", FLASH_SIZE - ldrom_size);
         for (int i = 0; i < FLASH_SIZE - ldrom_size; i += PAGE_SIZE) {
-          icp_page_erase(i);
+          N51ICP_page_erase(i);
         }
         send_pkt();
       } break;
@@ -662,7 +662,7 @@ void loop()
         INVALIDATE_CACHE;
         int addr = (rx_buf[9] << 8) | rx_buf[8];
         DEBUG_PRINT("CMD_ISP_PAGE_ERASE (addr: %d)\n", addr);
-        icp_page_erase(addr & PAGE_MASK);
+        N51ICP_page_erase(addr & PAGE_MASK);
         send_pkt();
       } break;
       case CMD_RUN_APROM:
@@ -711,7 +711,7 @@ void loop()
         }
         read_config(&flags);
         
-        cid = icp_read_cid();
+        cid = N51ICP_read_cid();
         int ldrom_size = get_ldrom_size(&flags);
         // Specification states that we need to erase the aprom when we receive this command
         if (flags.LOCK != 0 && cid != 0xFF) {
@@ -719,7 +719,7 @@ void loop()
           uint16_t start_addr = update_addr & PAGE_MASK;
           uint16_t end_addr = (start_addr + update_size);
           for (uint16_t curr_addr = update_addr; curr_addr < end_addr; curr_addr += PAGE_SIZE){
-            icp_page_erase(curr_addr);
+            N51ICP_page_erase(curr_addr);
           }
         } else { // device is locked, we'll need to do a mass erase
           if (!mass_erase_checked(true)) break;

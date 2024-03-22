@@ -47,10 +47,10 @@ typedef struct _device_info{
 
 device_info get_device_info() {
 	device_info info;
-	info.devid = icp_read_device_id();
-	info.cid = icp_read_cid();
-	icp_read_uid(info.uid);
-	icp_read_ucid(info.ucid);
+	info.devid = N51ICP_read_device_id();
+	info.cid = N51ICP_read_cid();
+	N51ICP_read_uid(info.uid);
+	N51ICP_read_ucid(info.ucid);
 	return info;
 }
 
@@ -177,14 +177,14 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (icp_init(true) != 0) {
+	if (N51ICP_init(true) != 0) {
 		fprintf(stderr, "ERROR: Failed to initialize ICP!\n\n");
 		goto err;
 	}
 	device_info devinfo = get_device_info();
 	// chip's locked, re-enter ICP mode to reload the flash
 	if (devinfo.cid == 0xFF) {
-		icp_reentry(5000, 1000, 10);
+		N51ICP_reentry(5000, 1000, 10);
 		devinfo = get_device_info();
 	}
 	
@@ -206,24 +206,24 @@ int main(int argc, char *argv[])
 	}
 
 	config_flags current_config;
-	icp_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&current_config);
+	N51ICP_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&current_config);
 	if (current_config.LOCK == 0 && write_aprom == 0 && write_ldrom == 0) {
 		print_device_info(devinfo);
-		print_config(current_config);
+		N51ICP_print_config(current_config);
 		fprintf(stderr, "ERROR: Device is locked, cannot read flash!\n\n");
 		goto out_err;
 	}
 
 	/* Erase entire flash */
 	if (write_aprom || write_ldrom) {
-		icp_mass_erase();
+		N51ICP_mass_erase();
 		// we have to reinitialize if it was previously locked
 		if (current_config.LOCK == 0 || devinfo.cid == 0xFF){
-			icp_reentry(5000, 1000, 10);
+			N51ICP_reentry(5000, 1000, 10);
 		}
 	}
 	print_device_info(devinfo);
-	print_config(current_config);
+	N51ICP_print_config(current_config);
 
 	if (dump_config)
 		goto out;
@@ -239,9 +239,9 @@ int main(int argc, char *argv[])
 		write_config.CBS = 0; // boot from LDROM
 		write_config.LDS = ((7 - chosen_ldrom_sz_kb) & 0x7); // config LDROM size
 		// write the config
-		icp_write_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&write_config);
+		N51ICP_write_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&write_config);
 		/* program LDROM */
-		icp_write_flash(FLASH_SIZE - chosen_ldrom_sz, ldrom_program_size, ldrom_data);
+		N51ICP_write_flash(FLASH_SIZE - chosen_ldrom_sz, ldrom_program_size, ldrom_data);
 		fprintf(stderr, "Programmed LDROM (%d bytes)\n", ldrom_program_size);
 	}
 
@@ -251,19 +251,19 @@ int main(int argc, char *argv[])
 		aprom_program_size = fread(write_data, 1, aprom_size, file);
 
 		/* program flash */
-		icp_write_flash(APROM_FLASH_ADDR, aprom_program_size, write_data);
+		N51ICP_write_flash(APROM_FLASH_ADDR, aprom_program_size, write_data);
 		fprintf(stderr, "Programmed APROM (%d bytes)\n", aprom_program_size);
 	}
 
 	if (write_aprom || write_ldrom) {
 		/* verify flash */
-		icp_read_flash(APROM_FLASH_ADDR, FLASH_SIZE, read_data);
+		N51ICP_read_flash(APROM_FLASH_ADDR, FLASH_SIZE, read_data);
 
 		/* copy the LDROM content in the buffer of the entire flash for
 		 * verification */
 		memcpy(&write_data[FLASH_SIZE - chosen_ldrom_sz], ldrom_data, chosen_ldrom_sz);
 		if (memcmp(write_data, read_data, FLASH_SIZE)) {
-			icp_dump_config();
+			N51ICP_dump_config();
 			fprintf(stderr, "\nError when verifying flash!\n");
 			goto out_err;
 		}
@@ -271,12 +271,12 @@ int main(int argc, char *argv[])
 		// we need to write the lock bits AFTER verifying because we will be unable to read it afterwards
 		if (lock_chip) {
 			write_config.LOCK = 0;
-			icp_write_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&write_config);
+			N51ICP_write_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&write_config);
 		}
-		icp_dump_config();
+		N51ICP_dump_config();
 	} else {
-		icp_dump_config();
-		icp_read_flash(APROM_FLASH_ADDR, FLASH_SIZE, read_data);
+		N51ICP_dump_config();
+		N51ICP_read_flash(APROM_FLASH_ADDR, FLASH_SIZE, read_data);
 
 		/* save flash content to file */
 		if (fwrite(read_data, 1, FLASH_SIZE, file) != FLASH_SIZE) {
@@ -288,12 +288,12 @@ int main(int argc, char *argv[])
 	}
 
 out:
-	icp_exit();
-	pgm_deinit(0);
+	N51ICP_exit();
+	N51PGM_deinit(0);
 	return 0;
 out_err:
-	icp_exit();
-	pgm_deinit(0);
+	N51ICP_exit();
+	N51PGM_deinit(0);
 	err:
 	return 1;
 }

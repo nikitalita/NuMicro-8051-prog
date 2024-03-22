@@ -14,7 +14,7 @@
 #endif
 extern "C" {
 
-int pgm_init(void)
+int N51PGM_init(void)
 {
   pinMode(CLK, OUTPUT);
   pinMode(DAT, INPUT);
@@ -24,54 +24,54 @@ int pgm_init(void)
   return 0;
 }
 
-void pgm_set_dat(uint8_t val)
+void N51PGM_set_dat(uint8_t val)
 {
   digitalWrite(DAT, val);
 }
 
-uint8_t pgm_get_dat(void)
+uint8_t N51PGM_get_dat(void)
 {
   return digitalRead(DAT);
 }
 
-void pgm_set_rst(uint8_t val)
+void N51PGM_set_rst(uint8_t val)
 {
   digitalWrite(RST, val);
 }
 
-void pgm_set_clk(uint8_t val)
+void N51PGM_set_clk(uint8_t val)
 {
   digitalWrite(CLK, val);
 }
 
-void pgm_dat_dir(uint8_t state)
+void N51PGM_dat_dir(uint8_t state)
 {
   pinMode(DAT, state ? OUTPUT : INPUT);
 }
 
-void pgm_release_pins(void)
+void N51PGM_release_pins(void)
 {
   pinMode(CLK, INPUT);
   pinMode(DAT, INPUT);
   pinMode(RST, INPUT);
 }
 
-void pgm_set_trigger(uint8_t val)
+void N51PGM_set_trigger(uint8_t val)
 {
   /* not implemented */
 }
 
-void pgm_release_rst(void)
+void N51PGM_release_rst(void)
 {
   pinMode(RST, INPUT);
 }
 
-void pgm_deinit(uint8_t leave_reset_high)
+void N51PGM_deinit(uint8_t leave_reset_high)
 {
   pinMode(CLK, INPUT);
   pinMode(DAT, INPUT);
   if (leave_reset_high){
-    pgm_set_rst(1);
+    N51PGM_set_rst(1);
   } else {
     pinMode(RST, INPUT);
   }
@@ -80,22 +80,22 @@ void pgm_deinit(uint8_t leave_reset_high)
 
 #ifdef TEST_USLEEP
 #include <stdarg.h>
-void pgm_debug_outputf(const char *s, ...)
+void N51PGM_debug_outputf(const char *s, ...)
 {
   char buf[160];
   va_list ap;
   va_start(ap, s);
   vsnprintf(buf, 160, s, ap);
-  pgm_print(buf);
+  N51PGM_print(buf);
 
   va_end(ap);
 }
 
-#define DEBUG_OUTPUTF(s, ...) pgm_debug_outputf(s, ##__VA_ARGS__)
+#define DEBUG_OUTPUTF(s, ...) N51PGM_debug_outputf(s, ##__VA_ARGS__)
 #else
 #define DEBUG_OUTPUTF(s, ...)
 #endif
-uint32_t pgm_usleep(uint32_t usec)
+uint32_t N51PGM_usleep(uint32_t usec)
 {
   if (usec < 1000) {
     delayMicroseconds(usec);
@@ -112,11 +112,11 @@ uint32_t pgm_usleep(uint32_t usec)
   return usec;
 }
 
-uint64_t pgm_get_time(){
+uint64_t N51PGM_get_time(){
     return micros();
 }
 
-void pgm_print(const char * msg){
+void N51PGM_print(const char * msg){
 #ifdef _DEBUG
     Serial2.print(msg);
 #endif

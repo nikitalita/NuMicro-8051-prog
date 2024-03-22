@@ -64,11 +64,11 @@
 extern "C" {
 #endif
 
-void icp_send_entry_bits();
-void icp_send_exit_bits();
-int icp_init(uint8_t do_reset);
-void icp_entry(uint8_t do_reset);
-void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3);
+void N51ICP_send_entry_bits();
+void N51ICP_send_exit_bits();
+int N51ICP_init(uint8_t do_reset);
+void N51ICP_entry(uint8_t do_reset);
+void N51ICP_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3);
 
 /**
  * @brief      ICP reentry glitching
@@ -83,25 +83,25 @@ void icp_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3);
  * @param[in]  delay_after_trigger_high  Delay after setting trigger pin high (for triggering a capture device), before setting reset high 
  * @param[in]  delay_before_trigger_low  Delay after setting reset high, before setting trigger pin low
 */
-void icp_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low);
-void icp_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low, uint8_t * config_bytes);
-void icp_deinit(void);
-void icp_exit(void);
-uint32_t icp_read_device_id(void);
-uint32_t icp_read_pid(void);
-uint8_t icp_read_cid(void);
-void icp_read_uid(uint8_t * buf);
-void icp_read_ucid(uint8_t * buf);
-uint32_t icp_read_flash(uint32_t addr, uint32_t len, uint8_t *data);
-uint32_t icp_write_flash(uint32_t addr, uint32_t len, uint8_t *data);
-void icp_mass_erase(void);
-void icp_page_erase(uint32_t addr);
-void icp_outputf(const char *fmt, ...);
+void N51ICP_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low);
+void N51ICP_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low, uint8_t * config_bytes);
+void N51ICP_deinit(void);
+void N51ICP_exit(void);
+uint32_t N51ICP_read_device_id(void);
+uint32_t N51ICP_read_pid(void);
+uint8_t N51ICP_read_cid(void);
+void N51ICP_read_uid(uint8_t * buf);
+void N51ICP_read_ucid(uint8_t * buf);
+uint32_t N51ICP_read_flash(uint32_t addr, uint32_t len, uint8_t *data);
+uint32_t N51ICP_write_flash(uint32_t addr, uint32_t len, uint8_t *data);
+void N51ICP_mass_erase(void);
+void N51ICP_page_erase(uint32_t addr);
+void N51ICP_outputf(const char *fmt, ...);
 
 // disabled for microcontroller targets to avoid storing a large number of strings in flash
 #ifdef PRINT_CONFIG_EN
-void print_config(config_flags flags);
-void icp_dump_config();
+void N51ICP_print_config(config_flags flags);
+void N51ICP_dump_config();
 #endif
 #ifdef __cplusplus
 }

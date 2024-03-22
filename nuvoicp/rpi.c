@@ -51,7 +51,7 @@ struct gpiod_line *dat_line, *rst_line, *clk_line, *trigger_line;
 
 
 
-int pgm_init(void)
+int N51PGM_init(void)
 {
 	int ret;
 	// Pi 5 compatibility: check for the existence of gpiochip4
@@ -90,13 +90,13 @@ int pgm_init(void)
 	return 0;
 }
 
-void pgm_set_dat(uint8_t val)
+void N51PGM_set_dat(uint8_t val)
 {
 	if (gpiod_line_set_value(dat_line, val) < 0)
 		fprintf(stderr, "Setting data line failed\n");
 }
 
-uint8_t pgm_get_dat(void)
+uint8_t N51PGM_get_dat(void)
 {
 	int ret = gpiod_line_get_value(dat_line);
 	if (ret < 0)
@@ -104,19 +104,19 @@ uint8_t pgm_get_dat(void)
 	return ret;
 }
 
-void pgm_set_rst(uint8_t val)
+void N51PGM_set_rst(uint8_t val)
 {
 	if (gpiod_line_set_value(rst_line, val) < 0)
 		fprintf(stderr, "Setting reset line failed\n");
 }
 
-void pgm_set_clk(uint8_t val)
+void N51PGM_set_clk(uint8_t val)
 {
 	if (gpiod_line_set_value(clk_line, val) < 0)
 		fprintf(stderr, "Setting clock line failed\n");
 }
 
-void pgm_dat_dir(uint8_t state)
+void N51PGM_dat_dir(uint8_t state)
 {
 	// gpiod_line_release(dat_line);
 	int ret;
@@ -131,7 +131,7 @@ void pgm_dat_dir(uint8_t state)
 
 
 
-uint32_t pgm_usleep(uint32_t usec)
+uint32_t N51PGM_usleep(uint32_t usec)
 {
 	if (usec == 0)
 		return 0;
@@ -140,11 +140,11 @@ uint32_t pgm_usleep(uint32_t usec)
 	{
 		return usleep(usec);
 	}
-    uint64_t start_time = pgm_get_time();
+    uint64_t start_time = N51PGM_get_time();
 	uint64_t curr_time;
 	uint64_t utimepassed = 0;
 	while (true){
-		curr_time = pgm_get_time();
+		curr_time = N51PGM_get_time();
 		utimepassed = curr_time - start_time;
 		if (utimepassed > usec){
 			break;
@@ -153,7 +153,7 @@ uint32_t pgm_usleep(uint32_t usec)
 	return utimepassed;
 }
 
-void pgm_print(const char *msg)
+void N51PGM_print(const char *msg)
 {
 	fprintf(stderr,"%s", msg);
 }
@@ -192,7 +192,7 @@ int get_prev_flags(struct gpiod_line * line){
 }
 #define LOWER_FLAG_MASK (GPIOD_LINE_REQUEST_FLAG_OPEN_DRAIN | GPIOD_LINE_REQUEST_FLAG_OPEN_SOURCE | GPIOD_LINE_REQUEST_FLAG_ACTIVE_LOW)
 
-void pgm_release_pin(struct gpiod_line * line){
+void N51PGM_release_pin(struct gpiod_line * line){
 	if (!line || !chip){
 		return;
 	}
@@ -201,40 +201,40 @@ void pgm_release_pin(struct gpiod_line * line){
 	gpiod_line_release(line);
 }
 
-void pgm_release_non_reset_pins(void){
+void N51PGM_release_non_reset_pins(void){
 	if (dat_line) {
 		DEBUG_PRINT("Releasing dat line\n");
-		pgm_release_pin(dat_line);
+		N51PGM_release_pin(dat_line);
 	}
 	if (clk_line) {
 		DEBUG_PRINT("Releasing clk line\n");
-		pgm_release_pin(clk_line);
+		N51PGM_release_pin(clk_line);
 	}
 	if (trigger_line) {
 		DEBUG_PRINT("Releasing trigger line\n");
-		pgm_release_pin(trigger_line);
+		N51PGM_release_pin(trigger_line);
 	}
 }
 
-void pgm_release_rst(void) {
+void N51PGM_release_rst(void) {
 	if (rst_line) {
 		DEBUG_PRINT("Releasing rst line\n");
-		pgm_release_pin(rst_line);
+		N51PGM_release_pin(rst_line);
 	}
 }
 
-void pgm_release_pins(void){
-	pgm_release_non_reset_pins();
-	pgm_release_rst();
+void N51PGM_release_pins(void){
+	N51PGM_release_non_reset_pins();
+	N51PGM_release_rst();
 }
 
-void pgm_deinit(uint8_t leave_reset_high)
+void N51PGM_deinit(uint8_t leave_reset_high)
 {
 	if (leave_reset_high){
-		pgm_set_rst(1);
-		pgm_release_non_reset_pins();
+		N51PGM_set_rst(1);
+		N51PGM_release_non_reset_pins();
 	} else {
-		pgm_release_pins();
+		N51PGM_release_pins();
 	}
 	if (chip) {
 		gpiod_chip_close(chip);
@@ -242,13 +242,13 @@ void pgm_deinit(uint8_t leave_reset_high)
 }
 
 
-uint64_t pgm_get_time(){
+uint64_t N51PGM_get_time(){
 	struct timespec curr_time;
 	clock_gettime(CLOCK_MONOTONIC_RAW, &curr_time);
 	return (curr_time.tv_sec * 1000000) + (curr_time.tv_nsec / 1000);
 }
 
-void pgm_set_trigger(uint8_t val){
+void N51PGM_set_trigger(uint8_t val){
 	if (gpiod_line_set_value(trigger_line, val) < 0)
 		fprintf(stderr, "Setting trigger line failed\n");
 }

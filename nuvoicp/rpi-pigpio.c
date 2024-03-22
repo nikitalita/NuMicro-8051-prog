@@ -16,7 +16,7 @@
 #define GPIO_TRIGGER 16
 #define MAX_BUSY_DELAY 300
 
-int pgm_init(void)
+int N51PGM_init(void)
 {
     #ifdef DEBUG
     print_caps();
@@ -24,7 +24,7 @@ int pgm_init(void)
 
     if (gpioInitialise() < 0)
     {
-        pgm_print("pigpio initialization failed\n");
+        N51PGM_print("pigpio initialization failed\n");
         return -1;
     }
 
@@ -34,7 +34,7 @@ int pgm_init(void)
     ret |= gpioSetMode(GPIO_RST, PI_OUTPUT);
     if (ret != 0)
     {
-        pgm_print("Setting GPIO modes failed\n");
+        N51PGM_print("Setting GPIO modes failed\n");
         return ret;
     }
     ret |= gpioWrite(GPIO_RST, 0);
@@ -42,41 +42,41 @@ int pgm_init(void)
     ret |= gpioWrite(GPIO_CLK, 0);
     if (ret != 0)
     {
-        pgm_print("Setting GPIO values failed\n");
+        N51PGM_print("Setting GPIO values failed\n");
         return ret;
     }
     return 0;
 }
 
-void pgm_set_dat(uint8_t val)
+void N51PGM_set_dat(uint8_t val)
 {
     gpioWrite(GPIO_DAT, val);
 }
 
-uint8_t pgm_get_dat(void)
+uint8_t N51PGM_get_dat(void)
 {
     return gpioRead(GPIO_DAT);
 }
 
-void pgm_set_rst(uint8_t val)
+void N51PGM_set_rst(uint8_t val)
 {
     gpioWrite(GPIO_RST, val);
 }
 
-void pgm_set_clk(uint8_t val)
+void N51PGM_set_clk(uint8_t val)
 {
     gpioWrite(GPIO_CLK, val);
 }
 
-void pgm_dat_dir(uint8_t state)
+void N51PGM_dat_dir(uint8_t state)
 {
     if (gpioSetMode(GPIO_DAT, state ? PI_OUTPUT : PI_INPUT) < 0){
-        pgm_print("Setting data directions failed\n");
+        N51PGM_print("Setting data directions failed\n");
     }
 }
 
 // There's no "high-z" setting; this just turns them into inputs and sets the pull-up/down resistors to off, so it is effectively high-z
-void pgm_release_non_reset_pins(void) {
+void N51PGM_release_non_reset_pins(void) {
     gpioSetMode(GPIO_DAT, PI_INPUT);
     gpioSetMode(GPIO_CLK, PI_INPUT);
     gpioSetMode(GPIO_TRIGGER, PI_INPUT);
@@ -85,34 +85,34 @@ void pgm_release_non_reset_pins(void) {
     gpioSetPullUpDown(GPIO_TRIGGER, PI_PUD_OFF);
 }
 
-void pgm_release_rst(void) {
+void N51PGM_release_rst(void) {
     gpioSetMode(GPIO_RST, PI_INPUT);
     gpioSetPullUpDown(GPIO_TRIGGER, PI_PUD_OFF);
 }
 
-void pgm_release_pins(void) {
-    pgm_release_non_reset_pins();
-    pgm_release_rst();
+void N51PGM_release_pins(void) {
+    N51PGM_release_non_reset_pins();
+    N51PGM_release_rst();
 }
 
-void pgm_set_trigger(uint8_t val)
+void N51PGM_set_trigger(uint8_t val)
 {
     gpioWrite(GPIO_TRIGGER, val);
 }
 
-void pgm_deinit(uint8_t leave_reset_high)
+void N51PGM_deinit(uint8_t leave_reset_high)
 {
     if (!leave_reset_high) {
-        pgm_release_pins();
+        N51PGM_release_pins();
     } else {
         gpioWrite(GPIO_RST, 1);
-        pgm_release_non_reset_pins();
+        N51PGM_release_non_reset_pins();
     }
-    pgm_release_non_reset_pins();
+    N51PGM_release_non_reset_pins();
     gpioTerminate();
 }
 
-uint32_t pgm_usleep(uint32_t usec)
+uint32_t N51PGM_usleep(uint32_t usec)
 {   
     unsigned long waited = 0;
     if (usec == 0){
@@ -131,11 +131,11 @@ uint32_t pgm_usleep(uint32_t usec)
     return waited;
 }
 
-uint64_t pgm_get_time(){
+uint64_t N51PGM_get_time(){
     return gpioTick();
 }
 
-void pgm_print(const char *msg)
+void N51PGM_print(const char *msg)
 {
 	fprintf(stderr, "%s", msg);
 }

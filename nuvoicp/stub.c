@@ -36,51 +36,51 @@ static int8_t rst = -1;
 static int8_t clk = -1;
 static uint8_t pgm_init_done = false;
 
-int pgm_init(void)
+int N51PGM_init(void)
 {
 	return 0;
 }
 
-void pgm_set_dat(uint8_t val)
+void N51PGM_set_dat(uint8_t val)
 {
 	if (dat_dir == 1) {
 		printf("%d", val);
 		dat = val;
 	} else {
-		printf("pgm_set_dat() called while dat_dir == 0\n");
+		printf("N51PGM_set_dat() called while dat_dir == 0\n");
 	}
 	
 }
 
-uint8_t pgm_get_dat(void)
+uint8_t N51PGM_get_dat(void)
 {
 	if (dat_dir == 0){
 		return dat;
 	} else {
-		printf("pgm_get_dat() called while dat_dir == 1\n");
+		printf("N51PGM_get_dat() called while dat_dir == 1\n");
 		return 0;
 	}
 }
 
-void pgm_set_rst(uint8_t val)
+void N51PGM_set_rst(uint8_t val)
 {
 	rst = val;
 }
 
-void pgm_set_clk(uint8_t val)
+void N51PGM_set_clk(uint8_t val)
 {
 	clk = val;
 }
 
-void pgm_dat_dir(uint8_t state)
+void N51PGM_dat_dir(uint8_t state)
 {
 	dat_dir = state;
 }
 
-void pgm_deinit(uint8_t leave_reset_high)
+void N51PGM_deinit(uint8_t leave_reset_high)
 {
 	if (leave_reset_high)
-		pgm_set_rst(1);
+		N51PGM_set_rst(1);
 	else{
 		rst = -1;
 	}
@@ -91,7 +91,7 @@ void pgm_deinit(uint8_t leave_reset_high)
 
 }
 
-void pgm_release_pins(void)
+void N51PGM_release_pins(void)
 {
 	rst = -1;
 	clk = -1;
@@ -99,22 +99,22 @@ void pgm_release_pins(void)
 	dat_dir = -1;
 }
 
-void pgm_release_rst(void)
+void N51PGM_release_rst(void)
 {
 	rst = -1;
 }
 
-void pgm_set_trigger(void)
+void N51PGM_set_trigger(void)
 {
-	printf("pgm_set_trigger() called\n");
+	printf("N51PGM_set_trigger() called\n");
 }
 
-uint32_t pgm_usleep(uint32_t usec)
+uint32_t N51PGM_usleep(uint32_t usec)
 {
 	return usec;
 }
 
-void pgm_print(const char *msg)
+void N51PGM_print(const char *msg)
 {
 	printf("%s", msg);
 }
