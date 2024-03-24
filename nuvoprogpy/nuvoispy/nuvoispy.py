@@ -6,6 +6,7 @@
 # (some boards come preprogrammed with it)
 #
 # Copyright (c) 2019-2020 Steve Markgraf <steve@steve-m.de>
+# Copyright (c) 2023-2024 Nikita Lita
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -127,7 +128,7 @@ ERASE_TIMEOUT = 8.5 # 8500 ms
 PAGE_ERASE_TIMEOUT = 0.2 # 200ms
 READ_ROM_TIMEOUT = 2 # 2000ms
 
-DEFAULT_UNIX_PORT = "/dev/ttyAMA0"
+DEFAULT_UNIX_PORT = "/dev/ttyACM0"
 DEFAULT_WIN_PORT = "COM1"
 
 def eprint(*args, **kwargs):
@@ -291,7 +292,7 @@ class NuvoISP(NuvoProg):
         #### Keyword args:
             serial_rate (int): Serial baud rate
             serial_timeout (float): Serial timeout in seconds
-            serial_port (str): Serial port to use (default = "COM1" on Windows, "/dev/serial0" on *nix)
+            serial_port (str): Serial port to use (default = "COM1" on Windows, "/dev/ttyACM0" on *nix)
             silent (bool): If True, suppresses all output
 
         """
@@ -1014,19 +1015,19 @@ class NuvoISP(NuvoProg):
 
 def print_usage():
     print("nuvoispy, an ISP flasher for the Nuvoton N76E003")
-    print("written by Steve Markgraf <steve@steve-m.de>\n")
+    print("written by Steve Markgraf, Nikita Lita\n")
     print("Usage:")
-    print("\t[-h, --help:                       print this help]")
-    print("\t[-p, --port=<port>                 serial port to use (default: {} on *nix, {} on windows)]".format(DEFAULT_UNIX_PORT, DEFAULT_WIN_PORT))
-    print("\t[-b, --baud=<baudrate>             baudrate to use (default: 115200)]")
-    print("\t[-u, --status:                     print the connected device info and configuration and exit.]")
-    print("\t[-r, --read=<filename>             read entire flash to file]")
-    print("\t[-w, --write=<filename>            write file to APROM")
-    print("\t[-l, --ldrom=<filename>            write file to LDROM (if supported by ISP programmer)]")
-    print("\t[-n, --no-ldrom                    Overwrite LDROM space with full-size APROM (if supported by ISP programmer)]")
-    print("\t[-k, --lock                        lock the chip after programming (default: False)]")
-    print("\t[-c, --config <filename>           use config file for writing (overrides --lock)]")
-    print("\t[-s, --silent                      silence all output except for errors]")
+    print("\t-h, --help:                       print this help")
+    print("\t-p, --port=<port>                 serial port to use (default: {} on *nix, {} on windows)".format(DEFAULT_UNIX_PORT, DEFAULT_WIN_PORT))
+    print("\t-b, --baud=<baudrate>             baudrate to use (default: 115200)")
+    print("\t-u, --status:                     print the connected device info and configuration and exit.")
+    print("\t-r, --read=<filename>             read entire flash to file")
+    print("\t-w, --write=<filename>            write file to APROM")
+    print("\t-l, --ldrom=<filename>            write file to LDROM (Supported only when using Arduino ISP-to-ICP bridge)")
+    print("\t-n, --no-ldrom                    Overwrite LDROM space with full-size APROM (Supported only when using Arduino ISP-to-ICP bridge)")
+    print("\t-k, --lock                        lock the chip after programming (default: False)")
+    print("\t-c, --config <filename>           use config file for writing (overrides --lock)")
+    print("\t-s, --silent                      silence all output except for errors")
 
 def main() -> int:
     argv = sys.argv[1:]
