@@ -1,16 +1,15 @@
-# NUMicro-8051-prog
+# NuMicro-8051-prog
 
-This derived from Gregory McGarry's work here: https://github.com/gmcgarry/nuvoprog
-
-This currently only supports the N76E003, but it could be extended to other Nuvoton 8051 chips, like the MS51FB9AE ([see here](https://github.com/vladimir-dudnik/MS51FB9AE-pgm-rpi)).
+N76E003 programming libraries.
 
 This provides the following packages:
 
-- nuvo51icp: N76E003 ICP library
+- nuvo51icp: N76E003 ICP library and Arduino ISP-to-ICP bridge sketch
 - nuvo51icpy: Python bindings and command-line tool for nuvo51icp (for Raspberry Pi Only)
-- nuvoispy: Python library and command-line tool for ISP programming
+- nuvoispy: Python library and command-line tool for Nuvoton ISP programming
 - bootloader: Custom ISP LDROM bootloader with extended ISP commands
 
+This currently only supports the N76E003, but it could easily be extended to other Nuvoton NuMicro 1T 8051 chips, like the MS51FB9AE ([see here](https://github.com/vladimir-dudnik/MS51FB9AE-pgm-rpi)). I don't have access to any other chips though; if anyone wants to add additional chips, let me know.
 
 ### build requirements:
 - sdcc
@@ -45,7 +44,7 @@ The Raspberry Pi version can be compiled linked with either pigpio or libgpiod.
 pigpio was added primarily because it has around 10x lower latency than libgpiod, which is useful for glitching attacks.
 Note: pigpio only supports Pi 4 and lower, Pi 5 can only be used with libgpiod.
 
-The Arduino version provides a sketch that implements the Nuvoton ISP protocol and acts like an ISP-to-ICP bridge. This way, you can take advantage of the programming functionality only provided by ICP (mass-erase, read flash, LDROM programming, etc.) while still using standard ISP tools. It can be used with either standard Nuvoton ISP programming tools, or it can be used with `nuvoispy` to take advantage of the extended commands (e.g. programming the LDROM, mass erase).
+The Arduino version provides a sketch that implements the Nuvoton ISP protocol and acts like an ISP-to-ICP bridge. This way, you can take advantage of the programming functionality only provided by ICP (mass-erase, read flash, LDROM programming, etc.) while still using standard ISP tools. It can be used with either standard Nuvoton ISP programming tools, or it can be used with `nuvoispy` to take advantage of the extended functionality.
 
 ### Build
 
@@ -66,7 +65,7 @@ By default, it uses GPIO pins 11 (DAT), 12 (CLK), and 13 (RESET) for the ICP int
 
 ### Usage
 
-When using a Raspberry Pi, it is recommended to use the nuvo51icpy CLI (see below); the C `nuvo51icp` CLI is deprecated and is only kept around as an example of how to use the library in C/C++.
+When using a Raspberry Pi, it is recommended to use the nuvo51icpy CLI (see below); the C `nuvo51icp` CLI program is deprecated and is only kept around as an example of how to use the library in C/C++.
 
 When using an Arduino, use `nuvoispy`, see below.
 
@@ -121,6 +120,22 @@ Pinout:
 Please refer to the 'pinout' command on your RPi
 ```
 
+The config file is in a json format, which looks like this (this is the default configuration of `0xFF 0xFF 0xFF 0xFF 0xFF`):
+```json
+{
+    "lock": false,
+    "boot_from_ldrom": false,
+    "ldrom_size": 0,
+    "OCD_enable": false,
+    "brownout_detect": true,
+    "brownout_reset": true,
+    "brownout_voltage": 2.2,
+    "brownout_inhibits_IAP": true,
+    "WDT_enable": false,
+    "WDT_keep_active": false
+}
+```
+
 When using the Python library directly, use the `Nuvo51ICP` class in the `nuvoprogpy.nuvo51icpy` module.
 
 ### nuvoispy
@@ -165,3 +180,12 @@ Just run `make` in the bootloader directory
 
 ### Usage:
 Program it as an LDROM with the icp tools below. Then, you can use either the standard Nuvoton ISP tools or nuvoispy to program the APROM.
+
+
+## Credits:
+
+This is derived from both [Steve Markgraf's work](https://github.com/steve-m/N76E003-playground) and [Gregory McGarry's work](https://github.com/gmcgarry/nuvoprog). Big thanks to both for providing a good base to work from.
+
+## License:
+
+MIT License
