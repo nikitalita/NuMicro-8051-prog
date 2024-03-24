@@ -3,6 +3,7 @@
  * https://github.com/steve-m/N76E003-playground
  *
  * Copyright (c) 2021 Steve Markgraf <steve@steve-m.de>
+ * Copyright (c) 2023-2024 Nikita Lita
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
