@@ -16,17 +16,17 @@ import os
 try:
     from ..config import DeviceInfo, ConfigFlags
     from ..config import *
-    from .lib.libnuvoicp import LibICP, LibPGM
-    from .lib.libnuvoicp import *
+    from .lib.libnuvo51icp import LibICP, LibPGM
+    from .lib.libnuvo51icp import *
 except Exception as e:
-    # Hack to allow running nuvoicpy.py directly from the command line
+    # Hack to allow running nuvo51icpy.py directly from the command line
     if __name__ == "__main__":
         # check if config.py exists in the parent directory
         if not os.path.isfile(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "config.py")):
             raise e
 
-    from lib.libnuvoicp import LibICP, LibPGM
-    from lib.libnuvoicp import *
+    from lib.libnuvo51icp import LibICP, LibPGM
+    from lib.libnuvo51icp import *
 
     sys.path.append(os.path.join(
         os.path.dirname(os.path.realpath(__file__)), ".."))
@@ -60,7 +60,7 @@ class UnsupportedDeviceException(Exception):
 # 		self.initialized = False
 
 """
-NuvoICP class
+Nuvo51ICP class
 Raises:
         PGMInitException: _description_
         NoDeviceException: _description_
@@ -72,11 +72,11 @@ Returns:
 """
 
 
-class NuvoICP:
+class Nuvo51ICP:
 
     def __init__(self, silent=False, library: str = "gpiod", _enter_no_init=None, _deinit_reset_high=False):
         """
-        NuvoICP constructor
+        Nuvo51ICP constructor
         ------
 
         #### Keyword args:
@@ -99,10 +99,10 @@ class NuvoICP:
 
     def __enter__(self):
         """
-        Called when using NuvoICP in a with statement, such as "with NuvoICP() as icp:"
+        Called when using Nuvo51ICP in a with statement, such as "with Nuvo51ICP() as icp:"
 
         #### Returns:
-            NuvoICP: The NuvoICP object
+            Nuvo51ICP: The Nuvo51ICP object
         """
         if self._enter_no_init:
             return self
@@ -586,7 +586,7 @@ class NuvoICP:
 
 
 def print_usage():
-    print("nuvoicpy, a RPi ICP flasher for the Nuvoton N76E003")
+    print("nuvo51icpy, a RPi ICP flasher for the Nuvoton N76E003")
     print("written by Nikitalita\n")
     print("Usage:")
     print("\t[-h, --help:                       print this help]")
@@ -690,7 +690,7 @@ def main() -> int:
         try:
             # check the length of the ldrom file
             ldrom_size = os.path.getsize(ldrom_file)
-            if not NuvoICP.check_ldrom_size(ldrom_size):
+            if not Nuvo51ICP.check_ldrom_size(ldrom_size):
                 eprint("Error: LDROM file invalid.")
                 return 1
         except:
@@ -711,7 +711,7 @@ def main() -> int:
             write_config.set_ldrom_boot(ldrom_file != "")
             write_config.set_ldrom_size(ldrom_size)
 
-    with NuvoICP(silent=silent) as nuvo:
+    with Nuvo51ICP(silent=silent) as nuvo:
         devinfo = nuvo.get_device_info()
         if devinfo.device_id != N76E003_DEVID:
             if write and devinfo.cid == 0xFF:

@@ -1,13 +1,13 @@
 CC = gcc
 CFLAGS = -Wall -DRPI -DPRINT_CONFIG_EN
 USER := $(shell whoami)
-set_cap_on_nuvoicp_CMD = sudo chown "${USER}:kmem" nuvoicp && sudo setcap cap_sys_rawio,cap_dac_override+eip nuvoicp
+set_cap_on_nuvo51icp_CMD = sudo chown "${USER}:kmem" nuvo51icp && sudo setcap cap_sys_rawio,cap_dac_override+eip nuvo51icp
 
 ifdef DEBUG
 	CFLAGS += -g -DDEBUG
 else
 	CFLAGS += -O3
-	set_cap_on_nuvoicp_CMD =
+	set_cap_on_nuvo51icp_CMD =
 endif
 COMP_LIB = pigpio
 PIGPIO_TARGET_CMD = $(MAKE) -j4 -C $(LOCAL_PIGPIO)
@@ -43,20 +43,20 @@ endif
 default: all
 
 
-all: pigpio-target nuvoicp set_cap_on_nuvoicp
-nuvoicp: main.o n51_icp.o $(DEV_OBJ)
-	$(CC) $(CFLAGS) -o nuvoicp $^ $(LDFLAGS)
+all: pigpio-target nuvo51icp set_cap_on_nuvo51icp
+nuvo51icp: main.o n51_icp.o $(DEV_OBJ)
+	$(CC) $(CFLAGS) -o nuvo51icp $^ $(LDFLAGS)
 shared: main.o n51_icp.o $(DEV_OBJ)
-	$(CC) $(CFLAGS) -shared -o libnuvoicp-$(LIBNAME).so $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) -shared -o libnuvo51icp-$(LIBNAME).so $^ $(LDFLAGS)
 test: itest.o n51_icp.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o itest $^ $(LDFLAGS)
 clean:
-	rm -f nuvoicp *.o libnuvoicp-*.so
+	rm -f nuvo51icp *.o libnuvo51icp-*.so
 	$(PIGPIO_CLEAN_CMD)
 
 # Mostly for debugging purposes
-set_cap_on_nuvoicp: nuvoicp
-	$(set_cap_on_nuvoicp_CMD)
+set_cap_on_nuvo51icp: nuvo51icp
+	$(set_cap_on_nuvo51icp_CMD)
 pigpio-target:
 	$(PIGPIO_TARGET_CMD)
 

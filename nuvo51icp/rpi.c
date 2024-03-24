@@ -1,5 +1,5 @@
 /*
- * nuvoicp, a RPi ICP flasher for the Nuvoton N76E003
+ * nuvo51icp, a RPi ICP flasher for the Nuvoton N76E003
  * https://github.com/steve-m/N76E003-playground
  *
  * Copyright (c) 2021 Steve Markgraf <steve@steve-m.de>
@@ -46,7 +46,7 @@
 // GPIOD is slow enough that there will be at least 750ns between line cycles, so no delay necessary
 
 
-#define CONSUMER "nuvoicp"
+#define CONSUMER "nuvo51icp"
 struct gpiod_chip *chip;
 struct gpiod_line *dat_line, *rst_line, *clk_line, *trigger_line;
 

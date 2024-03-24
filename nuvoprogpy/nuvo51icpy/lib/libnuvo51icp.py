@@ -30,9 +30,9 @@ class LibICP:
         # Load the shared library
         self.libname = libname
         if libname.lower() == "pigpio":
-            self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-pigpio.so")
+            self.lib = ctypes.CDLL(dir_path + "/libnuvo51icp-pigpio.so")
         elif libname.lower() == "gpiod":
-            self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-gpiod.so")
+            self.lib = ctypes.CDLL(dir_path + "/libnuvo51icp-gpiod.so")
         else:
             raise ValueError(
                 "Unknown lib: %s\nMust be either 'pigpio' or 'gpiod'" % libname)
@@ -186,9 +186,9 @@ class LibPGM:
         # Load the shared library
         self.libname = libname
         if libname.lower() == "pigpio":
-            self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-pigpio.so")
+            self.lib = ctypes.CDLL(dir_path + "/libnuvo51icp-pigpio.so")
         elif libname.lower() == "gpiod":
-            self.lib = ctypes.CDLL(dir_path + "/libnuvoicp-gpiod.so")
+            self.lib = ctypes.CDLL(dir_path + "/libnuvo51icp-gpiod.so")
         else:
             raise ValueError(
                 "Unknown lib: %s\nMust be either 'pigpio' or 'gpiod'" % libname)

@@ -1,9 +1,9 @@
 
-from nuvoprogpy.nuvoicpy import NuvoICP
+from nuvoprogpy.nuvo51icpy import Nuvo51ICP
 from nuvoprogpy.config import *
 from nuvoprogpy.nuvoispy.nuvoispy import NuvoISP
 
-# with NuvoICP() as nuvo:
+# with Nuvo51ICP() as nuvo:
 with NuvoISP(serial_port="/dev/ttyAMA0", open_wait=1) as nuvo:
     # open testfiles/GPIO-new_dump_plus_LDROM.bin
     config = nuvo.read_config()

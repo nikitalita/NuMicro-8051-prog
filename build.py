@@ -186,12 +186,12 @@ def clean():
         for file in files:
             if file.endswith('.o'):
                 os.remove(os.path.join(root, file))
-            elif file.startswith('libnuvoicp') and file.endswith('.so'):
+            elif file.startswith('libnuvo51icp') and file.endswith('.so'):
                 os.remove(os.path.join(root, file))
 
-    for root, dirs, files in os.walk('nuvoprogpy/nuvoicpy/lib'):
+    for root, dirs, files in os.walk('nuvoprogpy/nuvo51icpy/lib'):
         for file in files:
-            if file.startswith('libnuvoicp') and file.endswith('.so'):
+            if file.startswith('libnuvo51icp') and file.endswith('.so'):
                 os.remove(os.path.join(root, file))
 
 
@@ -205,12 +205,12 @@ def build(setup_kwargs):
         # into extensions or cython code, but also accessed by ctypes or cffi"rpi-pigpio.c",
         "libraries": [
             (
-                "nuvoicp-gpiod",
+                "nuvo51icp-gpiod",
                 {
                     "sources": [
-                        "nuvoicp/n51_icp.c",
-                        "nuvoicp/rpi.c",
-                        "nuvoicp/main.c",
+                        "nuvo51icp/n51_icp.c",
+                        "nuvo51icp/rpi.c",
+                        "nuvo51icp/main.c",
                     ],
                     "shared": True,
                     "cflags": ["-g", "-DRPI",  "-DPRINT_CONFIG_EN"],
@@ -219,12 +219,12 @@ def build(setup_kwargs):
                 },
             ),
             (
-                "nuvoicp-pigpio",
+                "nuvo51icp-pigpio",
                 {
                     "sources": [
-                        "nuvoicp/n51_icp.c",
-                        "nuvoicp/rpi-pigpio.c",
-                        "nuvoicp/main.c",
+                        "nuvo51icp/n51_icp.c",
+                        "nuvo51icp/rpi-pigpio.c",
+                        "nuvo51icp/main.c",
                     ],
                     "shared": True,
                     "cflags": ["-g", "-DRPI", "-DPRINT_CONFIG_EN", "-DUSE_PIGPIO"],
@@ -238,7 +238,7 @@ def build(setup_kwargs):
         # adjust this as needed.
         "options": {
             "build_clib": {
-                "shared_location": "nuvoprogpy/nuvoicpy/lib"
+                "shared_location": "nuvoprogpy/nuvo51icpy/lib"
             }
         },
         # hook into the build process to run our modifications from above

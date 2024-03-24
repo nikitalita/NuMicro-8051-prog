@@ -28,7 +28,7 @@ setup_kwargs = {
 
 # remove the build directory
 
-# remove *.so files from nuvoprogpy/nuvoicpy/lib without using shutil.rmtree
+# remove *.so files from nuvoprogpy/nuvo51icpy/lib without using shutil.rmtree
 
 
 build(setup_kwargs)

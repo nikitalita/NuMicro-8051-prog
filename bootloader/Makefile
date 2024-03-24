@@ -4,7 +4,7 @@
 # ------------------------------------------------------
 
 INCDIR  = inc
-EXTRAINCDIRS = ../nuvoicp/common
+EXTRAINCDIRS = ../nuvo51icp/common
 MODEL  = small
 DEFS = -DFOSC_166000
 

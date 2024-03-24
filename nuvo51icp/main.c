@@ -1,5 +1,5 @@
 /*
- * nuvoicp, a RPi ICP flasher for the Nuvoton N76E003
+ * nuvo51icp, a RPi ICP flasher for the Nuvoton N76E003
  * https://github.com/steve-m/N76E003-playground
  *
  * Copyright (c) 2021 Steve Markgraf <steve@steve-m.de>
@@ -78,7 +78,7 @@ config_flags get_default_config() {
 void usage(void)
 {
 	fprintf(stderr,
-		"nuvoicp, a RPi ICP flasher for the Nuvoton N76E003\n"
+		"nuvo51icp, a RPi ICP flasher for the Nuvoton N76E003\n"
 		"written by Steve Markgraf <steve@steve-m.de>\n\n"
 		"Usage:\n"
 		"\t[-h print this help]\n"

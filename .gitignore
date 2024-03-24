@@ -1,13 +1,13 @@
 .DS_Store
 **/*.o
-nuvoicp/build/*
+nuvo51icp/build/*
 **/__pycache__
 .vscode/
 testfiles/
-nuvoispy/libnuvoicp.so
-nuvoicp/nuvoicp
+nuvoispy/libnuvo51icp.so
+nuvo51icp/nuvo51icp
 build/
 dist/
 *.egg-info/
 **/*.so
-nuvoicp/itest
+nuvo51icp/itest

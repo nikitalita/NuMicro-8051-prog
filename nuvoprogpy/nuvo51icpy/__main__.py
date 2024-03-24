@@ -3,7 +3,7 @@ if platform.system() != 'Linux':
     raise NotImplementedError("%s is not supported yet" % platform.system())
 import sys
 
-from .nuvoicpy import main
+from .nuvo51icpy import main
 
 try:
     if __name__ == "__main__":
