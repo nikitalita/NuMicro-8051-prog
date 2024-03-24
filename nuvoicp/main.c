@@ -81,7 +81,7 @@ void usage(void)
 		"written by Steve Markgraf <steve@steve-m.de>\n\n"
 		"Usage:\n"
 		"\t[-h print this help]\n"
-		"\t[-c print chip configuration and exit]\n"
+		"\t[-u print chip configuration and exit]\n"
 		"\t[-r <filename> read entire flash to file]\n"
 		"\t[-w <filename> write file to APROM/entire flash (if LDROM is disabled)]\n"
 		"\t[-l <filename> write file to LDROM, enable LDROM, enable boot from LDROM]\n"
@@ -121,9 +121,9 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	while ((opt = getopt(argc, argv, "chsr:w:l:")) != -1) {
+	while ((opt = getopt(argc, argv, "uhsr:w:l:")) != -1) {
 		switch (opt) {
-		case 'c':
+		case 'u':
 			dump_config = true;
 			break;
 		case 'r':
