@@ -94,15 +94,17 @@ nuvo51icpy, a RPi ICP flasher for the Nuvoton N76E003
 written by Nikita Lita
 
 Usage:
-        [-h, --help:                       print this help]
-        [-u, --status:                     print the connected device info and configuration and exit
-                If -c is specified, it will also write it to the specified config file.]
-        [-r, --read=<filename>             read entire flash to file]
-        [-w, --write=<filename>            write file to APROM/entire flash (if LDROM is disabled)]
-        [-l, --ldrom=<filename>            write file to LDROM]
-        [-k, --lock                        lock the chip after writing]
-        [-c, --config <filename>           use config file for writing (overrides -b and -k)]
-        [-s, --silent                      silence all output except for errors]
+        -h, --help:                       print this help
+        -u, --status:                     print the connected device info and configuration and exit
+                                            * If -c is also specified, it will also write the config to the specified config file.
+        -r, --read=<filename>             read entire flash to file
+        -w, --write=<filename>            write file to APROM/entire flash (if LDROM is disabled)
+        -l, --ldrom=<filename>            write file to LDROM
+        -k, --lock                        lock the chip after writing
+        -c, --config <filename>           write configuration bytes with the settings in the specified config.json file
+                                                  (optional, use with --write and/or --ldrom)
+                                                * look at 'config-example.json' for the format
+        -s, --silent                      silence all output except for errors
 Pinout:
 
                            40-pin header J8
