@@ -8,7 +8,7 @@
 #ifdef USE_PIGPIO // pigpio
 #define DEFAULT_BIT_DELAY 2
 #else // gpiod
-#define DEFAULT_BIT_DELAY 1
+#define DEFAULT_BIT_DELAY 2
 #endif // USE_PIGPIO
 #else // Arduino
 #ifdef F_CPU
