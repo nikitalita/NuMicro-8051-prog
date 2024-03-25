@@ -95,15 +95,17 @@ written by Nikita Lita
 
 Usage:
         -h, --help:                       print this help
+* Status Commands:
         -u, --status:                     print the connected device info and configuration and exit
-                                            * If -c is also specified, it will also write the config to the specified config file.
+* Read Commands:
         -r, --read=<filename>             read entire flash to file
-        -w, --write=<filename>            write file to APROM/entire flash (if LDROM is disabled)
+* Write Commands (can be used in combination or seperately):
+        -w, --write=<filename>            write file to APROM
         -l, --ldrom=<filename>            write file to LDROM
-        -k, --lock                        lock the chip after writing
+        -e, --mass-erase                  mass erase the chip
         -c, --config <filename>           write configuration bytes with the settings in the specified config.json file
-                                                  (optional, use with --write and/or --ldrom)
                                                 * look at 'config-example.json' for the format
+Options:
         -s, --silent                      silence all output except for errors
 Pinout:
 
@@ -181,7 +183,7 @@ This bootloader behaves like the standard Nuvoton ISP LDROM with extended functi
 Just run `make` in the bootloader directory
 
 ### Usage:
-Program it as an LDROM with the icp tools below. Then, you can use either the standard Nuvoton ISP tools or nuvoispy to program the APROM.
+Program it as an LDROM with the icp tools above. Then, you can use either the standard Nuvoton ISP tools or nuvoispy to program the APROM.
 
 
 ## Credits:
