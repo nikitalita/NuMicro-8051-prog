@@ -867,8 +867,8 @@ class NuvoISP(NuvoProg):
         if locked:
             if not self.is_icp_bridge:
                 raise Exception("ERROR: Device is locked and cannot override. Not programming...")
-            elif ldrom_data is None:
-                raise Exception("ERROR: Device is locked; must provide LDROM data to overwrite. Not programming...")                
+            else:
+                update_flashrom = True
         if not (ldrom_data is None):
             if not self.is_icp_bridge:
                 raise ExtendedCmdsNotSupported("Programming the LDROM is only supported when using the ICP bridge.")
