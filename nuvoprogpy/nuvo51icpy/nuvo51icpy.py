@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
+from logging import config
+import math
 import platform
 import signal
+
+from nbstripout import status
 
 if platform.system() != "Linux":
     raise NotImplementedError("%s is not supported yet" % platform.system())
@@ -73,6 +77,16 @@ Returns:
 
 
 class Nuvo51ICP:
+    can_write_locked_without_mass_erase = False
+    can_mass_erase = True
+    flash_size = FLASH_SIZE
+    ldrom_max_size = LDROM_MAX_SIZE
+    aprom_addr = APROM_ADDR
+    config_flash_addr = CFG_FLASH_ADDR
+
+    @property
+    def can_write_ldrom(self):
+        return True
 
     def __init__(self, silent=False, library: str = "gpiod", _enter_no_init=None, _deinit_reset_high=False):
         """
@@ -96,6 +110,7 @@ class Nuvo51ICP:
         self.deinit_reset_high = _deinit_reset_high
         self.initialized = False
         self.silent = silent
+        self.pad_data = True
 
     def __enter__(self):
         """
@@ -227,7 +242,7 @@ class Nuvo51ICP:
             if devid == 0xFFFF and cid == 0xFF:
                 eprint("WARNING: Read Device ID of 0xFFFF and cid of 0xFF, device may be locked!")
                 eprint("Proceeding anyway...")
-            elif devid != N76E003_DEVID:
+            elif not self.is_valid_device_id(devid):
                 self.icp.deinit()
                 raise UnsupportedDeviceException(
                     "ERROR: Non-N76E003 device detected (devid: %d)\nThis programmer only supports N76E003 (devid: %d)!" % (devid, N76E003_DEVID))
@@ -282,62 +297,21 @@ class Nuvo51ICP:
         self._fail_if_not_init()
         return self.icp.read_device_id()
 
-    def get_cid(self):
+    def get_cid(self) -> int:
         self._fail_if_not_init()
         return self.icp.read_cid()
 
-    def read_config(self):
+    def get_uid(self) -> bytes:
         self._fail_if_not_init()
-        return ConfigFlags(self.icp.read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN))
+        return self.icp.read_uid()
+    
+    def get_ucid(self) -> bytes:
+        self._fail_if_not_init()
+        return self.icp.read_ucid()
 
-    def mass_erase(self):
+    def read_config(self) -> ConfigFlags:
         self._fail_if_not_init()
-        self.print_vb("Erasing flash...")
-        cid = self.icp.read_cid()
-        self.icp.mass_erase()
-        if cid == 0xFF or cid == 0x00:
-            self.reenter_icp()
-        return True
-
-    def get_device_info(self):
-        self._fail_if_not_init()
-        devinfo = DeviceInfo()
-        devinfo.device_id = self.icp.read_device_id()
-        devinfo.uid = self.icp.read_uid()
-        devinfo.cid = self.icp.read_cid()
-        devinfo.ucid = self.icp.read_ucid()
-        return devinfo
-
-    def page_erase(self, addr):
-        self._fail_if_not_init()
-        self.icp.page_erase(addr)
-        return True
-
-    def read_flash(self, addr, len) -> bytes:
-        self._fail_if_not_init()
-        return self.icp.read_flash(addr, len)
-
-    def write_flash(self, addr, data) -> bool:
-        self._fail_if_not_init()
-        self.icp.write_flash(addr, data)
-        return True
-
-    def dump_flash(self) -> bytes:
-        self._fail_if_not_init()
-        return self.icp.read_flash(APROM_ADDR, FLASH_SIZE)
-
-    def dump_flash_to_file(self, read_file) -> bool:
-        self._fail_if_not_init()
-        try:
-            f = open(read_file, "wb")
-        except OSError as e:
-            eprint("Dump to %s failed: %s" % (read_file, e))
-            raise e
-        self.print_vb("Reading flash...")
-        f.write(self.icp.read_flash(APROM_ADDR, FLASH_SIZE))
-        f.close()
-        self.print_vb("Done.")
-        return True
+        return ConfigFlags(self.icp.read_flash(self.config_flash_addr, CFG_FLASH_LEN))
 
     def write_config(self, config: ConfigFlags, _skip_erase=False):
         """
@@ -356,44 +330,90 @@ class Nuvo51ICP:
         """
         self._fail_if_not_init()
         if not _skip_erase:
-            self.icp.page_erase(CFG_FLASH_ADDR)
-        self.icp.write_flash(CFG_FLASH_ADDR, config.to_bytes())
+            self.icp.page_erase(self.config_flash_addr)
+        self.icp.write_flash(self.config_flash_addr, config.to_bytes())
 
-    def program_ldrom(self, ldrom_data: bytes, write_config: ConfigFlags = None, _skip_config_erase=False) -> ConfigFlags:
-        """
-        Programs the LDROM with the given data, and programs the config block with the given configuration flags.
-
-        #### Keyword args:
-            ldrom_data: bytes:
-                The data to program to the LDROM
-            write_config: ConfigFlags (=None):
-                The configuration flags to program to the config block.
-                If None, the default configuration for booting the ldrom of its size will be written.
-            _skip_config_erase: bool (=False):
-                If True, the config block will not be erased before writing. For more info, see write_config().
-
-        #### Returns:
-            ConfigFlags:
-                The configuration flags that were written to the config block during this operation.
-        """
+    def mass_erase(self):
         self._fail_if_not_init()
-        self.print_vb("Programming LDROM (%d KB)..." % int(len(ldrom_data) / 1024))
-        if not write_config:
-            write_config = ConfigFlags()
-            write_config.set_ldrom_boot(True)
-            write_config.set_ldrom_size(len(ldrom_data))
-        self.write_config(write_config, _skip_config_erase)
-        self.icp.write_flash(FLASH_SIZE - len(ldrom_data), ldrom_data)
-        self.print_vb("LDROM programmed.")
-        return write_config
+        self.print_vb("Erasing flash...")
+        cid = self.get_cid()
+        self.icp.mass_erase()
+        if cid == 0xFF or cid == 0x00:
+            self.reenter_icp()
+            device_id = self.get_device_id()
+            cid = self.get_cid()
+            if (not self.is_valid_device_id(device_id)) or cid == 0xFF or cid == 0x00:
+                eprint("ERROR: Mass erase failed, device not found.")
+                return False
+        return True
 
-    def verify_flash(self, data: bytes, report_unmatched_bytes=False) -> bool:
+    def get_device_info(self):
+        self._fail_if_not_init()
+        devinfo = DeviceInfo()
+        devinfo.device_id = self.get_device_id()
+        devinfo.uid = self.get_uid()
+        devinfo.cid = self.get_cid()
+        devinfo.ucid = self.icp.read_ucid()
+        return devinfo
+
+    def page_erase(self, addr):
+        self._fail_if_not_init()
+        self.icp.page_erase(addr)
+        return True
+
+    def read_flash(self, addr, len) -> bytes:
+        self._fail_if_not_init()
+        return self.icp.read_flash(addr, len)
+
+    def write_flash(self, addr, data) -> bool:
+        self._fail_if_not_init()
+        self.icp.write_flash(addr, data)
+        return True
+    
+    def is_locked(self):
+        self._fail_if_not_init()
+        return (self.get_cid() == 0xFF or self.read_config().is_locked())
+
+    def is_valid_device_id(self, device_id):
+        """Checks for valid device ID (at this time, only the N76E003)"""
+        if device_id != N76E003_DEVID:
+            return False
+        return True
+
+    def dump_flash(self) -> bytes:
+        self._fail_if_not_init()
+        return self.read_flash(self.aprom_addr, self.flash_size)
+
+    def dump_flash_to_file(self, read_file:str) -> bool:
+        self._fail_if_not_init()
+        try:
+            f = open(read_file, "wb")
+        except OSError as e:
+            eprint("Dump to %s failed: %s" % (read_file, e))
+            raise e
+        self.print_vb("Reading flash...")
+        ext = read_file.split(".")[-1]
+        config = self.read_config()
+        if config.get_ldrom_size() > 0:
+            ldrom_file = read_file.rsplit(".", 1)[0] + "-ldrom.bin"
+            lf = open(ldrom_file, "wb")
+            lf.write(self.read_flash(self.flash_size - config.get_ldrom_size(), config.get_ldrom_size()))
+            lf.close()
+        f.write(self.read_flash(self.aprom_addr, config.get_aprom_size()))
+        f.close()
+        self.print_vb("Done.")
+        return True
+
+
+    def verify_flash(self, data: bytes, start_address: int, report_unmatched_bytes=False) -> bool:
         """
 
 
         #### Args:
             data (bytes): 
                 bytes to verify
+            start_address (int):
+                The start address to verify the data at
             report_unmatched_bytes (bool) (=False)):
                 If True, the number of unmatched bytes will be printed to stderr
 
@@ -402,7 +422,7 @@ class Nuvo51ICP:
                 True if the data matches the flash, False otherwise
         """
         self._fail_if_not_init()
-        read_data = self.icp.read_flash(APROM_ADDR, FLASH_SIZE)
+        read_data = self.read_flash(start_address, len(data))
         if read_data == None:
             return False
         if len(read_data) != len(data):
@@ -419,117 +439,287 @@ class Nuvo51ICP:
             eprint("Verification failed. %d byte errors." % byte_errors)
         return result
 
-    def program_aprom(self, data: bytes) -> bool:
-        self._fail_if_not_init()
-        self.print_vb("Programming APROM...")
-        self.icp.write_flash(APROM_ADDR, data)
-        self.print_vb("APROM programmed.")
+    def check_ldrom_size(self, size) -> int:
+        if size > self.ldrom_max_size:
+            return False
+        return True
+
+    def check_aprom_size(self, size) -> int:
+        if size > self.flash_size:
+            return False
+        return True
+    
+    def check_rom_size(self, aprom_size, ldrom_size) -> bool:
+        if not self.check_aprom_size(aprom_size):
+            eprint("ERROR: APROM size too large for flash size of ".format(self.flash_size))
+            return False
+        if not self.check_ldrom_size(ldrom_size):
+            eprint("ERROR: LDROM size above max of {}.".format(self.ldrom_max_size))
+            return False
+        if ldrom_size > 0 and aprom_size + ldrom_size > self.flash_size:
+            eprint("ERROR: APROM and LDROM sizes exceed flash size of {}.".format(self.flash_size))
+            return False
         return True
 
     @staticmethod
-    def check_ldrom_size(size) -> int:
-        if size > LDROM_MAX_SIZE:
-            return -1
-        return size if size % 1024 == 0 else size + (1024 - (size % 1024))
+    def pad_rom(data: bytes, max_length: int) -> bytes:
+        if max_length - len(data) < 0:
+            return data
+        return data + bytes([0xFF] * (max_length - len(data)))
 
-    @staticmethod
-    def pad_ldrom(data: bytes) -> bytes:
-        # pad to the next highest KB
-        return data + bytes([0xFF] * (1024 - (len(data) % 1024)))
-
-    def program_data(self, aprom_data, ldrom_data=bytes(), config: ConfigFlags = None, verify=True, ldrom_config_override=True, _erase=True) -> bool:
+    def erase_aprom_area(self, config: ConfigFlags) -> bool:
         self._fail_if_not_init()
-        if len(ldrom_data) > 0:
-            ldrom_size = len(ldrom_data)
-            if not self.check_ldrom_size(ldrom_size):
-                eprint("ERROR: LDROM size greater than max of 4KB. Not programming...")
-                return False
-            else:
-                if len(ldrom_data) % 1024 != 0:
-                    eprint("WARNING: LDROM is not a multiple of 1024 bytes. Padding with 0xFF.")
-                    ldrom_data = self.pad_ldrom(ldrom_data)
-                    ldrom_size = len(ldrom_data)
-                if config:
-                    if config.get_ldrom_size() != ldrom_size:
-                        eprint("WARNING: LDROM size does not match config: %d KB vs %d KB" % (
-                            ldrom_size / 1024, config.get_ldrom_size_kb()))
-                        if ldrom_config_override:
-                            eprint("Overriding LDROM size in config.")
-                            config.set_ldrom_size(ldrom_size)
-                        else:
-                            if len(ldrom_data) < config.get_ldrom_size():
-                                eprint("LDROM will be padded with 0xFF.")
-                                ldrom_data = ldrom_data + \
-                                    bytes(
-                                        [0xFF] * (config.get_ldrom_size() - len(ldrom_data)))
-                            else:
-                                eprint("LDROM will be truncated.")
-                                ldrom_data = ldrom_data[: config.get_ldrom_size(
-                                )]
-                    if config.is_ldrom_boot() != True:
-                        eprint("WARNING: LDROM boot flag not set in config")
-                        if ldrom_config_override:
-                            eprint("Overriding LDROM boot in config.")
-                            config.set_ldrom_boot(True)
-                        else:
-                            eprint("LDROM will not be bootable.")
-                else:  # No config, set defaults
-                    config = ConfigFlags()
-                    config.set_ldrom_size(ldrom_size)
-                    config.set_ldrom_boot(True)
-        elif config == None:
-            config = ConfigFlags()
+        if not config:
+            eprint("ERROR: No config provided.")
+            return False
+        aprom_size = config.get_aprom_size()
+        for i in range(0, aprom_size, 128):
+            self.page_erase(self.aprom_addr + i)
+        return True
 
+    def erase_ldrom_area(self, config: ConfigFlags):
+        self._fail_if_not_init()
+        if not config:
+            eprint("ERROR: No config provided.")
+            return False
+        ldrom_size = config.get_ldrom_size()
+        if not ldrom_size:
+            eprint("ERROR: LDROM size is 0 in config.")
+            return False
+        for i in range(0, ldrom_size, 128):
+            self.page_erase(self.flash_size - ldrom_size + i)
+        return True
+
+    def _needs_unlock(self):
+        return (not self.can_write_locked_without_mass_erase) and self.is_locked()
+
+    def _aprom_config_precheck(self, aprom_data: bytes, config: ConfigFlags) -> int:
         aprom_size = config.get_aprom_size()
         if aprom_size != len(aprom_data):
             eprint("WARNING: APROM file size does not match config: %d KB vs %d KB" % (
                 len(aprom_data) / 1024, aprom_size / 1024))
             if aprom_size < len(aprom_data):
-                eprint("APROM will be truncated.")
-                aprom_data = aprom_data[:aprom_size]
+                eprint("APROM data is too large for configuration ({} KB vs {} KB).".format(
+                    len(aprom_data) / 1024, aprom_size / 1024))
+                eprint("Please provide a smaller APROM file or update the configuration.")
+                return -1
             else:
-                eprint("APROM will be padded with 0xFF.")
-                # Pad with 0xFF
-                aprom_data += bytes([0xFF] * (aprom_size - len(aprom_data)))
+                if self.pad_data:
+                    eprint("APROM will be padded with 0xFF.")
+        return aprom_size
 
-        if _erase:
-            self.mass_erase()
-
-        dev_id = self.get_device_id()
-        if dev_id != N76E003_DEVID:
-            # failed to reenter ICP mode
-            err_str = "Failed to reenter ICP mode after mass erase."
-            if not _erase:
-                err_str = "Failed to find device."
-            eprint(err_str)
+    def _ldrom_config_precheck(self, ldrom_data: bytes, config: ConfigFlags, override_size: bool, override_bootable:bool) -> bool:
+        if not self.can_write_ldrom:
+            eprint("ERROR: LDROM programming is not supported on this device.")
             return False
-
-        cid = self.get_cid()
-        if cid == 0xFF or cid == 0x00:
-            self.reenter_icp()
-            cid = self.get_cid()
-            if cid == 0xFF or cid == 0x00:
-                eprint("Device locked or not found.")
-                return False
-        if len(ldrom_data) > 0:
-            config = self.program_ldrom(ldrom_data, config, True)
-            if not config:
-                eprint("Could not write LDROM.")
-                return False
+        if not config:
+            eprint("ERROR: No config provided.")
+            return False
+        if len(ldrom_data) == 0:
+            eprint("ERROR: No LDROM data provided.")
+            return False
+        if not self.check_ldrom_size(len(ldrom_data)):
+            eprint("ERROR: LDROM size greater than max of 4KB. Not programming...")
+            return False
         else:
-            self.write_config(config, True)
+            if len(ldrom_data) % 1024 != 0 and self.pad_data:
+                eprint("WARNING: LDROM is not a multiple of 1024 bytes, data will be padded with 0xFF.")
+            ldrom_size_kb = math.ceil(len(ldrom_data) / 1024)
+            if ldrom_size_kb > config.get_ldrom_size_kb():
+                if override_size:
+                    eprint("WARNING: LDROM size does not match config: %d KB vs %d KB" % (
+                        ldrom_size_kb, config.get_ldrom_size_kb()))
+                    eprint("Overriding LDROM size in config.")
+                    config.set_ldrom_size_kb(ldrom_size_kb)
+                else:
+                    eprint("ERROR: LDROM size in config is greater than LDROM data size (%d KB vs %d KB)" % (
+                        config.get_ldrom_size_kb(), ldrom_size_kb))
+                    eprint("Not programming LDROM. Either truncate the LDROM data or update the config.")
+                    return False
+            elif ldrom_size_kb < config.get_ldrom_size_kb():
+                eprint("WARNING: LDROM size does not match config: %d KB vs %d KB" % (
+                    ldrom_size_kb, config.get_ldrom_size_kb()))
+                if override_size:
+                    eprint("Overriding LDROM size in config.")
+                    config.set_ldrom_size_kb(ldrom_size_kb)
+                elif self.pad_data:
+                    eprint("LDROM will be padded with 0xFF.")
+            if config.is_ldrom_boot() != True:
+                eprint("WARNING: LDROM boot flag not set in config")
+                if override_bootable:
+                    eprint("Overriding LDROM boot in config.")
+                    config.set_ldrom_boot(True)
+                else:
+                    eprint("LDROM will not be bootable.")
+        return True
 
-        self.print_vb("Programming APROM (%d KB)..." % (aprom_size / 1024))
-        self.icp.write_flash(APROM_ADDR, aprom_data)
+
+
+    def program_aprom(self, aprom_data, config: ConfigFlags = None, verify=True, erase=True) -> bool:
+        """
+        Programs the APROM with the given data.
+
+        #### Keyword args:
+            aprom_data: bytes:
+                The data to program to the APROM
+            config: ConfigFlags:
+                The configuration flags for this operation
+            verify: bool (=True):
+                If True, the data will be verified after writing.
+            erase: bool (=True):
+                If True, the APROM area will be erased before writing the data.
+        """
+        self._fail_if_not_init()
+        if not self.check_aprom_size(len(aprom_data)):
+            eprint("ERROR: APROM size too large for flash size of {}".format(self.flash_size))
+            return False
+        if not config and not self._needs_unlock():
+            config = self.read_config()
+        if config:
+            if not self._aprom_config_precheck(aprom_data, config):
+                return False
+        if self._needs_unlock():
+            if erase:
+                if not self.mass_erase():
+                    return False
+                erase = False
+            else:
+                eprint("ERROR: Device is locked, cannot program aprom.")
+                return False
+        if not config:
+            config = self.read_config()
+            if not self._aprom_config_precheck(aprom_data, config):
+                return False
+        if erase:
+            self.erase_aprom_area(config)
+        if self.pad_data:
+            aprom_data = self.pad_rom(aprom_data, config.get_aprom_size())
+        self.print_vb("Programming APROM...")
+        if not self.write_flash(self.aprom_addr, aprom_data):
+            self.print_vb("Programming APROM Failed!")
+            return False
         self.print_vb("APROM programmed.")
+        if not verify:
+            return True
+        return self.verify_flash(aprom_data, self.aprom_addr)
+
+    def program_ldrom(self, ldrom_data: bytes, config: ConfigFlags, erase=True, verify=True) -> bool:
+        """
+        Programs the LDROM with the given data.
+
+        #### Keyword args:
+            ldrom_data: bytes:
+                The data to program to the LDROM
+            config: ConfigFlags:
+                The configuration flags for this operation
+            erase: bool (=True):
+                If True, the LDROM area will be erased before writing the data.
+            verify: bool (=True):
+                If True, the data will be verified after writing.
+
+        #### Returns:
+            bool:
+                True if the operation succeeded, False otherwise
+        """
+        self._fail_if_not_init()
+        if not config:
+            eprint("ERROR: No config provided.")
+            return False
+        start_addr = self.flash_size - config.get_ldrom_size()
+        if not self.check_ldrom_size(len(ldrom_data)):
+            eprint("ERROR: LDROM size greater than max of 4KB. Not programming...")
+            return False
+        if not self._ldrom_config_precheck(ldrom_data, config, False, False):
+            return False
+        if self.pad_data:
+            ldrom_data = self.pad_rom(ldrom_data, config.get_ldrom_size())
+        self.print_vb("Programming LDROM (%d KB)..." % int(len(ldrom_data) / 1024))
+        if erase:
+            if self._needs_unlock():
+                if not self.mass_erase():
+                    return False
+            else:
+                self.erase_ldrom_area(config)
+        self.write_flash(start_addr, ldrom_data)
         if verify:
-            combined_data = aprom_data + ldrom_data
-            if not self.verify_flash(combined_data):
+            if not self.verify_flash(ldrom_data, start_addr):
                 self.print_vb("Verification failed.")
                 return False
-            self.print_vb("ROM data verified.")
+            else:
+                self.print_vb("Verification succeeded.")
+        self.print_vb("LDROM programmed.")
+        return True
+
+    def _run_prechecks(self, aprom_data, ldrom_data, config, ldrom_config_override):
+        passed = True
+        if len(ldrom_data) > 0:
+            passed = self._ldrom_config_precheck(ldrom_data, config, ldrom_config_override, ldrom_config_override)
+        if passed and len(aprom_data) > 0:
+            passed = self._aprom_config_precheck(aprom_data, config)
+        return passed
+
+    def _try_mass_erase(self, _erase: bool):
+        if _erase:
+            if not self.mass_erase():
+                return False
+        else:
+            eprint("ERROR: Device is locked, cannot program.")
+            return False
+        self.print_vb("Flash erased.")
+        return True
+
+    def program_data(self, aprom_data, ldrom_data=bytes(), config: ConfigFlags = None, verify=True, ldrom_config_override=False, _erase=True) -> bool:
+        self._fail_if_not_init()
+        if not self.check_rom_size(len(aprom_data), len(ldrom_data)):
+            return False
+        # if we don't have a config and the device isn't locked, get the current config
+        if not config and not self._needs_unlock():
+            config = self.read_config()
+        if config:
+            if not self._run_prechecks(aprom_data, ldrom_data, config, ldrom_config_override):
+                return False
+        if self._needs_unlock():
+            if not self._try_mass_erase(_erase):
+                return False
+            # don't need to erase anything if we did a mass erase
+            _erase = False
+        if not config:
+            config = self.read_config()
+            # config will be set to the default values if it's not provided, so set override to True
+            ldrom_config_override = True
+            if not self._run_prechecks(aprom_data, ldrom_data, config, ldrom_config_override):
+                return False
+        # TODO: remove
+        # return True
+        ldrom_addr = self.flash_size - config.get_ldrom_size()
+        if len(aprom_data) > 0:
+            if self.pad_data:
+                aprom_data = self.pad_rom(aprom_data, config.get_aprom_size())
+            if _erase:
+                self.erase_aprom_area(config)
+            self.print_vb("Programming APROM ({} KB)...".format(len(aprom_data) // 1024))
+            self.write_flash(self.aprom_addr, aprom_data)
+        if len(ldrom_data) > 0:
+            if self.pad_data:
+                ldrom_data = self.pad_rom(ldrom_data, config.get_ldrom_size())
+            if _erase:
+                self.erase_ldrom_area(config)
+            self.print_vb("Programming LDROM ({} KB)...".format(len(ldrom_data) // 1024))
+            self.write_flash(ldrom_addr, ldrom_data)
+        if str(config) != str(self.read_config()):
+            self.write_config(config)
+
+        if verify:
+            if len(aprom_data) > 0 or len(ldrom_data) > 0:
+                if len(aprom_data) > 0 and not (self.verify_flash(aprom_data, self.aprom_addr)):
+                    self.print_vb("APROM Verification failed.")
+                    return False
+                if len(ldrom_data) > 0 and not (self.verify_flash(ldrom_data, ldrom_addr)):
+                    self.print_vb("LDROM Verification failed.")
+                    return False
+                self.print_vb("ROM data verified.")
             # check that the config was really written
-            self.reenter_icp()
+            # self.reenter_icp()
             new_config = self.read_config()
             if str(new_config) != str(config):
                 eprint("Config verification failed.")
@@ -551,35 +741,30 @@ class Nuvo51ICP:
         self.print_vb("Finished programming!\n")
         return True
 
-    def program(self, write_file, ldrom_file="", config: ConfigFlags = None, ldrom_override=True) -> bool:
-        """
-        Program the device with the given files and config.
-        ------
-
-
-
-        If ldrom_file is not specified, the LDROM will not be written.
-        If config is not specified, the default config for the given aprom and ldrom files will be used.
-        If ldrom_override is False, the chosen configuration will not be overridden.
-
-
-        """
+    def program(self, write_file:str="", ldrom_file:str="", config: ConfigFlags = None, ldrom_override=True) -> bool:
         self._fail_if_not_init()
+        wf = None
         lf = None
-        try:
-            wf = open(write_file, "rb")
-        except OSError as e:
-            eprint("Could not open %s for reading." % write_file)
-            raise e
+        if not write_file and not ldrom_file and not config:
+            eprint("ERROR: No data to program.")
+            return False
+        if write_file != "":
+            try:
+                wf = open(write_file, "rb")
+            except OSError as e:
+                eprint("Could not open %s for reading." % write_file)
+                raise e
         if ldrom_file != "":
             try:
                 lf = open(ldrom_file, "rb")
             except OSError as e:
                 eprint("Could not open %s for reading." % ldrom_file)
                 raise e
-        aprom_data = wf.read()
+        aprom_data = bytes()
 
         ldrom_data = bytes()
+        if wf:
+            aprom_data = wf.read()
         if lf:
             ldrom_data = lf.read()
         return self.program_data(aprom_data, ldrom_data, config=config, ldrom_config_override=ldrom_override)
@@ -590,15 +775,17 @@ def print_usage():
     print("written by Nikita Lita\n")
     print("Usage:")
     print("\t-h, --help:                       print this help")
+    print("* Status Commands:")
     print("\t-u, --status:                     print the connected device info and configuration and exit")
-    print("\t                                    * If -c is also specified, it will also write the config to the specified config file.")
+    print("* Read Commands:")
     print("\t-r, --read=<filename>             read entire flash to file")
-    print("\t-w, --write=<filename>            write file to APROM/entire flash (if LDROM is disabled)")
+    print("* Write Commands (can be used in combination or seperately):")
+    print("\t-w, --write=<filename>            write file to APROM")
     print("\t-l, --ldrom=<filename>            write file to LDROM")
-    print("\t-k, --lock                        lock the chip after writing")
+    print("\t-e, --mass-erase                  mass erase the chip")
     print("\t-c, --config <filename>           write configuration bytes with the settings in the specified config.json file")
-    print("\t                                          (optional, use with --write and/or --ldrom)")
     print("\t                                        * look at 'config-example.json' for the format")
+    print("Options:")
     print("\t-s, --silent                      silence all output except for errors")
     print("Pinout:\n")
     print("                           40-pin header J8")
@@ -613,25 +800,29 @@ def print_usage():
     print("                           |________|\n")
     print("Please refer to the 'pinout' command on your RPi\n")
 
+def exit_with_code(message, num, usage=True):
+    eprint(message)
+    if usage:
+        print_usage()
+    return num
 
 def main() -> int:
     argv = sys.argv[1:]
     try:
-        opts, _ = getopt.getopt(argv, "hur:w:l:skb:c:")
+        opts, _ = getopt.getopt(argv, "hur:w:l:seb:c:")
     except getopt.GetoptError:
-        eprint("Invalid command line arguments. Please refer to the usage documentation.")
-        print_usage()
-        return 2
+        return exit_with_code("Invalid command line arguments. Please refer to the usage documentation.", 2)
 
-    config_dump_cmd = False
-    read = False
+    status_cmd = False
+    read_cmd = False
     read_file = ""
-    write = False
+    aprom_cmd = False
+    mass_erase_cmd = False
     write_file = ""
     ldrom_file = ""
     config_file = ""
-    lock_chip = False
     silent = False
+    main_cmds = 0
     if len(opts) == 0:
         print_usage()
         return 1
@@ -640,134 +831,99 @@ def main() -> int:
             print_usage()
             return 0
         elif opt == "-u" or opt == "--status":
-            config_dump_cmd = True
+            main_cmds += 1
+            status_cmd = True
         elif opt == "-r" or opt == "--read":
-            read = True
+            main_cmds += 1
+            read_cmd = True
             read_file = arg
         elif opt == "-w" or opt == "--write":
             write_file = arg
-            write = True
+            aprom_cmd = True
+        elif opt == "-e" or opt == "--mass-erase":
+            mass_erase_cmd = True
         elif opt == "-l" or opt == "--ldrom":
             ldrom_file = arg
         elif opt == "-c" or opt == "--config":
             config_file = arg
-        elif opt == "-k" or opt == "--lock":
-            lock_chip = True
         elif opt == "-s" or opt == "--silent":
             silent = True
         else:
             print_usage()
             return 2
-
-    if read and write:
-        eprint("ERROR: Please specify either -r or -w, not both.\n\n")
-        print_usage()
-        return 2
-
-    if not (read or write or config_dump_cmd):
-        eprint("ERROR: Please specify either -r, -w, or -u.\n\n")
-        print_usage()
-        return 2
+    is_writing = False
+    if aprom_cmd or ldrom_file or mass_erase_cmd or config_file:
+        is_writing = True
+        main_cmds += 1
+    if main_cmds > 1:
+        return exit_with_code("ERROR: --read, --write, and --status are mutually exclusive.\n\n", 2)
+    if main_cmds == 0 and not (mass_erase_cmd or config_file != ""):
+        return exit_with_code("ERROR: No command specified.\n\n", 2)
+    # read can't be used with write commands, and vice versa
+    if (read_cmd or status_cmd) and (aprom_cmd or ldrom_file or mass_erase_cmd or config_file):
+        return exit_with_code("ERROR: --read and --status cannot be used with write commands!\n\n", 2)
 
     # check to see if the files exist before we start the ICP
-    for filename in [write_file, ldrom_file, config_file]:
-        if (filename and filename != "") and not os.path.isfile(filename):
-            if filename == config_file and config_dump_cmd:
-                continue
-            eprint("ERROR: %s does not exist.\n\n" % filename)
-            print_usage()
-            return 2
-
-    try:
-        # check to see if the files are the correct size
-        if write and os.path.getsize(write_file) > FLASH_SIZE:
-            eprint("ERROR: %s is too large for APROM.\n\n" % write_file)
-            print_usage()
-            return 2
-    except:
-        eprint("ERROR: Could not read %s.\n\n" % write_file)
-        return 2
-    # check the length of the ldrom file
-    ldrom_size = 0
-    if ldrom_file != "":
-        try:
-            # check the length of the ldrom file
-            ldrom_size = os.path.getsize(ldrom_file)
-            if not Nuvo51ICP.check_ldrom_size(ldrom_size):
-                eprint("Error: LDROM file invalid.")
-                return 1
-        except:
-            eprint("Error: Could not read LDROM file")
-            return 2
-
-    # setup write config
-    write_config: ConfigFlags = None
-    if write:
-        if config_file != "":
-            write_config = ConfigFlags.from_json_file(config_file)
-            if write_config == None:
-                eprint("Error: Could not read config file")
-                return 1
-        else:  # default config
-            write_config = ConfigFlags()
-            write_config.set_lock(lock_chip)
-            write_config.set_ldrom_boot(ldrom_file != "")
-            write_config.set_ldrom_size(ldrom_size)
+    if (not read_cmd) and (not status_cmd):
+        for filename in [write_file, ldrom_file, config_file]:
+            if (filename and filename != ""):
+                if not os.path.isfile(filename):
+                    return exit_with_code("ERROR: %s does not exist.\n\n" % filename, 2)
+                elif not os.access(filename, os.R_OK):
+                    return exit_with_code("ERROR: %s is not readable.\n\n" % filename, 2)
+    if config_file:
+        write_config = ConfigFlags.from_json_file(config_file)
+    else:
+        write_config = None
 
     with Nuvo51ICP(silent=silent) as nuvo:
         devinfo = nuvo.get_device_info()
-        if devinfo.device_id != N76E003_DEVID:
-            if write and devinfo.cid == 0xFF:
+        did_mass_erase = False
+        if not nuvo.is_valid_device_id(devinfo.device_id):
+            if is_writing and nuvo._needs_unlock():
                 print("Device not found, chip may be locked, Do you want to attempt a mass erase? (y/N)")
                 if input() == "y" or input() == "Y":
                     if not nuvo.mass_erase():
-                        eprint("Mass erase failed, exiting...")
-                        return 2
+                        return exit_with_code("Mass erase failed! Exiting...", 2, False)
+                    did_mass_erase = True
                     devinfo = nuvo.get_device_info()
                     eprint(devinfo)
                 else:
-                    eprint("ERROR: Device not found")
-                    return 2
-                if devinfo.device_id != N76E003_DEVID:
-                    eprint(
-                        "ERROR: Unsupported device ID: 0x%04X (mass erase failed!)\n\n" % devinfo.device_id)
-                    return 2
+                    return exit_with_code("Device not found! Exiting...", 2, False)
+                if not nuvo.is_valid_device_id(devinfo.device_id):
+                    return exit_with_code("ERROR: Unsupported device ID: 0x%04X (mass erase failed!)\n\n" % devinfo.device_id, 2, False)
             else:
                 if devinfo.device_id == 0:
-                    eprint("ERROR: Device not found, please check your connections.\n\n")
-                    return 2
-                eprint(
-                    "ERROR: Unsupported device ID: 0x%04X (chip may be locked)\n\n" % devinfo.device_id)
-                return 2
-
+                    return exit_with_code("ERROR: Device not found, please check your connections.\n\n", 2, False)
+                return exit_with_code("ERROR: Unsupported device ID: 0x%04X (chip may be locked)\n\n" % devinfo.device_id, 2, False)
+        if not did_mass_erase and mass_erase_cmd:
+            if not nuvo.mass_erase():
+                return exit_with_code("Mass erase failed! Exiting...", 2, False)
+            devinfo = nuvo.get_device_info()
+            eprint(devinfo)
+            print("Mass erase successful.")
         # process commands
-        if config_dump_cmd:
+        if status_cmd:
             print(devinfo)
             cfg = nuvo.read_config()
             if not cfg:
-                eprint("Config read failed!!")
-                return 1
+                return exit_with_code("Config read failed!!", 1, False)
             cfg.print_config()
-            # if -c is specified, write it to a file
-            if config_file != "":
-                cfg.to_json_file(config_file)
             return 0
-        elif read:
+        elif read_cmd:
             print(devinfo)
             cfg = nuvo.read_config()
             cfg.print_config()
             print()
-            if devinfo.cid == 0xFF or cfg.is_locked():
-                eprint("Error: Chip is locked, cannot read flash")
-                return 1
+            if nuvo._needs_unlock():
+                return exit_with_code("Error: Chip is locked, cannot read flash", 1, False)
             nuvo.dump_flash_to_file(read_file)
             # remove extension from read_file
             config_file = read_file.rsplit(".", 1)[0] + "-config.json"
             cfg.to_json_file(config_file)
-        elif write:
-            if not nuvo.program(write_file, ldrom_file, write_config):
-                eprint("Programming failed!!")
-                return 1
+        elif ldrom_file or write_file or config_file:
+            if not nuvo.program(write_file, ldrom_file, write_config, not(config_file != "")):
+                return exit_with_code("Programming failed!!", 1, False)
         return 0
 
 
