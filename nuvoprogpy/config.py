@@ -85,12 +85,12 @@ class ConfigFlags(ctypes.LittleEndianStructure):
         # 0 = IAP erasing or programming is allowed under any workable VDD.
         ("BOIAP", ctypes.c_uint8, 1),          # 2:3
         # CONFIG brown-out voltage select
-        # 11 = 2.2V
-        # 10 = 2.7V
-        # 01 = 3.7V
-        # 00 = 4.4V
-        ("CBOV", ctypes.c_uint8, 2),           # 2:5-4
-        ("unk2_6", ctypes.c_uint8, 1),       # 2:6
+        # Other NuMicro 8051 chips use the last bit, but the N76E003 doesn't
+        # x11 = 2.2V
+        # x10 = 2.7V
+        # x01 = 3.7V
+        # x00 = 4.4V
+        ("CBOV", ctypes.c_uint8, 3),           # 2:6-4
         # CONFIG brown-out detect enable
         # 1 = Brown-out detection circuit on.
         # 0 = Brown-out detection circuit off.
@@ -108,8 +108,9 @@ class ConfigFlags(ctypes.LittleEndianStructure):
 
     # default constructor
     # takes in an optional 5-byte array
-    def __init__(self, cfg_bytes: list = None):
+    def __init__(self, cfg_bytes: list = None, device_id = N76E003_DEVID):
         # print the type of bytes
+        self.device_id = device_id
         if cfg_bytes is None or len(cfg_bytes) != ctypes.sizeof(self):
             # initialize to all 0xFF
             struct.pack_into("B" * ctypes.sizeof(self), self,
@@ -240,24 +241,26 @@ class ConfigFlags(ctypes.LittleEndianStructure):
         return True
 
     def get_brown_out_voltage(self):
-        if self.CBOV == 1:
+        CBOV_val = self.CBOV & 0x3
+        if CBOV_val == 1:
             return 3.7
-        elif self.CBOV == 2:
+        elif CBOV_val == 2:
             return 2.7
-        elif self.CBOV == 3:
+        elif CBOV_val == 3:
             return 2.2
         # else 0
         return 4.4
 
     def set_brownout_voltage(self, voltage: float) -> bool:
         if voltage == 2.2:
-            self.CBOV = 3
+            # Don't set the last bit
+            self.CBOV = 3 | 4
         elif voltage == 2.7:
-            self.CBOV = 2
+            self.CBOV = 2 | 4
         elif voltage == 3.7:
-            self.CBOV = 1
+            self.CBOV = 1 | 4
         if voltage == 4.4:
-            self.CBOV = 0
+            self.CBOV = 0 | 4
         else:
             return False
         return True
@@ -310,9 +313,9 @@ class ConfigFlags(ctypes.LittleEndianStructure):
               ("enabled" if self.BOIAP == 1 else "disabled"))
 
         wdt_status = ""
-        if self.WDTEN == 15:
+        if self.WDTEN & 15:
             wdt_status = "WDT is Disabled. WDT can be used as a general purpose timer via software control."
-        elif self.WDTEN == 5:
+        elif self.WDTEN & 5:
             wdt_status = "WDT is Enabled as a time-out reset timer and it STOPS running during Idle or Power-down mode."
         else:
             wdt_status = "WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode"
