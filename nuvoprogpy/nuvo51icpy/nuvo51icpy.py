@@ -597,12 +597,17 @@ class Nuvo51ICP:
             aprom_data = self.pad_rom(aprom_data, config.get_aprom_size())
         self.print_vb("Programming APROM...")
         if not self.write_flash(self.aprom_addr, aprom_data):
-            self.print_vb("Programming APROM Failed!")
+            eprint("Programming APROM Failed!")
             return False
         self.print_vb("APROM programmed.")
         if not verify:
             return True
-        return self.verify_flash(aprom_data, self.aprom_addr)
+        if not self.verify_flash(aprom_data, self.aprom_addr):
+            eprint("APROM verification failed.")
+            return False
+        self.print_vb("APROM verification succeeded.")
+        self.print_vb("Finished programming APROM.")
+        return True
 
     def program_ldrom(self, ldrom_data: bytes, config: ConfigFlags, erase=True, verify=True) -> bool:
         """
@@ -644,10 +649,10 @@ class Nuvo51ICP:
         self.write_flash(start_addr, ldrom_data)
         if verify:
             if not self.verify_flash(ldrom_data, start_addr):
-                self.print_vb("Verification failed.")
+                self.print_vb("LDROM verification failed.")
                 return False
             else:
-                self.print_vb("Verification succeeded.")
+                self.print_vb("LDROM verification succeeded.")
         self.print_vb("LDROM programmed.")
         return True
 
