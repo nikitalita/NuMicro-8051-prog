@@ -313,7 +313,7 @@ class Nuvo51ICP:
         self._fail_if_not_init()
         return ConfigFlags(self.icp.read_flash(self.config_flash_addr, CFG_FLASH_LEN))
 
-    def write_config(self, config: ConfigFlags, _skip_erase=False):
+    def write_config(self, config: ConfigFlags, _skip_erase=False) -> bool:
         """
         Programs the config bytes.
         ------
@@ -332,6 +332,7 @@ class Nuvo51ICP:
         if not _skip_erase:
             self.icp.page_erase(self.config_flash_addr)
         self.icp.write_flash(self.config_flash_addr, config.to_bytes())
+        return True
 
     def mass_erase(self):
         self._fail_if_not_init()
