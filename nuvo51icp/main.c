@@ -289,11 +289,11 @@ int main(int argc, char *argv[])
 	}
 
 out:
-	N51ICP_exit();
+	N51ICP_exit_icp_mode();
 	N51PGM_deinit(0);
 	return 0;
 out_err:
-	N51ICP_exit();
+	N51ICP_exit_icp_mode();
 	N51PGM_deinit(0);
 	err:
 	return 1;

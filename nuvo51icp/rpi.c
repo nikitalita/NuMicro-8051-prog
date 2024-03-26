@@ -47,7 +47,7 @@
 
 
 #define CONSUMER "nuvo51icp"
-struct gpiod_chip *chip;
+struct gpiod_chip *chip = 0;
 struct gpiod_line *dat_line, *rst_line, *clk_line, *trigger_line;
 
 
@@ -239,9 +239,13 @@ void N51PGM_deinit(uint8_t leave_reset_high)
 	}
 	if (chip) {
 		gpiod_chip_close(chip);
+		chip = 0;
 	}
 }
 
+uint8_t N51PGM_is_init(void){
+	return chip != 0;
+}
 
 uint64_t N51PGM_get_time(){
 	struct timespec curr_time;

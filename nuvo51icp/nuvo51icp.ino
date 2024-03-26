@@ -418,7 +418,7 @@ void reset_conn() {
   DEBUG_PRINT("Disconnecting...\n");
   if (state > WAITING_FOR_CONNECT_CMD) {
     disable_connect_led();
-    N51ICP_exit();
+    N51ICP_exit_icp_mode();
     N51PGM_deinit(LEAVE_RESET_HIGH);
   }
   state = DISCONNECTED_STATE;

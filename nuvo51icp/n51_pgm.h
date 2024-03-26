@@ -22,9 +22,13 @@ int N51PGM_init(void);
  * Deinitializes pgm interface.
  * 
  * Sets DAT and CLK pins to high-z, and terminates GPIO mode.
+ * NOTE: When implementing, make sure that this function is re-entrant!
  * @param leave_reset_high If 1, the RST pin will be left high. If 0, the RST pin will be set to high-z.
  */
 void N51PGM_deinit(uint8_t leave_reset_high);
+
+// Check if the PGM interface is initialized.
+uint8_t N51PGM_is_init();
 
 // Set the PGM data pin to the given value.
 void N51PGM_set_dat(uint8_t val);

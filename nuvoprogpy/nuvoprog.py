@@ -63,13 +63,16 @@ class NuvoProg:
     def dump_flash_to_file(self, read_file) -> bool:
         raise NotImplementedError
 
-    def write_config(self, config):
+    def write_config(self, config_bytes: bytes):
         raise NotImplementedError
 
-    def program_data(self, aprom_data, ldrom_data=bytes(), config=None, verify=True, ldrom_config_override=True) -> bool:
+    def program_config(self, config):
         raise NotImplementedError
 
-    def program(self, write_file, ldrom_file="", config=None, ldrom_override=True) -> bool:
+    def program_all(self, aprom_data, ldrom_data=bytes(), config=None, verify=True, ldrom_config_override=True) -> bool:
+        raise NotImplementedError
+
+    def program_all_files(self, write_file, ldrom_file="", config_file="", ldrom_override=True) -> bool:
         raise NotImplementedError
 
     def verify_flash(self, data, report_unmatched_bytes=False) -> bool:

@@ -776,10 +776,13 @@ class NuvoISP(NuvoProg):
         f.write(self.dump_flash())
         return True
 
-    def write_config(self, config: ConfigFlags):
+    def write_config(self, config_bytes: bytes):
         self._fail_if_not_init()
-        pkt = self._cmd_packet(CMD_UPDATE_CONFIG, config.to_bytes() + config.to_bytes())
+        pkt = self._cmd_packet(CMD_UPDATE_CONFIG, config_bytes + config_bytes)
         self.send_cmd(pkt)
+
+    def program_config(self, config: ConfigFlags):
+        return self.write_config(config.to_bytes())
 
     @staticmethod
     def check_ldrom_size(size) -> bool:
@@ -858,7 +861,7 @@ class NuvoISP(NuvoProg):
             ldrom_data = bytes()
         return curr_config, ldrom_data
 
-    def program_data(self, aprom_data, ldrom_data=None, config: ConfigFlags = None, ldrom_config_override=True, verify_flash=None, _lock=False) -> bool:
+    def program_all(self, aprom_data, ldrom_data=None, config: ConfigFlags = None, ldrom_config_override=True, verify_flash=None, _lock=False) -> bool:
         self._fail_if_not_init()
         update_flashrom = False
         read_config = self.read_config()
@@ -873,10 +876,10 @@ class NuvoISP(NuvoProg):
             if not self.is_icp_bridge:
                 raise ExtendedCmdsNotSupported("Programming the LDROM is only supported when using the ICP bridge.")
             update_flashrom = True
-        write_config: ConfigFlags
-        write_config, ldrom_data = self._check_config(read_config, config, ldrom_data, ldrom_config_override, _lock)
+        config_to_write: ConfigFlags
+        config_to_write, ldrom_data = self._check_config(read_config, config, ldrom_data, ldrom_config_override, _lock)
 
-        aprom_size = write_config.get_aprom_size()
+        aprom_size = config_to_write.get_aprom_size()
         if aprom_size != len(aprom_data):
             eprint("WARNING: APROM file size does not match config: %d KB vs %d KB" % (
                 len(aprom_data) / 1024, aprom_size / 1024))
@@ -892,14 +895,14 @@ class NuvoISP(NuvoProg):
         self.print_vb("Programming Rom (%d KB)..." % (len(combined_data) / 1024))
         # no need to erase, as the update commands will do it for us
         verified_success = self.update_flash(APROM_ADDR, combined_data, len(combined_data), update_flashrom)
-        self.write_config(write_config)
+        self.program_config(config_to_write)
 
         if not verified_success:
             eprint("Device reported incorrect checksum, verification failed!")
             # check if this is locked and the config unlocks it; if so, we should still write the config
-            if locked and write_config.is_locked() == False:
+            if locked and config_to_write.is_locked() == False:
                 self.print_vb("Writing config anyway to ensure unlocked...")
-                self.write_config(write_config)
+                self.program_config(config_to_write)
             return False
         self.print_vb("ROM programmed.")
         if verify_flash is None: # vs. False
@@ -915,11 +918,11 @@ class NuvoISP(NuvoProg):
             # self._disconnect()
             # self._connect()
             new_config = self.read_config()
-            if str(new_config) != str(write_config):
+            if str(new_config) != str(config_to_write):
                 eprint("Config verification failed.")
                 if not self.silent:
                     self.print_vb("Expected:")
-                    write_config.print_config()
+                    config_to_write.print_config()
                     self.print_vb("Got:")
                     new_config.print_config()
                 return False
@@ -931,13 +934,13 @@ class NuvoISP(NuvoProg):
         self.print_vb(devinfo)
         self.print_vb()
         if not self.silent:
-            write_config.print_config()
+            config_to_write.print_config()
         if verified_success:
             self.print_vb("Verification succeeded!")
         self.print_vb("Finished programming!\n")
         return True
 
-    def program(self, write_file, ldrom_file=None, config: ConfigFlags = None, ldrom_override=True, _no_ldrom=False, _lock=False) -> bool:
+    def program_all_files(self, write_file, ldrom_file: str=None, config_file: str = "", ldrom_override=True, _no_ldrom=False, _lock=False) -> bool:
         """
         Program the device with the given files and config.
         ------
@@ -972,11 +975,16 @@ class NuvoISP(NuvoProg):
             if lf:
                 ldrom_data = lf.read()
                 lf.close()
-
+        config = None
+        if config_file:
+            config = ConfigFlags.from_json_file(config_file, self.get_device_id())
+            if config is None:
+                eprint("Invalid config file.")
+                return False
         aprom_data = wf.read()
         wf.close()
 
-        return self.program_data(aprom_data, ldrom_data, config=config, verify_flash=None, ldrom_config_override=ldrom_override, _lock=_lock)
+        return self.program_all(aprom_data, ldrom_data, config=config, verify_flash=None, ldrom_config_override=ldrom_override, _lock=_lock)
 
     def verify_flash(self, data, report_unmatched_bytes=False, addr=APROM_ADDR, rom_size=FLASH_SIZE) -> bool:
         """
@@ -1127,13 +1135,6 @@ def main() -> int:
             eprint("Error: Could not read LDROM file")
             return 2
 
-    # setup write config
-    write_config = None
-    if write and config_file != "":
-        write_config = ConfigFlags.from_json_file(config_file)
-        if write_config == None:
-            eprint("Error: Could not read config file")
-            return 1
     try:
         with NuvoISP(serial_port=port, serial_rate=baud, silent=silent) as nuvo:
 
@@ -1170,7 +1171,7 @@ def main() -> int:
                 config_file = read_file.rsplit(".", 1)[0] + "-config.json"
                 read_config.to_json_file(config_file)
             elif write:
-                if not nuvo.program(write_file, ldrom_file, write_config, _no_ldrom=no_ldrom, _lock=lock_chip):
+                if not nuvo.program_all_files(write_file, ldrom_file, config_file, _no_ldrom=no_ldrom, _lock=lock_chip):
                     eprint("Programming failed!!")
                     return 1
     except KeyboardInterrupt:

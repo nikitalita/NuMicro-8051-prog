@@ -14,14 +14,22 @@
 #endif
 extern "C" {
 
+uint8_t initialized = 0;
+
 int N51PGM_init(void)
 {
   pinMode(CLK, OUTPUT);
   pinMode(DAT, INPUT);
   pinMode(RST, OUTPUT);
   digitalWrite(CLK, LOW);
+  initialized = 1;
 
   return 0;
+}
+
+uint8_t N51PGM_is_init(void){
+  // check what the pins are set to
+  return initialized;
 }
 
 void N51PGM_set_dat(uint8_t val)
@@ -75,6 +83,7 @@ void N51PGM_deinit(uint8_t leave_reset_high)
   } else {
     pinMode(RST, INPUT);
   }
+  initialized = 0;
 }
 
 

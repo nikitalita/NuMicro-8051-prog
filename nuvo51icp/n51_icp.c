@@ -47,7 +47,8 @@ static int page_erase_time = 6000;
 #endif
 #define ENTRY_BIT_DELAY 60
 
-
+#define LEAVE_RESET_HIGH 1
+#define SUPPORT_OTHER_CHIPS 0
 
 static void N51ICP_bitsend(uint32_t data, int len, uint32_t udelay)
 {
@@ -86,23 +87,26 @@ void N51ICP_send_exit_bits(){
 int N51ICP_init(uint8_t do_reset)
 {
 	int rc;
-
-	rc = N51PGM_init();
-    if (rc < 0) {
-		return rc;
-	} else if (rc != 0){
-		return -1;
+	if (!N51PGM_is_init()) {
+		rc = N51PGM_init();
+		if (rc < 0) {
+			return rc;
+		} else if (rc != 0){
+			return -1;
+		}
 	}
-	N51ICP_entry(do_reset);
+	N51ICP_enter_icp_mode(do_reset);
 	uint32_t dev_id = N51ICP_read_device_id();
+#if !SUPPORT_OTHER_CHIPS
 	if (dev_id >> 8 == 0x2F){
 		printf("Device ID mismatch: %x\n", dev_id);
 		return -1;
 	}
+#endif
 	return 0;
 }
 
-void N51ICP_entry(uint8_t do_reset) {
+void N51ICP_enter_icp_mode(uint8_t do_reset) {
 	if (do_reset) {
 		send_reset_seq(ICP_RESET_SEQ, 24);
 	} else {
@@ -130,7 +134,7 @@ void N51ICP_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
 }
 
 void N51ICP_fullexit_entry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
-	N51ICP_exit();
+	N51ICP_exit_icp_mode();
 }
 
 void N51ICP_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low){
@@ -174,11 +178,18 @@ void N51ICP_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay
 
 void N51ICP_deinit(void)
 {
-	N51ICP_exit();
-	N51PGM_deinit(1);
+	if (N51PGM_is_init()){
+		N51ICP_exit_icp_mode();
+	}
+	N51PGM_deinit(LEAVE_RESET_HIGH);
 }
 
-void N51ICP_exit(void)
+void N51ICP_pgm_deinit_only(uint8_t leave_reset_high)
+{
+	N51PGM_deinit(leave_reset_high);
+}
+
+void N51ICP_exit_icp_mode(void)
 {
 	N51PGM_set_rst(1);
 	USLEEP(5000);
@@ -296,7 +307,7 @@ uint32_t N51ICP_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 	for (uint32_t i = 0; i < len; i++) {
 		N51ICP_write_byte(data[i], i == (len-1), delay1, 5);
 	}
-		
+
 	return addr + len;
 }
 

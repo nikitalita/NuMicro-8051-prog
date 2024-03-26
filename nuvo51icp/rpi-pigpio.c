@@ -16,6 +16,8 @@
 #define GPIO_TRIGGER 16
 #define MAX_BUSY_DELAY 300
 
+uint8_t is_initialized = 0;
+
 int N51PGM_init(void)
 {
     #ifdef DEBUG
@@ -27,7 +29,7 @@ int N51PGM_init(void)
         N51PGM_print("pigpio initialization failed\n");
         return -1;
     }
-
+    is_initialized = 1;
     int ret = gpioSetMode(GPIO_DAT, PI_INPUT);
     ret |= gpioSetMode(GPIO_CLK, PI_OUTPUT);
     ret |= gpioSetMode(GPIO_TRIGGER, PI_OUTPUT);
@@ -46,6 +48,11 @@ int N51PGM_init(void)
         return ret;
     }
     return 0;
+}
+
+uint8_t N51PGM_is_init()
+{
+    return is_initialized;
 }
 
 void N51PGM_set_dat(uint8_t val)
@@ -102,6 +109,9 @@ void N51PGM_set_trigger(uint8_t val)
 
 void N51PGM_deinit(uint8_t leave_reset_high)
 {
+    if (!is_initialized){
+        return;
+    }
     if (!leave_reset_high) {
         N51PGM_release_pins();
     } else {
@@ -110,6 +120,7 @@ void N51PGM_deinit(uint8_t leave_reset_high)
     }
     N51PGM_release_non_reset_pins();
     gpioTerminate();
+    is_initialized = 0;
 }
 
 uint32_t N51PGM_usleep(uint32_t usec)

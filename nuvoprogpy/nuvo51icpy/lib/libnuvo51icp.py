@@ -24,8 +24,66 @@ def override_signals():
     signal.signal(signal.SIGINT, catch_ctrlc)
     signal.signal(signal.SIGTERM, catch_ctrlc)
 
+class ICPLibInterface:
+    def send_entry_bits(self) -> bool:
+        raise NotImplementedError("Not implemented!")
 
-class LibICP:
+    def send_exit_bits(self) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def init(self, do_reset=True) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def entry(self, do_reset=True) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def reentry(self, delay1=5000, delay2=1000, delay3=10) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def reentry_glitch(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def reentry_glitch_read(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bytes:
+        raise NotImplementedError("Not implemented!")
+
+    def deinit(self) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def deinit_pgm_only(self, leave_reset_high: bool) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def exit(self) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def read_device_id(self):
+        raise NotImplementedError("Not implemented!")
+
+    def read_pid(self) -> int:
+        raise NotImplementedError("Not implemented!")
+
+    def read_cid(self) -> int:
+        raise NotImplementedError("Not implemented!")
+
+    def read_uid(self) -> bytes:
+        raise NotImplementedError("Not implemented!")
+
+    def read_ucid(self) -> bytes:
+        raise NotImplementedError("Not implemented!")
+
+    def read_flash(self, addr, length) -> bytes:
+        raise NotImplementedError("Not implemented!")
+
+    def write_flash(self, addr, data) -> int:
+        raise NotImplementedError("Not implemented!")
+
+    def mass_erase(self) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def page_erase(self, addr) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+
+class LibICP(ICPLibInterface):
     def __init__(self, libname="gpiod"):
         # Load the shared library
         self.libname = libname
@@ -47,8 +105,8 @@ class LibICP:
         self.lib.N51ICP_init.argtypes = [ctypes.c_uint8]
         self.lib.N51ICP_init.restype = ctypes.c_int
 
-        self.lib.N51ICP_entry.argtypes = [ctypes.c_uint8]
-        self.lib.N51ICP_entry.restype = None
+        self.lib.N51ICP_enter_icp_mode.argtypes = [ctypes.c_uint8]
+        self.lib.N51ICP_enter_icp_mode.restype = None
 
         self.lib.N51ICP_reentry.argtypes = [
             ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
@@ -65,8 +123,11 @@ class LibICP:
         self.lib.N51ICP_deinit.argtypes = []
         self.lib.N51ICP_deinit.restype = None
 
-        self.lib.N51ICP_exit.argtypes = []
-        self.lib.N51ICP_exit.restype = None
+        self.lib.N51ICP_pgm_deinit_only.argtypes = [ctypes.c_uint8]
+        self.lib.N51ICP_pgm_deinit_only.restype = None
+
+        self.lib.N51ICP_exit_icp_mode.argtypes = []
+        self.lib.N51ICP_exit_icp_mode.restype = None
 
         self.lib.N51ICP_read_device_id.argtypes = []
         self.lib.N51ICP_read_device_id.restype = ctypes.c_uint32
@@ -99,11 +160,13 @@ class LibICP:
 
         # Wrapper functions
 
-    def send_entry_bits(self) -> None:
+    def send_entry_bits(self) -> bool:
         self.lib.N51ICP_send_entry_bits()
+        return True
 
-    def send_exit_bits(self) -> None:
+    def send_exit_bits(self) -> bool:
         self.lib.N51ICP_send_exit_bits()
+        return True
 
     def init(self, do_reset=True) -> bool:
         ret = self.lib.N51ICP_init(ctypes.c_uint8(do_reset))
@@ -115,16 +178,19 @@ class LibICP:
         # ret != 0 means PGM not initialized, don't override signals
         return False
 
-    def entry(self, do_reset=True) -> None:
-        self.lib.N51ICP_entry(ctypes.c_uint8(do_reset))
+    def entry(self, do_reset=True) -> bool:
+        self.lib.N51ICP_enter_icp_mode(ctypes.c_uint8(do_reset))
+        return True
 
-    def reentry(self, delay1=5000, delay2=1000, delay3=10):
+    def reentry(self, delay1=5000, delay2=1000, delay3=10) -> bool:
         self.lib.N51ICP_reentry(ctypes.c_uint32(
             delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(delay3))
+        return True
 
-    def reentry_glitch(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> None:
+    def reentry_glitch(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bool:
         self.lib.N51ICP_reentry_glitch(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(
             delay_after_trigger_high), ctypes.c_uint32(delay_before_trigger_low))
+        return True
 
     def reentry_glitch_read(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bytes:
         data_type = ctypes.c_uint8 * 5
@@ -133,34 +199,40 @@ class LibICP:
             delay_after_trigger_high), ctypes.c_uint32(delay_before_trigger_low), data)
         return bytes(data)
 
-    def deinit(self):
+    def deinit(self) -> bool:
         self.lib.N51ICP_deinit()
+        return True
 
-    def exit(self):
-        self.lib.N51ICP_exit()
+    def deinit_pgm_only(self, leave_reset_high: bool) -> bool:
+        self.lib.N51ICP_pgm_deinit_only(ctypes.c_ubyte(1 if leave_reset_high else 0))
+        return True
+
+    def exit(self) -> bool:
+        self.lib.N51ICP_exit_icp_mode()
+        return True
 
     def read_device_id(self):
         return self.lib.N51ICP_read_device_id()
 
-    def read_pid(self):
+    def read_pid(self) -> int:
         return self.lib.N51ICP_read_pid()
 
-    def read_cid(self):
+    def read_cid(self) -> int:
         return self.lib.N51ICP_read_cid()
 
-    def read_uid(self):
+    def read_uid(self) -> bytes:
         data_type = ctypes.c_uint8 * 12
         data = data_type()
         self.lib.N51ICP_read_uid(data)
         return bytes(data)
 
-    def read_ucid(self):
+    def read_ucid(self) -> bytes:
         data_type = ctypes.c_uint8 * 16
         data = data_type()
         self.lib.N51ICP_read_ucid(data)
         return bytes(data)
 
-    def read_flash(self, addr, length):
+    def read_flash(self, addr, length) -> bytes:
         data_type = ctypes.c_uint8 * length
         data = data_type()
         self.lib.N51ICP_read_flash(ctypes.c_uint32(
@@ -175,11 +247,13 @@ class LibICP:
             addr), ctypes.c_uint32(length), data_buffer)
         return int(ret)
 
-    def mass_erase(self):
+    def mass_erase(self) -> bool:
         self.lib.N51ICP_mass_erase()
+        return True
 
-    def page_erase(self, addr):
+    def page_erase(self, addr) -> bool:
         self.lib.N51ICP_page_erase(ctypes.c_uint32(addr))
+        return True
 
 class LibPGM:
     def __init__(self, libname="gpiod"):

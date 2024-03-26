@@ -8,10 +8,12 @@ APROM_ADDR = 0
 CFG_FLASH_ADDR = 0x30000
 CFG_FLASH_LEN = 5
 
+# N76E003 values only for now
 LDROM_MAX_SIZE = 4 * 1024
-LDROM_MAX_SIZE_KB = int(LDROM_MAX_SIZE / 1024)
 FLASH_SIZE = 18 * 1024
 
+
+supported_devices = [N76E003_DEVID]
 
 class DeviceInfo:
     def __init__(self, device_id=0xFFFF, uid=bytes([0xFF]*12), cid=0xFF, ucid=bytes([0xFF]*16)):
@@ -20,11 +22,23 @@ class DeviceInfo:
         self.cid = cid
         self.ucid = ucid
 
+    @property
+    def flash_size(self):
+        return get_flash_size(self.device_id)
+    
+    @property
+    def config_addr(self):
+        return get_config_addr(self.device_id)
+    
+    @property
+    def config_len(self):
+        return get_config_len(self.device_id)
+
     def __str__(self):
         return "Device ID: 0x%04X\nCID: 0x%02X\nUID: %s\nUCID: %s" % (self.device_id, self.cid, " ".join(["%02X" % b for b in self.uid]), " ".join(["%02X" % b for b in self.ucid]))
 
     def is_supported(self):
-        return self.device_id == N76E003_DEVID
+        return self.device_id in supported_devices
 
 
 def float_index_to_bit(bit: float) -> int:
@@ -37,6 +51,24 @@ def float_index_to_bit(bit: float) -> int:
         bitshift = bitshift - 8
     return (bytenum, bitshift)
 
+def get_config_addr(device_id: int) -> int:
+    # N76E003 only for now
+    return CFG_FLASH_ADDR
+
+def get_config_len(device_id: int) -> int:
+    # N76E003 only for now
+    return CFG_FLASH_LEN
+
+def get_flash_size(device_id: int) -> int:
+    # N76E003 only for now
+    return FLASH_SIZE
+
+def get_ldrom_max_size(device_id: int) -> int:
+    # N76E003 only for now
+    return LDROM_MAX_SIZE
+
+def get_ldrom_max_size_kb(device_id: int) -> int:
+    return int(get_ldrom_max_size(device_id) // 1024)
 
 # Configflags bitfield structure:
 class ConfigFlags(ctypes.LittleEndianStructure):
@@ -171,11 +203,11 @@ class ConfigFlags(ctypes.LittleEndianStructure):
         return int(self.get_ldrom_size_kb() * 1024)
 
     def get_ldrom_size_kb(self) -> int:
-        return min((7 - (self.LDS & 0x7)), LDROM_MAX_SIZE_KB)
+        return min((7 - (self.LDS & 0x7)), get_ldrom_max_size_kb(self.device_id))
 
     # get the size of the APROM in bytes
     def get_aprom_size(self):
-        return FLASH_SIZE - self.get_ldrom_size()
+        return get_flash_size(self.device_id) - self.get_ldrom_size()
 
     def get_aprom_size_kb(self):
         return int(self.get_aprom_size() / 1024)
@@ -219,7 +251,7 @@ class ConfigFlags(ctypes.LittleEndianStructure):
 
     # Set ldrom size in KB
     def set_ldrom_size_kb(self, size_kb: int):
-        if size_kb < 0 or size_kb > LDROM_MAX_SIZE_KB:
+        if size_kb < 0 or size_kb > get_ldrom_max_size_kb(self.device_id):
             raise ValueError("Invalid LDROM size")
         self.LDS = ((7 - size_kb) & 0x7)
         return True
@@ -326,10 +358,17 @@ class ConfigFlags(ctypes.LittleEndianStructure):
         return " ".join(["%02X" % b for b in self.to_bytes()])
 
     @staticmethod
-    def from_json(json):
+    def from_json(json, device_id=None):
+        if device_id is None:
+            device_id = N76E003_DEVID
+        # unsupported devices
+        if 'device_id' in json and json['device_id'] != device_id:
+            device_id = json['device_id']
+        if 'config_bytes' in json and type(json['config_bytes']) == list and len(json['config_bytes']) == 5:
+            config = ConfigFlags(json['config_bytes'], device_id)
+            return config
+        config = ConfigFlags(device_id=device_id)
         # check that key exists
-        config = ConfigFlags()
-        # check if boolean
         if 'lock' in json and type(json['lock']) == bool:
             config.set_lock(json['lock'])
         if 'boot_from_ldrom' in json and type(json['boot_from_ldrom']) == bool:
@@ -352,16 +391,21 @@ class ConfigFlags(ctypes.LittleEndianStructure):
         return config
 
     @staticmethod
-    def from_json_file(filename):
+    def from_json_file(filename, device_id=None):
         try:
             with open(filename, "r") as f:
                 confinfo = json.load(f)
-                return ConfigFlags.from_json(confinfo)
+                return ConfigFlags.from_json(confinfo, device_id)
         except:
             print("Error reading config file")
             return None
 
     def to_json(self):
+        if not (self.device_id in supported_devices):
+            return json.dumps({
+                "device_id": self.device_id,
+                "config_bytes": self.to_bytes()
+            }, indent=4)
         return json.dumps({
             "lock": self.is_locked(),
             "boot_from_ldrom": self.is_ldrom_boot(),
