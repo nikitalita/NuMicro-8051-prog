@@ -28,27 +28,33 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include "config.h"
 #include "n51_icp.h"
 #include "n51_pgm.h"
+#ifndef DEFAULT_BIT_DELAY
 #include "delay.h"
-
+#endif
 // These are MCU dependent (default for N76E003)
 static int program_time = 20;
 static int page_erase_time = 6000;
+
+#define ENTRY_BIT_DELAY 60
+
+#ifndef LEAVE_RESET_HIGH
+#define LEAVE_RESET_HIGH 1
+#endif
+
+#ifndef SUPPORT_OTHER_CHIPS
+#define SUPPORT_OTHER_CHIPS 0
+#endif
 
 // to avoid overhead from calling usleep() for 0 us
 #define USLEEP(x) if (x > 0) N51PGM_usleep(x)
 
 #ifdef _DEBUG
-#define DEBUG_PRINT(x) N51ICP_outputf(x)
+#define DEBUG_PRINT(...) N51ICP_outputf(__VA_ARGS__)
 #else
-#define DEBUG_PRINT(x)
+#define DEBUG_PRINT(...)
 #endif
-#define ENTRY_BIT_DELAY 60
-
-#define LEAVE_RESET_HIGH 1
-#define SUPPORT_OTHER_CHIPS 0
 
 static void N51ICP_bitsend(uint32_t data, int len, uint32_t udelay)
 {
@@ -96,10 +102,10 @@ int N51ICP_init(uint8_t do_reset)
 		}
 	}
 	N51ICP_enter_icp_mode(do_reset);
-	uint32_t dev_id = N51ICP_read_device_id();
 #if !SUPPORT_OTHER_CHIPS
+	uint32_t dev_id = N51ICP_read_device_id();
 	if (dev_id >> 8 == 0x2F){
-		printf("Device ID mismatch: %x\n", dev_id);
+		DEBUG_PRINT("Device ID mismatch: %x\n", dev_id);
 		return -1;
 	}
 #endif
