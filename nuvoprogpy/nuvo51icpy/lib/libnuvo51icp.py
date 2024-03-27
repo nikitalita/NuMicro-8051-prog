@@ -43,9 +43,6 @@ class ICPLibInterface:
     def reentry_glitch(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bool:
         raise NotImplementedError("Not implemented!")
 
-    def reentry_glitch_read(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bytes:
-        raise NotImplementedError("Not implemented!")
-
     def deinit(self) -> bool:
         raise NotImplementedError("Not implemented!")
 
@@ -80,6 +77,12 @@ class ICPLibInterface:
         raise NotImplementedError("Not implemented!")
 
     def page_erase(self, addr) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def set_program_time(self, time_us: int) -> bool:
+        raise NotImplementedError("Not implemented!")
+    
+    def set_page_erase_time(self, time_us: int) -> bool:
         raise NotImplementedError("Not implemented!")
 
 
@@ -153,6 +156,12 @@ class LibICP(ICPLibInterface):
 
         self.lib.N51ICP_page_erase.argtypes = [ctypes.c_uint32]
         self.lib.N51ICP_page_erase.restype = None
+
+        self.lib.N51ICP_set_program_time.argtypes = [ctypes.c_uint32]
+        self.lib.N51ICP_set_program_time.restype = None
+    
+        self.lib.N51ICP_set_page_erase_time.argtypes = [ctypes.c_uint32]
+        self.lib.N51ICP_set_page_erase_time.restype = None
 
         # Wrapper functions
 
@@ -242,6 +251,14 @@ class LibICP(ICPLibInterface):
 
     def page_erase(self, addr) -> bool:
         self.lib.N51ICP_page_erase(ctypes.c_uint32(addr))
+        return True
+
+    def set_program_time(self, time_us: int) -> bool:
+        self.lib.N51ICP_set_program_time(ctypes.c_uint32(time_us))
+        return True
+
+    def set_page_erase_time(self, time_us: int) -> bool:
+        self.lib.N51ICP_set_page_erase_time(ctypes.c_uint32(time_us))
         return True
 
 class LibPGM:

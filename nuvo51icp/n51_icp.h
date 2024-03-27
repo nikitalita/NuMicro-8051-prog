@@ -87,6 +87,24 @@ void N51ICP_page_erase(uint32_t addr);
 void N51ICP_outputf(const char *fmt, ...);
 void N51ICP_pgm_deinit_only(uint8_t leave_reset_high);
 
+/***
+ * @brief     Set the program time for the N76E003.
+ * 
+ * This is the time that `N51ICP_write_flash()` will wait between bytes while writing to flash
+ * (default: 20us)
+ * @param time The time in microseconds
+ */
+void N51ICP_set_program_time(uint32_t time_us);
+
+/***
+ * @brief     Set the page erase time for the N76E003.
+ * 
+ * This is the time that `N51ICP_page_erase()` will wait between pages while erasing flash
+ * (default: 6000us)
+ * 
+ * @param time The time in microseconds
+*/
+void N51ICP_set_page_erase_time(uint32_t time_us);
 #ifdef __cplusplus
 }
 #endif

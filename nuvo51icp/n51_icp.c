@@ -34,8 +34,8 @@
 #include "delay.h"
 #endif
 // These are MCU dependent (default for N76E003)
-static int program_time = 20;
-static int page_erase_time = 6000;
+static uint32_t program_time = 20;
+static uint32_t page_erase_time = 6000;
 
 #define ENTRY_BIT_DELAY 60
 
@@ -322,6 +322,16 @@ void N51ICP_page_erase(uint32_t addr)
 {
 	N51ICP_send_command(N51ICP_CMD_PAGE_ERASE, addr);
 	N51ICP_write_byte(0xff, 1, page_erase_time, 100);
+}
+
+void N51ICP_set_program_time(uint32_t time)
+{
+	program_time = time;
+}
+
+void N51ICP_set_page_erase_time(uint32_t time)
+{
+	page_erase_time = time;
 }
 
 void N51ICP_outputf(const char *s, ...)
