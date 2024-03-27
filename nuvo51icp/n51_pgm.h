@@ -48,14 +48,6 @@ void N51PGM_set_trigger(uint8_t val);
 // Sets the direction of the PGM data pin
 void N51PGM_dat_dir(uint8_t state);
 
-// Releases all PGM pins and sets them to high-z.
-// The purpose for this is to avoid the pins being left in a high state
-// and unable to be controlled by other programs/devices.
-void N51PGM_release_pins(void);
-
-// Releases the RST pin only
-void N51PGM_release_rst(void);
-
 // Device-specific sleep function
 uint32_t N51PGM_usleep(uint32_t usec);
 

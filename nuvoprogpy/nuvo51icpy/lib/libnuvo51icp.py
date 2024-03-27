@@ -303,14 +303,6 @@ class LibPGM:
         self.lib.N51PGM_dat_dir.argtypes = [ctypes.c_ubyte]
         self.lib.N51PGM_dat_dir.restype = None
 
-        # Releases all PGM pins by setting them to INPUT mode.
-        self.lib.N51PGM_release_pins.argtypes = []
-        self.lib.N51PGM_release_pins.restype = None
-
-        # Releases the RST pin only
-        self.lib.N51PGM_release_rst.argtypes = []
-        self.lib.N51PGM_release_rst.restype = None
-
         # Device-specific sleep function
         self.lib.N51PGM_usleep.argtypes = [ctypes.c_uint32]
         self.lib.N51PGM_usleep.restype = ctypes.c_uint32
@@ -352,14 +344,6 @@ class LibPGM:
     # Sets the direction of the PGM data pin
     def dat_dir(self, state):
         self.lib.N51PGM_dat_dir(ctypes.c_ubyte(state))
-
-    # Releases all PGM pins by setting them to INPUT mode.
-    def release_pins(self):
-        self.lib.N51PGM_release_pins()
-
-    # Releases the RST pin only
-    def release_rst(self):
-        self.lib.N51PGM_release_rst()
 
     def set_trigger(self, val):
         self.lib.N51PGM_set_trigger(ctypes.c_ubyte(val))
