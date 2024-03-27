@@ -60,10 +60,6 @@ static uint32_t page_erase_time = 6000;
 // ICP Exit sequence
 #define EXIT_BITS     0xF78F0
 
-#ifndef LEAVE_RESET_HIGH
-#define LEAVE_RESET_HIGH 1
-#endif
-
 #ifndef SUPPORT_OTHER_CHIPS
 #define SUPPORT_OTHER_CHIPS 0
 #endif
@@ -199,18 +195,14 @@ void N51ICP_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_afte
 	USLEEP(10);
 }
 
-void N51ICP_deinit(void)
+void N51ICP_deinit(uint8_t leave_reset_high)
 {
 	if (N51PGM_is_init()){
 		N51ICP_exit_icp_mode();
 	}
-	N51PGM_deinit(LEAVE_RESET_HIGH);
-}
-
-void N51ICP_pgm_deinit_only(uint8_t leave_reset_high)
-{
 	N51PGM_deinit(leave_reset_high);
 }
+
 
 void N51ICP_exit_icp_mode(void)
 {

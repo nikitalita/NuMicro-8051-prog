@@ -40,6 +40,7 @@
 #include "n76e003_icp_dev.h"
 
 #define N76E003_DEVID	0x3650
+#define LEAVE_RESET_HIGH 0
 
 void N51ICP_print_config(config_flags flags){
   N51ICP_outputf("----- Chip Configuration ----\n");
@@ -348,12 +349,10 @@ int main(int argc, char *argv[])
 	}
 
 out:
-	N51ICP_exit_icp_mode();
-	N51PGM_deinit(0);
+	N51ICP_deinit(LEAVE_RESET_HIGH);
 	return 0;
 out_err:
-	N51ICP_exit_icp_mode();
-	N51PGM_deinit(0);
+	N51ICP_deinit(LEAVE_RESET_HIGH);
 	err:
 	return 1;
 }

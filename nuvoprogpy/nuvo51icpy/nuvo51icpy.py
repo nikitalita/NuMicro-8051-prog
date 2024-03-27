@@ -191,7 +191,7 @@ class Nuvo51ICP:
                     fullexit_tries += 1
                 fullexit_tries = 0
                 self.print_vb("Attempting reinitialization...")
-                self.icp.deinit()
+                self.icp.deinit(self.deinit_reset_high)
                 time.sleep(0.5)
                 self.icp.init()
                 if self.icp.read_device_id() != 0:
@@ -231,14 +231,15 @@ class Nuvo51ICP:
             **UnsupportedDeviceException**
                 If the detected device is not supported
         """
-        if not self.icp.init(do_reset_seq):
+        self.initialized = self.icp.init(do_reset_seq)
+        if not self.initialized:
             raise PGMInitException("ERROR: Could not initialize ICP.")
         if check_device:
             devid = self.icp.read_device_id()
             cid = self.icp.read_cid()
             if devid == 0:
                 if not retry or not self.retry():
-                    self.icp.deinit()
+                    self.icp.deinit(self.deinit_reset_high)
                     raise NoDeviceException(
                         "ERROR: No device detected, please check your connections!")
                 devid = self.icp.read_device_id()
@@ -247,10 +248,9 @@ class Nuvo51ICP:
                 self.print_err("WARNING: Read Device ID of 0xFFFF and cid of 0xFF, device may be locked!")
                 self.print_err("Proceeding anyway...")
             elif not self.is_valid_device_id(devid):
-                self.icp.deinit()
+                self.icp.deinit(self.deinit_reset_high)
                 raise UnsupportedDeviceException(
                     "ERROR: Non-N76E003 device detected (devid: %d)\nThis programmer only supports N76E003 (devid: %d)!" % (devid, N76E003_DEVID))
-        self.initialized = True
 
     def close(self):
         """
@@ -260,10 +260,7 @@ class Nuvo51ICP:
         """
         if self.initialized:
             self.initialized = False
-            self.icp.exit()
-            self.icp.deinit_pgm_only(self.deinit_reset_high)
-        else:
-            self.icp.deinit_pgm_only(self.deinit_reset_high) # just in case
+            self.icp.deinit(self.deinit_reset_high)
 
     def reinit(self, do_reset_seq=True, check_device=True):
         """
@@ -393,10 +390,8 @@ class Nuvo51ICP:
         return True
 
 
-    def verify_flash(self, data: bytes, start_address: int, report_unmatched_bytes=False) -> bool:
+    def verify_flash(self, data: bytes, start_address: int, report_unmatched_bytes=True) -> bool:
         """
-
-
         #### Args:
             data (bytes): 
                 bytes to verify

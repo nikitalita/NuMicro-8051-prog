@@ -46,9 +46,6 @@ class ICPLibInterface:
     def deinit(self) -> bool:
         raise NotImplementedError("Not implemented!")
 
-    def deinit_pgm_only(self, leave_reset_high: bool) -> bool:
-        raise NotImplementedError("Not implemented!")
-
     def exit(self) -> bool:
         raise NotImplementedError("Not implemented!")
 
@@ -119,11 +116,8 @@ class LibICP(ICPLibInterface):
             ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
         self.lib.N51ICP_reentry_glitch.restype = None
 
-        self.lib.N51ICP_deinit.argtypes = []
+        self.lib.N51ICP_deinit.argtypes = [ctypes.c_uint8]
         self.lib.N51ICP_deinit.restype = None
-
-        self.lib.N51ICP_pgm_deinit_only.argtypes = [ctypes.c_uint8]
-        self.lib.N51ICP_pgm_deinit_only.restype = None
 
         self.lib.N51ICP_exit_icp_mode.argtypes = []
         self.lib.N51ICP_exit_icp_mode.restype = None
@@ -197,12 +191,8 @@ class LibICP(ICPLibInterface):
             delay_after_trigger_high), ctypes.c_uint32(delay_before_trigger_low))
         return True
 
-    def deinit(self) -> bool:
-        self.lib.N51ICP_deinit()
-        return True
-
-    def deinit_pgm_only(self, leave_reset_high: bool) -> bool:
-        self.lib.N51ICP_pgm_deinit_only(ctypes.c_ubyte(1 if leave_reset_high else 0))
+    def deinit(self, leave_reset_high: bool) -> bool:
+        self.lib.N51ICP_deinit(ctypes.c_ubyte(1 if leave_reset_high else 0))
         return True
 
     def exit(self) -> bool:

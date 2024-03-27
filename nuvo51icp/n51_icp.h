@@ -38,17 +38,10 @@ int N51ICP_init(uint8_t do_reset);
 
 /**
  * @brief      Deinitializes the PGM interface and exits the target chip from ICP mode.
-*/
-void N51ICP_deinit(void);
-
-/**
- * @brief      Deinitializes the PGM interface only.
  * 
- * @details    This function is used to deinitialize the PGM interface only, without exiting the target chip from ICP mode.
- * 
- * @param[in]  leave_reset_high  If set, the reset pin will not be released and will be left high after deinitializing the PGM interface.
+ * @param[in] leave_reset_high  If set, the reset pin will not be released and will be left high after deinitializing the PGM interface.
 */
-void N51ICP_pgm_deinit_only(uint8_t leave_reset_high);
+void N51ICP_deinit(uint8_t leave_reset_high);
 
 /**
  * Read Device ID (i.e. the chip identifier)
