@@ -116,10 +116,6 @@ class LibICP(ICPLibInterface):
             ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
         self.lib.N51ICP_reentry_glitch.restype = None
 
-        self.lib.N51ICP_reentry_glitch_read.argtypes = [
-            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
-        self.lib.N51ICP_reentry_glitch_read.restype = None
-
         self.lib.N51ICP_deinit.argtypes = []
         self.lib.N51ICP_deinit.restype = None
 
@@ -191,13 +187,6 @@ class LibICP(ICPLibInterface):
         self.lib.N51ICP_reentry_glitch(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(
             delay_after_trigger_high), ctypes.c_uint32(delay_before_trigger_low))
         return True
-
-    def reentry_glitch_read(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bytes:
-        data_type = ctypes.c_uint8 * 5
-        data = data_type()
-        self.lib.N51ICP_reentry_glitch_read(ctypes.c_uint32(delay1), ctypes.c_uint32(delay2), ctypes.c_uint32(
-            delay_after_trigger_high), ctypes.c_uint32(delay_before_trigger_low), data)
-        return bytes(data)
 
     def deinit(self) -> bool:
         self.lib.N51ICP_deinit()

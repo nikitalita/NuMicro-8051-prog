@@ -81,7 +81,6 @@ void N51ICP_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3);
  * @param[in]  delay_before_trigger_low  Delay after setting reset high, before setting trigger pin low
 */
 void N51ICP_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low);
-void N51ICP_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low, uint8_t * config_bytes);
 void N51ICP_deinit(void);
 void N51ICP_exit_icp_mode(void);
 uint32_t N51ICP_read_device_id(void);

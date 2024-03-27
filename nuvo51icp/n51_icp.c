@@ -171,11 +171,6 @@ void N51ICP_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_afte
 	USLEEP(10);
 }
 
-void N51ICP_reentry_glitch_read(uint32_t delay1, uint32_t delay2, uint32_t delay_after_trigger_high, uint32_t delay_before_trigger_low, uint8_t * config_bytes) {
-	N51ICP_reentry_glitch(delay1, delay2, delay_after_trigger_high, delay_before_trigger_low);
-	N51ICP_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, config_bytes);
-}
-
 void N51ICP_deinit(void)
 {
 	if (N51PGM_is_init()){
