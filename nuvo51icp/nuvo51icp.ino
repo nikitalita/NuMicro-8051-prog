@@ -3,6 +3,8 @@
 #include "n51_icp.h"
 #include "n51_pgm.h"
 #include "config.h"
+#include "n76e003_icp_dev.h"
+
 #include <Arduino.h>
 #include <assert.h>
 #include "common/isp_common.h"

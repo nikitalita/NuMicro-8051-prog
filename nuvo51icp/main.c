@@ -37,6 +37,8 @@
 #include "n51_icp.h"
 #include "n51_pgm.h"
 #include "config.h"
+#include "n76e003_icp_dev.h"
+
 #define N76E003_DEVID	0x3650
 
 void N51ICP_print_config(config_flags flags){
