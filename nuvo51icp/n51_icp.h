@@ -26,29 +26,6 @@
  */
 #pragma once
 
-// ICP Commands
-#define N51ICP_CMD_READ_UID		    0x04
-#define N51ICP_CMD_READ_CID		    0x0b
-#define N51ICP_CMD_READ_DEVICE_ID	0x0c
-#define N51ICP_CMD_READ_FLASH		0x00
-#define N51ICP_CMD_WRITE_FLASH		0x21
-#define N51ICP_CMD_MASS_ERASE		0x26
-#define N51ICP_CMD_PAGE_ERASE		0x22
-
-
-// ICP Entry sequence
-#define ENTRY_BITS    0x5aa503
-
-// ICP Reset sequence: ICP toggles RST pin according to this bit sequence
-#define ICP_RESET_SEQ 0x9e1cb6
-
-// Alternative Reset sequence earlier nulink firmware revisions used
-#define ALT_RESET_SEQ 0xAE1CB6
-
-// ICP Exit sequence
-#define EXIT_BITS     0xF78F0
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -53,12 +53,13 @@ void test_send_command(uint8_t cmd, uint32_t dat)
 {
 	test_bitsend((dat << 6) | cmd, 24, 1);
 }
+#define ICP_CMD_MASS_ERASE		0x26
 
 void test_serase(){
 	printf("Expected:\n");
 
 	N51PGM_init();
-	test_send_command(N51ICP_CMD_MASS_ERASE, 0x3A5A5);
+	test_send_command(ICP_CMD_MASS_ERASE, 0x3A5A5);
 	test_bitsend(0xff, 8, 1);
 	printf("\nActuyal:\n");
 	N51ICP_mass_erase();

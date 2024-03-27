@@ -39,6 +39,27 @@ static uint32_t page_erase_time = 6000;
 
 #define ENTRY_BIT_DELAY 60
 
+// ICP Commands
+#define ICP_CMD_READ_UID		0x04
+#define ICP_CMD_READ_CID		0x0b
+#define ICP_CMD_READ_DEVICE_ID	0x0c
+#define ICP_CMD_READ_FLASH		0x00
+#define ICP_CMD_WRITE_FLASH		0x21
+#define ICP_CMD_MASS_ERASE		0x26
+#define ICP_CMD_PAGE_ERASE		0x22
+
+// ICP Entry sequence
+#define ENTRY_BITS    0x5aa503
+
+// ICP Reset sequence: ICP toggles RST pin according to this bit sequence
+#define ICP_RESET_SEQ 0x9e1cb6
+
+// Alternative Reset sequence earlier nulink firmware revisions used
+#define ALT_RESET_SEQ 0xAE1CB6
+
+// ICP Exit sequence
+#define EXIT_BITS     0xF78F0
+
 #ifndef LEAVE_RESET_HIGH
 #define LEAVE_RESET_HIGH 1
 #endif
@@ -55,6 +76,7 @@ static uint32_t page_erase_time = 6000;
 #else
 #define DEBUG_PRINT(...)
 #endif
+
 
 static void N51ICP_bitsend(uint32_t data, int len, uint32_t udelay)
 {
@@ -245,7 +267,7 @@ static void N51ICP_write_byte(uint8_t data, uint8_t end, uint32_t delay1, uint32
 
 uint32_t N51ICP_read_device_id(void)
 {
-	N51ICP_send_command(N51ICP_CMD_READ_DEVICE_ID, 0);
+	N51ICP_send_command(ICP_CMD_READ_DEVICE_ID, 0);
 
 	uint8_t devid[2];
 	devid[0] = N51ICP_read_byte(0);
@@ -255,7 +277,7 @@ uint32_t N51ICP_read_device_id(void)
 }
 
 uint32_t N51ICP_read_pid(void){
-	N51ICP_send_command(N51ICP_CMD_READ_DEVICE_ID, 2);
+	N51ICP_send_command(ICP_CMD_READ_DEVICE_ID, 2);
 	uint8_t pid[2];
 	pid[0] = N51ICP_read_byte(0);
 	pid[1] = N51ICP_read_byte(1);
@@ -264,7 +286,7 @@ uint32_t N51ICP_read_pid(void){
 
 uint8_t N51ICP_read_cid(void)
 {
-	N51ICP_send_command(N51ICP_CMD_READ_CID, 0);
+	N51ICP_send_command(ICP_CMD_READ_CID, 0);
 	return N51ICP_read_byte(1);
 }
 
@@ -272,7 +294,7 @@ void N51ICP_read_uid(uint8_t * buf)
 {
 
 	for (uint8_t  i = 0; i < 12; i++) {
-		N51ICP_send_command(N51ICP_CMD_READ_UID, i);
+		N51ICP_send_command(ICP_CMD_READ_UID, i);
 		buf[i] = N51ICP_read_byte(1);
 	}
 }
@@ -280,7 +302,7 @@ void N51ICP_read_uid(uint8_t * buf)
 void N51ICP_read_ucid(uint8_t * buf)
 {
 	for (uint8_t i = 0; i < 16; i++) {
-		N51ICP_send_command(N51ICP_CMD_READ_UID, i + 0x20);
+		N51ICP_send_command(ICP_CMD_READ_UID, i + 0x20);
 		buf[i] = N51ICP_read_byte(1);
 	}
 }
@@ -290,7 +312,7 @@ uint32_t N51ICP_read_flash(uint32_t addr, uint32_t len, uint8_t *data)
 	if (len == 0) {
 		return 0;
 	}
-	N51ICP_send_command(N51ICP_CMD_READ_FLASH, addr);
+	N51ICP_send_command(ICP_CMD_READ_FLASH, addr);
 
 	for (uint32_t i = 0; i < len; i++){
 		data[i] = N51ICP_read_byte(i == (len-1));
@@ -303,7 +325,7 @@ uint32_t N51ICP_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 	if (len == 0) {
 		return 0;
 	}
-	N51ICP_send_command(N51ICP_CMD_WRITE_FLASH, addr);
+	N51ICP_send_command(ICP_CMD_WRITE_FLASH, addr);
 	int delay1 = program_time;
 	for (uint32_t i = 0; i < len; i++) {
 		N51ICP_write_byte(data[i], i == (len-1), delay1, 5);
@@ -314,13 +336,13 @@ uint32_t N51ICP_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 
 void N51ICP_mass_erase(void)
 {
-	N51ICP_send_command(N51ICP_CMD_MASS_ERASE, 0x3A5A5);
+	N51ICP_send_command(ICP_CMD_MASS_ERASE, 0x3A5A5);
 	N51ICP_write_byte(0xff, 1, 65000, 500);
 }
 
 void N51ICP_page_erase(uint32_t addr)
 {
-	N51ICP_send_command(N51ICP_CMD_PAGE_ERASE, addr);
+	N51ICP_send_command(ICP_CMD_PAGE_ERASE, addr);
 	N51ICP_write_byte(0xff, 1, page_erase_time, 100);
 }
 
