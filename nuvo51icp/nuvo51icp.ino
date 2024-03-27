@@ -186,9 +186,6 @@ void setup()
   DEBUG_PRINT("CID\t\t\t0x%02x\n", N51ICP_read_cid());
   DEBUG_PRINT("UID\t\t\t0x%024x\n", N51ICP_read_uid());
   DEBUG_PRINT("UCID\t\t\t0x%032x\n", N51ICP_read_ucid());
-#ifdef PRINT_CONFIG_EN
-  N51ICP_dump_config();
-#endif
   uint8_t buf[16];
   uint16_t addr = 0;
   while (addr < 256) {

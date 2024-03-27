@@ -39,6 +39,63 @@
 #include "config.h"
 #define N76E003_DEVID	0x3650
 
+void N51ICP_print_config(config_flags flags){
+  N51ICP_outputf("----- Chip Configuration ----\n");
+  uint8_t *raw_bytes = (uint8_t *)&flags;
+  N51ICP_outputf("Raw config bytes:\t" );
+  for (int i = 0; i < CFG_FLASH_LEN; i++){
+    N51ICP_outputf("%02X ", raw_bytes[i]);
+  }
+  N51ICP_outputf("\nMCU Boot select:\t%s\n", flags.CBS ? "APROM" : "LDROM");
+  int ldrom_size = (7 - (flags.LDS & 0x7)) * 1024;
+  if (ldrom_size > LDROM_MAX_SIZE){
+    ldrom_size = LDROM_MAX_SIZE;
+  }
+  N51ICP_outputf("LDROM size:\t\t%d Bytes\n", ldrom_size);
+  N51ICP_outputf("APROM size:\t\t%d Bytes\n", FLASH_SIZE - ldrom_size);
+  N51ICP_outputf("Security lock:\t\t%s\n", flags.LOCK ? "UNLOCKED" : "LOCKED"); // this is switched, 1 is off and 0 is on
+  N51ICP_outputf("P2.0/Nrst reset:\t%s\n", flags.RPD ? "enabled" : "disabled");
+  N51ICP_outputf("On-Chip Debugger:\t%s\n", flags.OCDEN ? "disabled" : "enabled"); // this is switched, 1 is off and 0 is on
+  N51ICP_outputf("OCD halt PWM output:\t%s\n", flags.OCDPWM ? "tri-state pins are used as PWM outputs" : "PWM continues");
+  N51ICP_outputf("Brown-out detect:\t%s\n", flags.CBODEN ? "enabled" : "disabled");
+  N51ICP_outputf("Brown-out voltage:\t");
+  switch (flags.CBOV) {
+    case 0:
+      N51ICP_outputf("4.4V\n");
+      break;
+    case 1:
+      N51ICP_outputf("3.7V\n");
+      break;
+    case 2:
+      N51ICP_outputf("2.7V\n");
+      break;
+    case 3:
+      N51ICP_outputf("2.2V\n");
+      break;
+  }
+  N51ICP_outputf("Brown-out reset:\t%s\n", flags.CBORST ? "enabled" : "disabled");
+
+  N51ICP_outputf("WDT status:\t\t");
+  switch (flags.WDTEN) {
+    case 15: // 1111
+      N51ICP_outputf("WDT is Disabled. WDT can be used as a general purpose timer via software control.\n");
+      break;
+    case 5:  // 0101
+      N51ICP_outputf("WDT is Enabled as a time-out reset timer and it STOPS running during Idle or Power-down mode.\n");
+      break;
+    default:
+      N51ICP_outputf("WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode\n");
+      break;
+  }
+}
+
+void N51ICP_dump_config()
+{
+	config_flags flags;
+	N51ICP_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, (uint8_t *)&flags);
+	N51ICP_print_config(flags);
+}
+
 typedef struct _device_info{
 	uint16_t devid;
 	uint8_t cid;

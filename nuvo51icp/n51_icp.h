@@ -25,9 +25,6 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #pragma once
-#ifdef PRINT_CONFIG_EN
-#include "config.h"
-#endif
 
 // N76E003 device constants
 #define N76E003_DEVID	    0x3650
@@ -99,11 +96,6 @@ void N51ICP_page_erase(uint32_t addr);
 void N51ICP_outputf(const char *fmt, ...);
 void N51ICP_pgm_deinit_only(uint8_t leave_reset_high);
 
-// disabled for microcontroller targets to avoid storing a large number of strings in flash
-#ifdef PRINT_CONFIG_EN
-void N51ICP_print_config(config_flags flags);
-void N51ICP_dump_config();
-#endif
 #ifdef __cplusplus
 }
 #endif
