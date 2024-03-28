@@ -60,10 +60,6 @@ static uint32_t page_erase_time = 6000;
 // ICP Exit sequence
 #define EXIT_BITS     0xF78F0
 
-#ifndef SUPPORT_OTHER_CHIPS
-#define SUPPORT_OTHER_CHIPS 0
-#endif
-
 // to avoid overhead from calling usleep() for 0 us
 #define USLEEP(x) if (x > 0) N51PGM_usleep(x)
 
@@ -120,13 +116,6 @@ int N51ICP_init(uint8_t do_reset)
 		}
 	}
 	N51ICP_enter_icp_mode(do_reset);
-#if !SUPPORT_OTHER_CHIPS
-	uint32_t dev_id = N51ICP_read_device_id();
-	if (dev_id >> 8 == 0x2F){
-		DEBUG_PRINT("Device ID mismatch: %x\n", dev_id);
-		return -1;
-	}
-#endif
 	return 0;
 }
 
