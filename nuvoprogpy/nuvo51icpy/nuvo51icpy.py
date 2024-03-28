@@ -1,42 +1,46 @@
 #!/usr/bin/env python3
-from logging import config
 import math
 import platform
-import signal
-
-from nbstripout import status
-
-if platform.system() != "Linux":
-    raise NotImplementedError("%s is not supported yet" % platform.system())
-
-import atexit
-from enum import Enum
-from io import BufferedReader
 import time
 import getopt
 import sys
 import os
 from typing import Union
 
+# detect if we are on a raspberry pi
+def is_raspberry_pi():
+    # check if /sys/firmware/devicetree/base/model exists
+    if os.path.isfile("/sys/firmware/devicetree/base/model"):
+        with open("/sys/firmware/devicetree/base/model", "r") as f:
+            model = f.read().strip()
+            if model.startswith("Raspberry Pi"):
+                return True
+    return False
+
+
 try:
     from ..config import DeviceInfo, ConfigFlags
     from ..config import *
-    from .lib.libnuvo51icp import LibICP, ICPLibInterface
-    from .lib.libnuvo51icp import *
+    if platform.system() == "Linux" and is_raspberry_pi():
+        from .lib.libnuvo51icp import LibICP
+    else:
+        LibICP = None
+    from .libicp_iface import ICPLibInterface
 except Exception as e:
     # Hack to allow running nuvo51icpy.py directly from the command line
     if __name__ == "__main__":
         # check if config.py exists in the parent directory
         if not os.path.isfile(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "config.py")):
             raise e
-
-    from lib.libnuvo51icp import LibICP, ICPLibInterface
-    from lib.libnuvo51icp import *
-
-    sys.path.append(os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), ".."))
+    if platform.system() == "Linux" and is_raspberry_pi():
+        from lib.libnuvo51icp import LibICP
+    else:
+        LibICP = None
+    sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
     from config import DeviceInfo, ConfigFlags
     from config import *
+    from libicp_iface import ICPLibInterface
+
 
 
 def eprint(*args, **kwargs):
@@ -58,11 +62,6 @@ class NoDeviceException(Exception):
 class UnsupportedDeviceException(Exception):
     pass
 
-
-# class HostPGM:
-#   def __init__(self, host_type: str = "Raspberry Pi"):
-#     self.host_type = ICPHostType.from_str(host_type)
-# 		self.initialized = False
 
 """
 Nuvo51ICP class
@@ -107,6 +106,8 @@ class Nuvo51ICP:
         if library is None:
             library = "gpiod"
         if isinstance(library, str):
+            if LibICP is None:
+                raise Exception("LibICP not available on this platform!")
             self.icp = LibICP(library)
         else:
             self.icp: ICPLibInterface = library

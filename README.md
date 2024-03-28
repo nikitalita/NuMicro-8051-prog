@@ -17,8 +17,8 @@ This currently only supports the N76E003, but it could easily be extended to oth
 - packihx (usually included with sdcc)
 - make
 - gcc
-- pigpio
-- libgpiod
+- pigpio (if using Raspberry Pi)
+- libgpiod (if using Raspberry Pi)
 - python3
 - python3-pip
 - Arduino IDE (if building nuvo51icp for Arduino)
@@ -148,7 +148,7 @@ This is a python library and command-line tool for programming the APROM with th
 
 This is compatible with the official N76E003 ISP ROM, and is ALSO compatible with the Arduino-built versions of `nuvo51icp`, which implement the ISP protocol.
 
-NOTE: Right now, the two Python packages are joined together in the `nuvoprogpy` package because they share functionality; this currently requires having both libgpiod and pigpiod installed regardless of whether or not you are going to use `nuvo51icpy`. If anyone has ideas on how to seperate these elegantly, let me know.
+NOTE: Right now, the two Python packages are joined together in the `nuvoprogpy` package because they share functionality. If anyone has ideas on how to seperate these elegantly, let me know.
 
 #### Build:
 

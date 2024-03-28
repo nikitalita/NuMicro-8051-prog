@@ -179,9 +179,23 @@ class CustomBuildClib(build_clib):
                     output_dir=self.build_clib,
                     debug=self.debug,
                 )
-
+# detect if we are on a raspberry pi
+def is_raspberry_pi():
+    if os.environ.get("_CI_OVERRIDE_", "0") == "1":
+        return True
+    if platform.system() != "Linux":
+        return False
+    # check if /sys/firmware/devicetree/base/model exists
+    if os.path.isfile("/sys/firmware/devicetree/base/model"):
+        with open("/sys/firmware/devicetree/base/model", "r") as f:
+            model = f.read().strip()
+            if model.startswith("Raspberry Pi"):
+                return True
+    return False
 
 def clean():
+    if not is_raspberry_pi():
+        return
     for root, dirs, files in os.walk('build'):
         for file in files:
             if file.endswith('.o'):
@@ -199,6 +213,8 @@ def build(setup_kwargs):
     """
     This is a callback for poetry used to hook in our extensions.
     """
+    if not is_raspberry_pi():
+        return
     clean()
     setup_kwargs.update({
         # declare shared libraries (.dll/.so) to build. These can be linked

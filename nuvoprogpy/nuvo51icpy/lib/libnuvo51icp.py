@@ -9,6 +9,15 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 if platform.system() != 'Linux':
     raise NotImplementedError("%s is not supported yet" % platform.system())
 
+# detect if we are on a raspberry pi
+def is_raspberry_pi():
+    # check if /sys/firmware/devicetree/base/model exists
+    if os.path.isfile("/sys/firmware/devicetree/base/model"):
+        with open("/sys/firmware/devicetree/base/model", "r") as f:
+            model = f.read().strip()
+            if model.startswith("Raspberry Pi"):
+                return True
+    return False
 
 # pigpio is dumb and overrides the signal handlers for SIGINT and SIGTERM
 # so every time we call anything that calls gpioInitialise(), we need to override the signal handlers
@@ -24,67 +33,10 @@ def override_signals():
     signal.signal(signal.SIGINT, catch_ctrlc)
     signal.signal(signal.SIGTERM, catch_ctrlc)
 
-class ICPLibInterface:
-    def send_entry_bits(self) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def send_exit_bits(self) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def init(self, do_reset=True) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def entry(self, do_reset=True) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def reentry(self, delay1=5000, delay2=1000, delay3=10) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def reentry_glitch(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def deinit(self, leave_reset_high: bool) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def exit(self) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def read_device_id(self):
-        raise NotImplementedError("Not implemented!")
-
-    def read_pid(self) -> int:
-        raise NotImplementedError("Not implemented!")
-
-    def read_cid(self) -> int:
-        raise NotImplementedError("Not implemented!")
-
-    def read_uid(self) -> bytes:
-        raise NotImplementedError("Not implemented!")
-
-    def read_ucid(self) -> bytes:
-        raise NotImplementedError("Not implemented!")
-
-    def read_flash(self, addr, length) -> bytes:
-        raise NotImplementedError("Not implemented!")
-
-    def write_flash(self, addr, data) -> int:
-        raise NotImplementedError("Not implemented!")
-
-    def mass_erase(self) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def page_erase(self, addr) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-    def set_program_time(self, time_us: int) -> bool:
-        raise NotImplementedError("Not implemented!")
-    
-    def set_page_erase_time(self, time_us: int) -> bool:
-        raise NotImplementedError("Not implemented!")
-
-
-class LibICP(ICPLibInterface):
+class LibICP:
     def __init__(self, libname="gpiod"):
+        if not is_raspberry_pi():
+            raise NotImplementedError("This library is only supported on a Raspberry Pi")
         # Load the shared library
         self.libname = libname
         if libname.lower() == "pigpio":
