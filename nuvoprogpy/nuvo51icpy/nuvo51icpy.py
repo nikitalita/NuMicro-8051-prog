@@ -16,11 +16,12 @@ import time
 import getopt
 import sys
 import os
+from typing import Union
 
 try:
     from ..config import DeviceInfo, ConfigFlags
     from ..config import *
-    from .lib.libnuvo51icp import LibICP, LibPGM
+    from .lib.libnuvo51icp import LibICP, ICPLibInterface
     from .lib.libnuvo51icp import *
 except Exception as e:
     # Hack to allow running nuvo51icpy.py directly from the command line
@@ -29,7 +30,7 @@ except Exception as e:
         if not os.path.isfile(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "config.py")):
             raise e
 
-    from lib.libnuvo51icp import LibICP, LibPGM
+    from lib.libnuvo51icp import LibICP, ICPLibInterface
     from lib.libnuvo51icp import *
 
     sys.path.append(os.path.join(
@@ -88,7 +89,7 @@ class Nuvo51ICP:
     def can_write_ldrom(self):
         return True
 
-    def __init__(self, silent=False, library: str = "gpiod", _enter_no_init=None, _deinit_reset_high=False, logfunc=None):
+    def __init__(self, silent=False, library: Union[ICPLibInterface, str] = "gpiod", _enter_no_init=None, _deinit_reset_high=False, logfunc=None):
         """
         Nuvo51ICP constructor
         ------
@@ -103,13 +104,12 @@ class Nuvo51ICP:
             _deinit_reset_high: _type_ (=True):
                 If True, set the reset pin high when deinitializing the ICP module and do not release the pin
         """
-        self.library = library
         if library is None:
             library = "gpiod"
         if isinstance(library, str):
             self.icp = LibICP(library)
         else:
-            self.icp = library
+            self.icp: ICPLibInterface = library
         self._enter_no_init = _enter_no_init
         self.deinit_reset_high = _deinit_reset_high
         self.initialized = False

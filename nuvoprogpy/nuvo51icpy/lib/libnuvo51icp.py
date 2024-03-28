@@ -43,7 +43,7 @@ class ICPLibInterface:
     def reentry_glitch(self, delay1=5000, delay2=1000, delay_after_trigger_high=0, delay_before_trigger_low=280) -> bool:
         raise NotImplementedError("Not implemented!")
 
-    def deinit(self) -> bool:
+    def deinit(self, leave_reset_high: bool) -> bool:
         raise NotImplementedError("Not implemented!")
 
     def exit(self) -> bool:
@@ -192,7 +192,8 @@ class LibICP(ICPLibInterface):
         return True
 
     def deinit(self, leave_reset_high: bool) -> bool:
-        self.lib.N51ICP_deinit(ctypes.c_ubyte(1 if leave_reset_high else 0))
+        val = 1 if leave_reset_high else 0
+        self.lib.N51ICP_deinit(ctypes.c_ubyte(val))
         return True
 
     def exit(self) -> bool:
