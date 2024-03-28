@@ -133,6 +133,7 @@ int N51ICP_init(uint8_t do_reset)
 void N51ICP_enter_icp_mode(uint8_t do_reset) {
 	if (do_reset) {
 		send_reset_seq(ICP_RESET_SEQ, 24);
+		N51PGM_set_rst(0);
 	} else {
 		N51PGM_set_rst(1);
 		USLEEP(5000);
