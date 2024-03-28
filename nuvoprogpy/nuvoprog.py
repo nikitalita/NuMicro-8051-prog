@@ -1,3 +1,4 @@
+from nuvoprogpy.config import DeviceInfo
 
 
 class NuvoProg:
@@ -45,7 +46,7 @@ class NuvoProg:
     def mass_erase(self):
         raise NotImplementedError
 
-    def get_device_info(self):
+    def get_device_info(self) -> DeviceInfo:
         raise NotImplementedError
 
     def page_erase(self, addr):

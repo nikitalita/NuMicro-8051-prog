@@ -16,11 +16,19 @@ FLASH_SIZE = 18 * 1024
 supported_devices = [N76E003_DEVID]
 
 class DeviceInfo:
-    def __init__(self, device_id=0xFFFF, uid=bytes([0xFF]*12), cid=0xFF, ucid=bytes([0xFF]*16)):
+    def __init__(self, device_id=0xFFFF, cid=0xFF, uid=bytes([0xFF]*12), ucid=bytes([0xFF]*16)):
         self.device_id = device_id
         self.uid = uid
         self.cid = cid
         self.ucid = ucid
+
+    @property
+    def aprom_addr(self):
+        return get_aprom_addr(self.device_id)
+
+    @property
+    def ldrom_max_size(self):
+        return get_ldrom_max_size(self.device_id)
 
     @property
     def flash_size(self):
@@ -34,9 +42,14 @@ class DeviceInfo:
     def config_len(self):
         return get_config_len(self.device_id)
 
+    @property
+    def is_unsupported(self):
+        return not self.device_id in supported_devices
+
     def __str__(self):
         return "Device ID: 0x%04X\nCID: 0x%02X\nUID: %s\nUCID: %s" % (self.device_id, self.cid, " ".join(["%02X" % b for b in self.uid]), " ".join(["%02X" % b for b in self.ucid]))
 
+    @property
     def is_supported(self):
         return self.device_id in supported_devices
 
@@ -50,6 +63,10 @@ def float_index_to_bit(bit: float) -> int:
         bytenum += 1
         bitshift = bitshift - 8
     return (bytenum, bitshift)
+
+def get_aprom_addr(device_id: int) -> int:
+    # N76E003 only for now
+    return APROM_ADDR
 
 def get_config_addr(device_id: int) -> int:
     # N76E003 only for now
@@ -71,7 +88,328 @@ def get_ldrom_max_size_kb(device_id: int) -> int:
     return int(get_ldrom_max_size(device_id) // 1024)
 
 # Configflags bitfield structure:
-class ConfigFlags(ctypes.LittleEndianStructure):
+# class N8051ConfigFlags:
+#     pass
+class ConfigFlags:
+    def __init__(self, device_id = N76E003_DEVID, cfg_bytes: list = None):
+        raise NotImplementedError("Don't call the constructor! Call `from_bytes` or `from_json` instead!")
+    
+    def to_bytes(self) -> bytes:
+        raise NotImplementedError("Not implemented!")
+
+    # get the size of the LDROM in bytes
+    def get_ldrom_size(self) -> int:
+        raise NotImplementedError("Not implemented!")
+
+    def get_ldrom_size_kb(self) -> int:
+        raise NotImplementedError("Not implemented!")
+
+    # get the size of the APROM in bytes
+    def get_aprom_size(self):
+        raise NotImplementedError("Not implemented!")
+
+    def get_aprom_size_kb(self):
+        raise NotImplementedError("Not implemented!")
+
+    def is_locked(self) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def is_ldrom_boot(self):
+        raise NotImplementedError("Not implemented!")
+
+    def is_ocd_enabled(self):
+        raise NotImplementedError("Not implemented!")
+
+    def is_brownout_detect(self):
+        raise NotImplementedError("Not implemented!")
+
+    def is_brownout_reset(self):
+        raise NotImplementedError("Not implemented!")
+
+    def is_wdt_enabled(self):
+        raise NotImplementedError("Not implemented!")
+
+    def is_wdt_keep_active(self):
+        raise NotImplementedError("Not implemented!")
+
+    def is_brownout_inhibits_IAP(self):
+        raise NotImplementedError("Not implemented!")
+
+    def set_ldrom_boot(self, enable: bool) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    # Set ldrom size in bytes
+
+    def set_ldrom_size(self, size: int):
+        raise NotImplementedError("Not implemented!")
+
+    # Set ldrom size in KB
+    def set_ldrom_size_kb(self, size_kb: int):
+        raise NotImplementedError("Not implemented!")
+
+    def set_brownout_detect(self, enable: bool) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def set_brownout_reset(self, enable: bool) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def set_ocd_enable(self, enable: bool) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def set_brownout_inhibits_IAP(self, enable: bool) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def get_brown_out_voltage(self):
+        raise NotImplementedError("Not implemented!")
+
+    def set_brownout_voltage(self, voltage: float) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def set_lock(self, enable: bool) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def enable_ldrom(self, kb_size: int) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def set_wdt(self, enable: bool, keep_active: bool = False) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    def get_config_status(self) -> str:
+        raise NotImplementedError("Not implemented!")
+
+
+    def print_config(self):
+        raise NotImplementedError("Not implemented!")
+
+    def __str__(self) -> str:
+        raise NotImplementedError("Not implemented!")
+
+    def to_json(self):
+        raise NotImplementedError("Not implemented!")
+
+    # Dumps config to file
+    def to_json_file(self, filename) -> bool:
+        raise NotImplementedError("Not implemented!")
+
+    @property
+    def is_unsupported(self):
+        return not self.device_id in supported_devices
+        
+    @staticmethod
+    def from_bytes(config_bytes, device_id):
+        if device_id in supported_devices:
+            return N8051ConfigFlags(config_bytes, device_id)
+        return UnsupportedConfigFlags(config_bytes, device_id)
+
+    @staticmethod
+    def from_json(json, device_id=None):
+        if device_id is None:
+            device_id = N76E003_DEVID
+        # unsupported devices
+        if 'device_id' in json and json['device_id'] != device_id:
+            device_id = json['device_id']
+        if 'config_bytes' in json and type(json['config_bytes']) == list and len(json['config_bytes']) == 5:
+            config = UnsupportedConfigFlags(json['config_bytes'], device_id)
+            return config
+        config = N8051ConfigFlags(device_id=device_id)
+        # check that key exists
+        if 'lock' in json and type(json['lock']) == bool:
+            config.set_lock(json['lock'])
+        if 'boot_from_ldrom' in json and type(json['boot_from_ldrom']) == bool:
+            config.set_ldrom_boot(json['boot_from_ldrom'])
+        if 'ldrom_size' in json and json['ldrom_size'] >= 0 and json['ldrom_size'] <= 4096:
+            config.set_ldrom_size(json['ldrom_size'])
+        if 'OCD_enable' in json and type(json['OCD_enable']) == bool:
+            config.set_ocd_enable(json['OCD_enable'])
+        if 'brownout_detect' in json and type(json['brownout_detect']) == bool:
+            config.set_brownout_detect(json['brownout_detect'])
+        if 'brownout_reset' in json and type(json['brownout_reset']) == bool:
+            config.set_brownout_reset(json['brownout_reset'])
+        if 'brownout_voltage' in json and (json['brownout_voltage'] == 2.2 or json['brownout_voltage'] == 4.4 or json['brownout_voltage'] == 2.7 or json['brownout_voltage'] == 3.7):
+            config.set_brownout_voltage(json['brownout_voltage'])
+        if 'brownout_inhibits_IAP' in json and type(json['brownout_inhibits_IAP']) == bool:
+            config.set_brownout_inhibits_IAP(json['brownout_inhibits_IAP'])
+        if 'WDT_enable' in json and type(json['WDT_enable']) == bool:
+            keep_active = False if not json['WDT_keep_active'] else True
+            config.set_wdt(json['WDT_enable'], keep_active)
+        return config
+
+    @staticmethod
+    def from_json_file(filename, device_id=None):
+        try:
+            with open(filename, "r") as f:
+                confinfo = json.load(f)
+                return ConfigFlags.from_json(confinfo, device_id)
+        except:
+            print("Error reading config file")
+            return None
+
+class UnsupportedConfigFlags(ConfigFlags):
+
+    # default constructor
+    # takes in an optional 5-byte array
+    def __init__(self, cfg_bytes: list = None, device_id = N76E003_DEVID):
+        # print the type of bytes
+        self.device_id = device_id
+        self.cfg_bytes = cfg_bytes
+
+    # def get_bit_value_n(self, bytenum: int, bit: int) -> int:
+    #     # get the byte
+    #     if bytenum > 4 or bit > 7:
+    #         raise ValueError("Invalid bit index")
+    #     byte = self.to_bytes()[bytenum]
+    #     return (byte >> bit) & 0x1
+
+    # # key is in format of [0-4].[0-7]
+    # def get_bit_value(self, bit: float) -> int:
+    #     bytenum, bitnum = float_index_to_bit(bit)
+    #     return self.get_bit_value_n(bytenum, bitnum)
+
+    # def set_bit_value_n(self, bytenum: int, bit: int, value: bool):
+    #     if bytenum > 4 or bit > 7:
+    #         raise ValueError("Invalid bit index")
+    #     # get the byte
+    #     value = 1 if value else 0
+    #     byte = self.to_bytes()[bytenum]
+    #     # set the bit
+    #     byte = (byte & ~(1 << bit)) | (value << bit)
+    #     # set the byte
+    #     struct.pack_into("B", self, bytenum, byte)
+
+    # def set_bit_value(self, bit: float, value: bool):
+    #     bytenum, bitnum = float_index_to_bit(bit)
+    #     self.set_bit_value_n(bytenum, bitnum, value)
+
+    # def __getitem__(self, key):
+    #     # if key is int...
+    #     if isinstance(key, int):
+    #         return self.to_bytes()[int(key)]
+    #     # if str is a int
+    #     elif isinstance(key, str) and key.isdigit():
+    #         return self.to_bytes()[int(key)]
+    #     return getattr(self, key)
+
+    # # Set item
+    # def __setitem__(self, key, value):
+    #     # if key is int...
+    #     if isinstance(key, int):
+    #         struct.pack_into("B", self, key, value)
+    #     else:
+    #         setattr(self, key, value)
+
+    def to_bytes(self) -> bytes:
+        return bytes(self.cfg_bytes)
+
+    # get the size of the LDROM in bytes
+    def get_ldrom_size(self) -> int:
+        return 0
+
+    def get_ldrom_size_kb(self) -> int:
+        return 0
+
+    # get the size of the APROM in bytes
+    def get_aprom_size(self):
+        return get_flash_size(self.device_id) - self.get_ldrom_size()
+
+    def get_aprom_size_kb(self):
+        return int(self.get_aprom_size() / 1024)
+
+    def is_locked(self) -> bool:
+        return False
+
+    def is_ldrom_boot(self):
+        return False
+
+    def is_ocd_enabled(self):
+        return False
+
+    def is_brownout_detect(self):
+        return False
+
+    def is_brownout_reset(self):
+        return False
+
+    def is_wdt_enabled(self):
+        return False
+
+    def is_wdt_keep_active(self):
+        return False
+
+    def is_brownout_inhibits_IAP(self):
+        return False
+
+    def set_ldrom_boot(self, enable: bool) -> bool:
+        return False
+
+    # Set ldrom size in bytes
+
+    def set_ldrom_size(self, size: int):
+        return False
+
+    # Set ldrom size in KB
+    def set_ldrom_size_kb(self, size_kb: int):
+        return False
+
+    def set_brownout_detect(self, enable: bool) -> bool:
+        return False
+
+    def set_brownout_reset(self, enable: bool) -> bool:
+        return False
+
+    def set_ocd_enable(self, enable: bool) -> bool:
+        return False
+
+    def set_brownout_inhibits_IAP(self, enable: bool) -> bool:
+        return False
+
+    def get_brown_out_voltage(self):
+        return 0
+
+    def set_brownout_voltage(self, voltage: float) -> bool:
+        return False
+
+    def set_lock(self, enable: bool) -> bool:
+        return False
+
+    def enable_ldrom(self, kb_size: int) -> bool:
+        return False
+
+    def set_wdt(self, enable: bool, keep_active: bool = False) -> bool:
+        return False
+
+    def get_config_status(self) -> str:
+        ret_str = ""
+        ret_str +=("----- Chip Configuration ----\n")
+        raw_bytes = self.to_bytes()
+        ret_str +=("Raw config bytes:\t")
+        for i in range(len(raw_bytes)):
+            ret_str +=("%02X " % raw_bytes[i])
+        return ret_str
+
+    def print_config(self):
+        print(self.get_config_status())
+
+    def __str__(self) -> str:
+        return " ".join(["%02X" % b for b in self.to_bytes()])
+
+    def to_json(self):
+        return json.dumps({
+            "device_id": self.device_id,
+            "config_bytes": self.to_bytes()
+        }, indent=4)
+
+    # Dumps config to file
+    def to_json_file(self, filename) -> bool:
+        obj = self.to_json()
+        try:
+            with open(filename, "w") as f:
+                f.write(obj)
+                return True
+        except:
+            print("Error writing config file")
+            return False
+
+class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
     _fields_ = [
         # config byte 0
         ("unk0_0", ctypes.c_uint8, 1),       # 0:0
@@ -143,57 +481,63 @@ class ConfigFlags(ctypes.LittleEndianStructure):
     def __init__(self, cfg_bytes: list = None, device_id = N76E003_DEVID):
         # print the type of bytes
         self.device_id = device_id
-        if cfg_bytes is None or len(cfg_bytes) != ctypes.sizeof(self):
-            # initialize to all 0xFF
-            struct.pack_into("B" * ctypes.sizeof(self), self,
-                             0, *([0xFF] * ctypes.sizeof(self)))
+        if not self.device_id in supported_devices:
+            if cfg_bytes is None:
+                cfg_bytes = [0xFF] * 16
+            self.bytes = cfg_bytes
         else:
-            # initialize to the given bytes
-            struct.pack_into("B" * ctypes.sizeof(self), self, 0, *cfg_bytes)
+            self.bytes = None
+            if cfg_bytes is None or len(cfg_bytes) != ctypes.sizeof(self):
+                # initialize to all 0xFF
+                struct.pack_into("B" * ctypes.sizeof(self), self,
+                                0, *([0xFF] * ctypes.sizeof(self)))
+            else:
+                # initialize to the given bytes
+                struct.pack_into("B" * ctypes.sizeof(self), self, 0, *cfg_bytes)
 
-    def get_bit_value_n(self, bytenum: int, bit: int) -> int:
-        # get the byte
-        if bytenum > 4 or bit > 7:
-            raise ValueError("Invalid bit index")
-        byte = self.to_bytes()[bytenum]
-        return (byte >> bit) & 0x1
+    # def get_bit_value_n(self, bytenum: int, bit: int) -> int:
+    #     # get the byte
+    #     if bytenum > 4 or bit > 7:
+    #         raise ValueError("Invalid bit index")
+    #     byte = self.to_bytes()[bytenum]
+    #     return (byte >> bit) & 0x1
 
-    # key is in format of [0-4].[0-7]
-    def get_bit_value(self, bit: float) -> int:
-        bytenum, bitnum = float_index_to_bit(bit)
-        return self.get_bit_value_n(bytenum, bitnum)
+    # # key is in format of [0-4].[0-7]
+    # def get_bit_value(self, bit: float) -> int:
+    #     bytenum, bitnum = float_index_to_bit(bit)
+    #     return self.get_bit_value_n(bytenum, bitnum)
 
-    def set_bit_value_n(self, bytenum: int, bit: int, value: bool):
-        if bytenum > 4 or bit > 7:
-            raise ValueError("Invalid bit index")
-        # get the byte
-        value = 1 if value else 0
-        byte = self.to_bytes()[bytenum]
-        # set the bit
-        byte = (byte & ~(1 << bit)) | (value << bit)
-        # set the byte
-        struct.pack_into("B", self, bytenum, byte)
+    # def set_bit_value_n(self, bytenum: int, bit: int, value: bool):
+    #     if bytenum > 4 or bit > 7:
+    #         raise ValueError("Invalid bit index")
+    #     # get the byte
+    #     value = 1 if value else 0
+    #     byte = self.to_bytes()[bytenum]
+    #     # set the bit
+    #     byte = (byte & ~(1 << bit)) | (value << bit)
+    #     # set the byte
+    #     struct.pack_into("B", self, bytenum, byte)
 
-    def set_bit_value(self, bit: float, value: bool):
-        bytenum, bitnum = float_index_to_bit(bit)
-        self.set_bit_value_n(bytenum, bitnum, value)
+    # def set_bit_value(self, bit: float, value: bool):
+    #     bytenum, bitnum = float_index_to_bit(bit)
+    #     self.set_bit_value_n(bytenum, bitnum, value)
 
-    def __getitem__(self, key):
-        # if key is int...
-        if isinstance(key, int):
-            return self.to_bytes()[int(key)]
-        # if str is a int
-        elif isinstance(key, str) and key.isdigit():
-            return self.to_bytes()[int(key)]
-        return getattr(self, key)
+    # def __getitem__(self, key):
+    #     # if key is int...
+    #     if isinstance(key, int):
+    #         return self.to_bytes()[int(key)]
+    #     # if str is a int
+    #     elif isinstance(key, str) and key.isdigit():
+    #         return self.to_bytes()[int(key)]
+    #     return getattr(self, key)
 
-    # Set item
-    def __setitem__(self, key, value):
-        # if key is int...
-        if isinstance(key, int):
-            struct.pack_into("B", self, key, value)
-        else:
-            setattr(self, key, value)
+    # # Set item
+    # def __setitem__(self, key, value):
+    #     # if key is int...
+    #     if isinstance(key, int):
+    #         struct.pack_into("B", self, key, value)
+    #     else:
+    #         setattr(self, key, value)
 
     def to_bytes(self) -> bytes:
         return bytes(struct.unpack_from("B" * ctypes.sizeof(self), self))
@@ -318,30 +662,35 @@ class ConfigFlags(ctypes.LittleEndianStructure):
             self.WDTEN = 0b1111
         return True
 
-    def print_config(self):
-        print("----- Chip Configuration ----")
+    def get_config_status(self) -> str:
+        ret_str = ""
+        ret_str +=("----- Chip Configuration ----\n")
         raw_bytes = self.to_bytes()
-        print("Raw config bytes:\t", end="")
+        ret_str +=("Raw config bytes:\t")
         for i in range(len(raw_bytes)):
-            print("%02X " % raw_bytes[i], end="")
-        print("\nMCU Boot select:\t%s" %
+            ret_str +=("%02X " % raw_bytes[i])
+
+        if self.device_id not in supported_devices:
+            return ret_str
+
+        ret_str +=("\nMCU Boot select:\t%s\n" %
               ("APROM" if self.CBS == 1 else "LDROM"))
-        print("LDROM size:\t\t%d Bytes" % self.get_ldrom_size())
-        print("APROM size:\t\t%d Bytes" % self.get_aprom_size())
-        print("Security lock:\t\t%s" %
+        ret_str +=("LDROM size:\t\t%d Bytes\n" % self.get_ldrom_size())
+        ret_str +=("APROM size:\t\t%d Bytes\n" % self.get_aprom_size())
+        ret_str +=("Security lock:\t\t%s\n" %
               ("UNLOCKED" if not self.is_locked() else "LOCKED"))
-        print("P2.0/Nrst reset:\t%s" %
+        ret_str +=("P2.0/Nrst reset:\t%s\n" %
               ("enabled" if self.RPD == 1 else "disabled"))
-        print("On-Chip Debugger:\t%s" %
+        ret_str +=("On-Chip Debugger:\t%s\n" %
               ("disabled" if self.OCDEN == 1 else "enabled"))
-        print("OCD halt PWM output:\t%s" % (
+        ret_str +=("OCD halt PWM output:\t%s\n" % (
             "tri-state pins are used as PWM outputs" if self.OCDPWM == 1 else "PWM continues"))
-        print("Brown-out detect:\t%s" %
+        ret_str +=("Brown-out detect:\t%s\n" %
               ("enabled" if self.CBODEN == 1 else "disabled"))
-        print("Brown-out voltage:\t%.1fV" % self.get_brown_out_voltage())
-        print("Brown-out reset:\t%s" %
+        ret_str +=("Brown-out voltage:\t%.1fV\n" % self.get_brown_out_voltage())
+        ret_str +=("Brown-out reset:\t%s\n" %
               ("enabled" if self.CBORST == 1 else "disabled"))
-        print("Brown-out inhibits IAP:\t%s" %
+        ret_str +=("Brown-out inhibits IAP:\t%s\n" %
               ("enabled" if self.BOIAP == 1 else "disabled"))
 
         wdt_status = ""
@@ -352,53 +701,14 @@ class ConfigFlags(ctypes.LittleEndianStructure):
         else:
             wdt_status = "WDT is Enabled as a time-out reset timer and it KEEPS running during Idle or Power-down mode"
 
-        print("WDT status:\t\t%s" % wdt_status)
+        ret_str +=("WDT status:\t\t%s\n" % wdt_status)
+        return ret_str
+
+    def print_config(self):
+        print(self.get_config_status())
 
     def __str__(self) -> str:
         return " ".join(["%02X" % b for b in self.to_bytes()])
-
-    @staticmethod
-    def from_json(json, device_id=None):
-        if device_id is None:
-            device_id = N76E003_DEVID
-        # unsupported devices
-        if 'device_id' in json and json['device_id'] != device_id:
-            device_id = json['device_id']
-        if 'config_bytes' in json and type(json['config_bytes']) == list and len(json['config_bytes']) == 5:
-            config = ConfigFlags(json['config_bytes'], device_id)
-            return config
-        config = ConfigFlags(device_id=device_id)
-        # check that key exists
-        if 'lock' in json and type(json['lock']) == bool:
-            config.set_lock(json['lock'])
-        if 'boot_from_ldrom' in json and type(json['boot_from_ldrom']) == bool:
-            config.set_ldrom_boot(json['boot_from_ldrom'])
-        if 'ldrom_size' in json and json['ldrom_size'] >= 0 and json['ldrom_size'] <= 4096:
-            config.set_ldrom_size(json['ldrom_size'])
-        if 'OCD_enable' in json and type(json['OCD_enable']) == bool:
-            config.set_ocd_enable(json['OCD_enable'])
-        if 'brownout_detect' in json and type(json['brownout_detect']) == bool:
-            config.set_brownout_detect(json['brownout_detect'])
-        if 'brownout_reset' in json and type(json['brownout_reset']) == bool:
-            config.set_brownout_reset(json['brownout_reset'])
-        if 'brownout_voltage' in json and (json['brownout_voltage'] == 2.2 or json['brownout_voltage'] == 4.4 or json['brownout_voltage'] == 2.7 or json['brownout_voltage'] == 3.7):
-            config.set_brownout_voltage(json['brownout_voltage'])
-        if 'brownout_inhibits_IAP' in json and type(json['brownout_inhibits_IAP']) == bool:
-            config.set_brownout_inhibits_IAP(json['brownout_inhibits_IAP'])
-        if 'WDT_enable' in json and type(json['WDT_enable']) == bool:
-            keep_active = False if not json['WDT_keep_active'] else True
-            config.set_wdt(json['WDT_enable'], keep_active)
-        return config
-
-    @staticmethod
-    def from_json_file(filename, device_id=None):
-        try:
-            with open(filename, "r") as f:
-                confinfo = json.load(f)
-                return ConfigFlags.from_json(confinfo, device_id)
-        except:
-            print("Error reading config file")
-            return None
 
     def to_json(self):
         if not (self.device_id in supported_devices):
@@ -435,6 +745,6 @@ def is_config_flags(thing):
     return isinstance(thing, ConfigFlags)
 
 
-assert ctypes.sizeof(ConfigFlags) == CFG_FLASH_LEN
+assert ctypes.sizeof(N8051ConfigFlags) == CFG_FLASH_LEN
 
 # class DeviceInfo:

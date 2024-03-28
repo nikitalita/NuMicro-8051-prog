@@ -38,8 +38,7 @@ import math
 
 try:
     from ..nuvoprog import NuvoProg
-    from ..config import *
-    from ..config import ConfigFlags
+    from ..config import ConfigFlags, DeviceInfo
 except Exception as e:
     # Hack to allow running nuvoicpy.py directly from the command line
     if __name__ == "__main__":
@@ -658,8 +657,9 @@ class NuvoISP(NuvoProg):
 
     def read_config(self):
         self._fail_if_not_init()
+        device_info: DeviceInfo = self.get_device_info()
         _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_READ_CONFIG))
-        return ConfigFlags(rx_pkt.data[:5])
+        return ConfigFlags.from_bytes(rx_pkt.data[:device_info.config_len], device_info.device_id)
 
     def erase_aprom(self):
         self._fail_if_not_init()
@@ -680,12 +680,11 @@ class NuvoISP(NuvoProg):
             time.sleep(0.2)
             self._connect()
 
-    def get_device_info(self):
+    def get_device_info(self) -> DeviceInfo:
         self._fail_if_not_init()
         if self.supports_extended_cmds:
-            return DeviceInfo(self.get_device_id(),  self.get_uid(), self.get_cid(), self.get_ucid())
-        else:
-            return DeviceInfo(self.get_device_id())
+            return DeviceInfo(self.get_device_id(),  self.get_cid())
+        return DeviceInfo(self.get_device_id(), 0xD0)
 
     def page_erase(self, addr):
         self._fail_if_not_init()
@@ -741,9 +740,14 @@ class NuvoISP(NuvoProg):
         if not self.silent:
             progress_bar(name, step, total)
 
-    def dump_flash(self, start_addr=APROM_ADDR, length=FLASH_SIZE) -> bytes:
+    def dump_flash(self, start_addr=None, length=None) -> bytes:
         self._fail_if_not_init()
         self._fail_if_not_extended()
+        device_info: DeviceInfo = self.get_device_info()
+        if start_addr is None:
+            start_addr = device_info.aprom_addr
+        if length is None:
+            length = device_info.flash_size
         step_size = DUMP_DATA_SIZE
         data = bytes()
         first_packet = self._cmd_packet(CMD_READ_ROM, bytes([start_addr & 0xff, (start_addr >> 8) & 0xff]) +
@@ -778,7 +782,9 @@ class NuvoISP(NuvoProg):
 
     def write_config(self, config_bytes: bytes):
         self._fail_if_not_init()
-        pkt = self._cmd_packet(CMD_UPDATE_CONFIG, config_bytes + config_bytes)
+        device_info = self.get_device_info()
+        config_len = device_info.config_len
+        pkt = self._cmd_packet(CMD_UPDATE_CONFIG, config_bytes[:config_len] + config_bytes[:config_len])
         self.send_cmd(pkt)
 
     def program_config(self, config: ConfigFlags):
@@ -986,7 +992,7 @@ class NuvoISP(NuvoProg):
 
         return self.program_all(aprom_data, ldrom_data, config=config, verify_flash=None, ldrom_config_override=ldrom_override, _lock=_lock)
 
-    def verify_flash(self, data, report_unmatched_bytes=False, addr=APROM_ADDR, rom_size=FLASH_SIZE) -> bool:
+    def verify_flash(self, data, report_unmatched_bytes=False, addr=APROM_ADDR, rom_size=None) -> bool:
         """
 
 
@@ -1004,6 +1010,7 @@ class NuvoISP(NuvoProg):
         read_data = self.dump_flash()
         if read_data == None:
             return False
+        rom_size = len(read_data) if rom_size is None else rom_size
         read_data = read_data[addr:rom_size]
 
         if len(read_data) > len(data):
@@ -1113,15 +1120,15 @@ def main() -> int:
             print_usage()
             return 2
 
-    try:
-        # check to see if the files are the correct size
-        if write and os.path.getsize(write_file) > FLASH_SIZE:
-            eprint("ERROR: %s is too large for APROM.\n\n" % write_file)
-            print_usage()
-            return 2
-    except:
-        eprint("ERROR: Could not read %s.\n\n" % write_file)
-        return 2
+    # try:
+    #     # check to see if the files are the correct size
+    #     if write and os.path.getsize(write_file) > FLASH_SIZE:
+    #         eprint("ERROR: %s is too large for APROM.\n\n" % write_file)
+    #         print_usage()
+    #         return 2
+    # except:
+    #     eprint("ERROR: Could not read %s.\n\n" % write_file)
+    #     return 2
     # check the length of the ldrom file
     ldrom_size = 0
     if ldrom_file:

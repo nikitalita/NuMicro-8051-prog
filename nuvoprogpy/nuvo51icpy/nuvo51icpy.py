@@ -79,10 +79,6 @@ Returns:
 class Nuvo51ICP:
     can_write_locked_without_mass_erase = False
     can_mass_erase = True
-    flash_size = FLASH_SIZE
-    ldrom_max_size = LDROM_MAX_SIZE
-    aprom_addr = APROM_ADDR
-    config_flash_addr = CFG_FLASH_ADDR
 
     @property
     def can_write_ldrom(self):
@@ -313,11 +309,13 @@ class Nuvo51ICP:
 
     def read_config(self) -> ConfigFlags:
         self._fail_if_not_init()
-        return ConfigFlags(self.icp.read_flash(self.config_flash_addr, CFG_FLASH_LEN))
+        device_info = self.get_device_info()
+        return ConfigFlags.from_bytes(self.icp.read_flash(device_info.config_addr, device_info.config_len), device_info.device_id)
 
     def write_config(self, config_bytes: bytes) -> bool:
         self._fail_if_not_init()
-        return self.icp.write_flash(self.config_flash_addr, config_bytes)
+        device_info = self.get_device_info()
+        return self.icp.write_flash(device_info.config_addr, config_bytes)
                     
     def mass_erase(self):
         self._fail_if_not_init()
@@ -335,14 +333,9 @@ class Nuvo51ICP:
                 return False
         return True
 
-    def get_device_info(self):
+    def get_device_info(self) -> DeviceInfo:
         self._fail_if_not_init()
-        devinfo = DeviceInfo()
-        devinfo.device_id = self.get_device_id()
-        devinfo.uid = self.get_uid()
-        devinfo.cid = self.get_cid()
-        devinfo.ucid = self.icp.read_ucid()
-        return devinfo
+        return DeviceInfo(self.get_device_id(),  self.get_cid())
 
     def page_erase(self, addr):
         self._fail_if_not_init()
@@ -368,7 +361,8 @@ class Nuvo51ICP:
 
     def dump_flash(self) -> bytes:
         self._fail_if_not_init()
-        return self.read_flash(self.aprom_addr, self.flash_size)
+        device_info = self.get_device_info()
+        return self.read_flash(device_info.aprom_addr, device_info.flash_size)
 
     def dump_flash_to_file(self, read_file:str) -> bool:
         self._fail_if_not_init()
@@ -380,12 +374,13 @@ class Nuvo51ICP:
         self.print_vb("Reading flash...")
         ext = read_file.split(".")[-1]
         config = self.read_config()
+        device_info = self.get_device_info()
         if config.get_ldrom_size() > 0:
             ldrom_file = read_file.rsplit(".", 1)[0] + "-ldrom.bin"
             lf = open(ldrom_file, "wb")
-            lf.write(self.read_flash(self.flash_size - config.get_ldrom_size(), config.get_ldrom_size()))
+            lf.write(self.read_flash(device_info.flash_size - config.get_ldrom_size(), config.get_ldrom_size()))
             lf.close()
-        f.write(self.read_flash(self.aprom_addr, config.get_aprom_size()))
+        f.write(self.read_flash(device_info.aprom_addr, config.get_aprom_size()))
         f.close()
         self.print_vb("Done.")
         return True
@@ -424,24 +419,30 @@ class Nuvo51ICP:
         return result
 
     def check_ldrom_size(self, size) -> bool:
-        if size > self.ldrom_max_size:
+        self._fail_if_not_init()
+        device_info = self.get_device_info()
+        if size > device_info.ldrom_max_size:
             return False
         return True
 
     def check_aprom_size(self, size) -> bool:
-        if size > self.flash_size:
+        self._fail_if_not_init()
+        device_info = self.get_device_info()
+        if size > device_info.flash_size:
             return False
         return True
     
     def check_rom_size(self, aprom_size, ldrom_size) -> bool:
-        if not self.check_aprom_size(aprom_size):
-            self.print_err("ERROR: APROM size too large for flash size of ".format(self.flash_size))
+        self._fail_if_not_init()
+        device_info = self.get_device_info()
+        if aprom_size > device_info.flash_size:
+            self.print_err("ERROR: APROM size too large for flash size of ".format(device_info.flash_size))
             return False
-        if not self.check_ldrom_size(ldrom_size):
-            self.print_err("ERROR: LDROM size above max of {}.".format(self.ldrom_max_size))
+        if ldrom_size > device_info.ldrom_max_size:
+            self.print_err("ERROR: LDROM size above max of {}.".format(device_info.ldrom_max_size))
             return False
-        if ldrom_size > 0 and aprom_size + ldrom_size > self.flash_size:
-            self.print_err("ERROR: APROM and LDROM sizes exceed flash size of {}.".format(self.flash_size))
+        if ldrom_size > 0 and aprom_size + ldrom_size > device_info.flash_size:
+            self.print_err("ERROR: APROM and LDROM sizes exceed flash size of {}.".format(device_info.flash_size))
             return False
         return True
 
@@ -499,11 +500,11 @@ class Nuvo51ICP:
         if not config:
             self.print_err("ERROR: No config provided.")
             return False
+        if config.is_unsupported:
+            self.print_err("ERROR: This device is unsupported for programming the LDROM.")
+            return False
         if len(ldrom_data) == 0:
             self.print_err("ERROR: No LDROM data provided.")
-            return False
-        if not self.check_ldrom_size(len(ldrom_data)):
-            self.print_err("ERROR: LDROM size greater than max of 4KB. Not programming...")
             return False
         else:
             if len(ldrom_data) % 1024 != 0 and self.pad_data:
@@ -553,9 +554,10 @@ class Nuvo51ICP:
                 fail to be written if the config isn't the default (FF FF FF FF FF).
         """
         self._fail_if_not_init()
+        device_info = self.get_device_info()
         if erase:
-            self.page_erase(self.config_flash_addr)
-        self.write_config(config.to_bytes())
+            self.page_erase(device_info.config_addr)
+        self.write_flash(device_info.config_addr, config.to_bytes())
         return True
 
     def program_aprom(self, aprom_data, config: ConfigFlags = None, verify=True, erase=True) -> bool:
@@ -573,8 +575,9 @@ class Nuvo51ICP:
                 If True, the APROM area will be erased before writing the data.
         """
         self._fail_if_not_init()
-        if not self.check_aprom_size(len(aprom_data)):
-            self.print_err("ERROR: APROM size too large for flash size of {}".format(self.flash_size))
+        device_info = self.get_device_info()
+        if len(aprom_data) > device_info.flash_size:
+            self.print_err("ERROR: APROM size too large for flash size of {}".format(device_info.flash_size))
             return False
         if not config and not self._needs_unlock():
             config = self.read_config()
@@ -598,13 +601,13 @@ class Nuvo51ICP:
         if self.pad_data:
             aprom_data = self.pad_rom(aprom_data, config.get_aprom_size())
         self.print_vb("Programming APROM...")
-        if not self.write_flash(self.aprom_addr, aprom_data):
+        if not self.write_flash(device_info.aprom_addr, aprom_data):
             self.print_err("Programming APROM Failed!")
             return False
         self.print_vb("APROM programmed.")
         if not verify:
             return True
-        if not self.verify_flash(aprom_data, self.aprom_addr):
+        if not self.verify_flash(aprom_data, device_info.aprom_addr):
             self.print_err("APROM verification failed.")
             return False
         self.print_vb("APROM verification succeeded.")
@@ -633,8 +636,12 @@ class Nuvo51ICP:
         if not config:
             self.print_err("ERROR: No config provided.")
             return False
-        start_addr = self.flash_size - config.get_ldrom_size()
-        if not self.check_ldrom_size(len(ldrom_data)):
+        device_info = self.get_device_info()
+        if not device_info.is_supported:
+            self.print_err("ERROR: Device is not supported for LDROM programming.")
+            return False
+        start_addr = device_info.flash_size - config.get_ldrom_size()
+        if len(ldrom_data) > device_info.ldrom_max_size:
             self.print_err("ERROR: LDROM size greater than max of 4KB. Not programming...")
             return False
         if not self._ldrom_config_precheck(ldrom_data, config, False, False):
@@ -699,14 +706,15 @@ class Nuvo51ICP:
             ldrom_config_override = True
             if not self._run_prechecks(aprom_data, ldrom_data, config, ldrom_config_override):
                 return False
-        ldrom_addr = self.flash_size - config.get_ldrom_size()
+        device_info = self.get_device_info()
+        ldrom_addr = device_info.flash_size - config.get_ldrom_size()
         if len(aprom_data) > 0:
             if self.pad_data:
                 aprom_data = self.pad_rom(aprom_data, config.get_aprom_size())
             if _erase:
                 self.erase_aprom_area(config)
             self.print_vb("Programming APROM ({} KB)...".format(len(aprom_data) // 1024))
-            self.write_flash(self.aprom_addr, aprom_data)
+            self.write_flash(device_info.aprom_addr, aprom_data)
         if len(ldrom_data) > 0:
             if self.pad_data:
                 ldrom_data = self.pad_rom(ldrom_data, config.get_ldrom_size())
@@ -719,7 +727,7 @@ class Nuvo51ICP:
 
         if verify:
             if len(aprom_data) > 0 or len(ldrom_data) > 0:
-                if len(aprom_data) > 0 and not (self.verify_flash(aprom_data, self.aprom_addr)):
+                if len(aprom_data) > 0 and not (self.verify_flash(aprom_data, device_info.aprom_addr)):
                     self.print_vb("APROM Verification failed.")
                     return False
                 if len(ldrom_data) > 0 and not (self.verify_flash(ldrom_data, ldrom_addr)):
