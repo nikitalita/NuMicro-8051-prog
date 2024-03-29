@@ -1,6 +1,4 @@
 import platform
-if platform.system() != 'Linux':
-    raise NotImplementedError("%s is not supported yet" % platform.system())
 import sys
 
 from .nuvoispy import main

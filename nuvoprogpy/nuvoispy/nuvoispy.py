@@ -130,6 +130,9 @@ READ_ROM_TIMEOUT = 2 # 2000ms
 DEFAULT_UNIX_PORT = "/dev/ttyACM0"
 DEFAULT_WIN_PORT = "COM1"
 
+# TODO: Replace this with device-specific values
+LDROM_MAX_SIZE = 4096
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -605,13 +608,13 @@ class NuvoISP(NuvoProg):
         self.print_vb("ISP firmware version: " + hex(self.fw_ver) + revision_string)
         # check device id
         if check_for_device:
-            dev_id = self.get_device_id()
-            if dev_id == 0:
+            device_info = self.get_device_info()
+            if device_info.device_id == 0:
                 self._disconnect()
                 raise NoDevice("Device not found, please check your connections!")
-            if dev_id != N76E003_DEVID:
+            if device_info.is_unsupported:
                 self._disconnect()
-                raise NoDevice("Unsupported device ID: " + hex(dev_id))
+                raise NoDevice("Unsupported device ID: " + hex(device_info.device_id))
 
     def close(self):
         if self.ser and self.is_serial_open():
@@ -886,6 +889,7 @@ class NuvoISP(NuvoProg):
         config_to_write: ConfigFlags
         config_to_write, ldrom_data = self._check_config(read_config, config, ldrom_data, ldrom_config_override, _lock)
 
+        device_info = self.get_device_info()
         aprom_size = config_to_write.get_aprom_size()
         if aprom_size != len(aprom_data):
             eprint("WARNING: APROM file size does not match config: %d KB vs %d KB" % (
@@ -897,11 +901,10 @@ class NuvoISP(NuvoProg):
                 eprint("APROM will be padded with 0xFF.")
                 # Pad with 0xFF
                 aprom_data += bytes([0xFF] * (aprom_size - len(aprom_data)))
-
         combined_data = aprom_data + ldrom_data
         self.print_vb("Programming Rom (%d KB)..." % (len(combined_data) / 1024))
         # no need to erase, as the update commands will do it for us
-        verified_success = self.update_flash(APROM_ADDR, combined_data, len(combined_data), update_flashrom)
+        verified_success = self.update_flash(device_info.aprom_addr, combined_data, len(combined_data), update_flashrom)
         self.program_config(config_to_write)
 
         if not verified_success:
@@ -993,7 +996,7 @@ class NuvoISP(NuvoProg):
 
         return self.program_all(aprom_data, ldrom_data, config=config, verify_flash=None, ldrom_config_override=ldrom_override, _lock=_lock)
 
-    def verify_flash(self, data, report_unmatched_bytes=False, addr=APROM_ADDR, rom_size=None) -> bool:
+    def verify_flash(self, data, report_unmatched_bytes=False, addr=0, rom_size=None) -> bool:
         """
 
 
@@ -1139,7 +1142,7 @@ def main() -> int:
             if not NuvoISP.check_ldrom_size(ldrom_size):
                 eprint("Error: LDROM file invalid.")
                 return 1
-        except:
+        except Exception as e:
             eprint("Error: Could not read LDROM file")
             return 2
 
@@ -1148,7 +1151,7 @@ def main() -> int:
 
             devinfo = nuvo.get_device_info()
 
-            if devinfo.device_id != N76E003_DEVID:
+            if devinfo.is_unsupported:
                 if devinfo.device_id == 0:
                     eprint("ERROR: Device not found, please check your connections.\n\n")
                     return 2
