@@ -682,9 +682,10 @@ class NuvoISP(NuvoProg):
 
     def get_device_info(self) -> DeviceInfo:
         self._fail_if_not_init()
-        if self.supports_extended_cmds:
-            return DeviceInfo(self.get_device_id(),  self.get_cid())
-        return DeviceInfo(self.get_device_id(), 0xD0)
+        dev_id = self.get_device_id()
+        pid = dev_id >> 16
+        did = dev_id & 0xffff
+        return DeviceInfo(did, pid)
 
     def page_erase(self, addr):
         self._fail_if_not_init()
@@ -1170,7 +1171,8 @@ def main() -> int:
                 print(devinfo)
                 read_config.print_config()
                 print()
-                if devinfo.cid == 0xFF or read_config.is_locked():
+                cid = nuvo.get_cid()
+                if cid == 0xFF or read_config.is_locked():
                     eprint("Error: Chip is locked, cannot read flash")
                     return 1
                 nuvo.dump_flash_to_file(read_file)

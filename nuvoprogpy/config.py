@@ -15,13 +15,25 @@ FLASH_SIZE = 18 * 1024
 
 supported_devices = [N76E003_DEVID]
 
+devid_to_device = {
+    N76E003_DEVID: "N76E003"
+}
+    
 class DeviceInfo:
-    def __init__(self, device_id=0xFFFF, cid=0xFF, uid=bytes([0xFF]*12), ucid=bytes([0xFF]*16)):
+    def __init__(self, device_id=0xFFFF, pid=0x0000):
         self.device_id = device_id
-        self.uid = uid
-        self.cid = cid
-        self.ucid = ucid
+        self.pid = pid
 
+    @property
+    def pid(self):
+        return self._pid
+
+    @pid.setter
+    def pid(self, pid):
+        if pid == self.device_id and pid != 0xffff:
+            pid = 0
+        self._pid = pid        
+    
     @property
     def aprom_addr(self):
         return get_aprom_addr(self.device_id)
@@ -47,7 +59,14 @@ class DeviceInfo:
         return not self.device_id in supported_devices
 
     def __str__(self):
-        return "Device ID: 0x%04X\nCID: 0x%02X\nUID: %s\nUCID: %s" % (self.device_id, self.cid, " ".join(["%02X" % b for b in self.uid]), " ".join(["%02X" % b for b in self.ucid]))
+        if self.pid > 0:
+            #concatenate the pid
+            device_id = self.pid << 16 | self.device_id
+        else:
+            device_id = self.device_id
+        ret = "Device ID: 0x{:04X} ({})\n".format(self.device_id, devid_to_device[device_id])
+        ret += "Flash size: %d kB\n" % (self.flash_size // 1024)
+        return ret
 
     @property
     def is_supported(self):

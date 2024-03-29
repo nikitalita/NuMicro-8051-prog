@@ -295,6 +295,10 @@ class Nuvo51ICP:
         self._fail_if_not_init()
         return self.icp.read_device_id()
 
+    def get_pid(self) -> int:
+        self._fail_if_not_init()
+        return self.icp.read_pid()
+
     def get_cid(self) -> int:
         self._fail_if_not_init()
         return self.icp.read_cid()
@@ -335,7 +339,7 @@ class Nuvo51ICP:
 
     def get_device_info(self) -> DeviceInfo:
         self._fail_if_not_init()
-        return DeviceInfo(self.get_device_id(),  self.get_cid())
+        return DeviceInfo(self.get_device_id(), self.get_pid())
 
     def page_erase(self, addr):
         self._fail_if_not_init()
