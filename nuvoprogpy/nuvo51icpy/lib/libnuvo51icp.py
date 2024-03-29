@@ -109,6 +109,12 @@ class LibICP:
         self.lib.N51ICP_set_page_erase_time.argtypes = [ctypes.c_uint32]
         self.lib.N51ICP_set_page_erase_time.restype = None
 
+        self.lib.N51ICP_set_mass_erase_time.argtypes = [ctypes.c_uint32]
+        self.lib.N51ICP_set_mass_erase_time.restype = None
+
+        self.lib.N51ICP_set_post_mass_erase_time.argtypes = [ctypes.c_uint32]
+        self.lib.N51ICP_set_post_mass_erase_time.restype = None
+
         # Wrapper functions
 
     def send_entry_bits(self) -> bool:
@@ -203,6 +209,15 @@ class LibICP:
     def set_page_erase_time(self, time_us: int) -> bool:
         self.lib.N51ICP_set_page_erase_time(ctypes.c_uint32(time_us))
         return True
+    
+    def set_mass_erase_time(self, time_us: int) -> bool:
+        self.lib.N51ICP_set_mass_erase_time(ctypes.c_uint32(time_us))
+        return True
+    
+    def set_post_mass_erase_time(self, time_us: int) -> bool:
+        self.lib.N51ICP_set_post_mass_erase_time(ctypes.c_uint32(time_us))
+        return True
+    
 
 class LibPGM:
     def __init__(self, libname="gpiod"):
