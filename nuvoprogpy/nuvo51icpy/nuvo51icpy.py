@@ -232,22 +232,22 @@ class Nuvo51ICP:
         if not self.initialized:
             raise PGMInitException("ERROR: Could not initialize ICP.")
         if check_device:
-            devid = self.icp.read_device_id()
+            dev_info = self.get_device_info()
             cid = self.icp.read_cid()
-            if devid == 0:
+            if dev_info.did == 0:
                 if not retry or not self.retry():
                     self.icp.deinit(self.deinit_reset_high)
                     raise NoDeviceException(
                         "ERROR: No device detected, please check your connections!")
-                devid = self.icp.read_device_id()
+                dev_info = self.get_device_info()
                 cid = self.icp.read_cid()
-            if devid == 0xFFFF and cid == 0xFF:
+            if dev_info.did == 0xFFFF and cid == 0xFF:
                 self.print_err("WARNING: Read Device ID of 0xFFFF and cid of 0xFF, device may be locked!")
                 self.print_err("Proceeding anyway...")
-            elif not self.is_valid_device_id(devid):
-                self.icp.deinit(self.deinit_reset_high)
+            elif dev_info.is_unsupported:
+                self.close()
                 raise UnsupportedDeviceException(
-                    "ERROR: Non-N76E003 device detected (devid: %d)\nThis programmer only supports N76E003 (devid: %d)!" % (devid, N76E003_DEVID))
+                    "ERROR: Unsupported device detected: %08X (%s)!" % (dev_info.device_id, dev_info.chip_name))
 
     def close(self):
         """
@@ -330,9 +330,9 @@ class Nuvo51ICP:
             return False
         if cid == 0xFF or cid == 0x00:
             self.reenter_icp()
-            device_id = self.get_device_id()
+            device_info = self.get_device_info()
             cid = self.get_cid()
-            if (not self.is_valid_device_id(device_id)) or cid == 0xFF or cid == 0x00:
+            if (device_info.is_unsupported) or cid == 0xFF or cid == 0x00:
                 self.print_err("ERROR: Mass erase failed, device not found.")
                 return False
         return True
@@ -357,12 +357,6 @@ class Nuvo51ICP:
         self._fail_if_not_init()
         return (self.get_cid() == 0xFF or self.read_config().is_locked())
 
-    def is_valid_device_id(self, device_id):
-        """Checks for valid device ID (at this time, only the N76E003)"""
-        if device_id != N76E003_DEVID:
-            return False
-        return True
-
     def dump_flash(self) -> bytes:
         self._fail_if_not_init()
         device_info = self.get_device_info()
@@ -379,12 +373,14 @@ class Nuvo51ICP:
         ext = read_file.split(".")[-1]
         config = self.read_config()
         device_info = self.get_device_info()
-        if config.get_ldrom_size() > 0:
+        ldrom_size = device_info.get_ldrom_size(config)
+        if ldrom_size > 0:
+            ldrom_addr = device_info.get_ldrom_addr(config)
             ldrom_file = read_file.rsplit(".", 1)[0] + "-ldrom.bin"
             lf = open(ldrom_file, "wb")
-            lf.write(self.read_flash(device_info.flash_size - config.get_ldrom_size(), config.get_ldrom_size()))
+            lf.write(self.read_flash(ldrom_addr, ldrom_size))
             lf.close()
-        f.write(self.read_flash(device_info.aprom_addr, config.get_aprom_size()))
+        f.write(self.read_flash(device_info.aprom_addr, device_info.get_aprom_size(config)))
         f.close()
         self.print_vb("Done.")
         return True
@@ -422,20 +418,6 @@ class Nuvo51ICP:
             self.print_err("Verification failed. %d byte errors." % byte_errors)
         return result
 
-    def check_ldrom_size(self, size) -> bool:
-        self._fail_if_not_init()
-        device_info = self.get_device_info()
-        if size > device_info.ldrom_max_size:
-            return False
-        return True
-
-    def check_aprom_size(self, size) -> bool:
-        self._fail_if_not_init()
-        device_info = self.get_device_info()
-        if size > device_info.flash_size:
-            return False
-        return True
-    
     def check_rom_size(self, aprom_size, ldrom_size) -> bool:
         self._fail_if_not_init()
         device_info = self.get_device_info()
@@ -445,9 +427,9 @@ class Nuvo51ICP:
         if ldrom_size > device_info.ldrom_max_size:
             self.print_err("ERROR: LDROM size above max of {}.".format(device_info.ldrom_max_size))
             return False
-        if ldrom_size > 0 and aprom_size + ldrom_size > device_info.flash_size:
-            self.print_err("ERROR: APROM and LDROM sizes exceed flash size of {}.".format(device_info.flash_size))
-            return False
+        # if ldrom_size > 0 and aprom_size + ldrom_size > device_info.flash_size:
+        #     self.print_err("ERROR: APROM and LDROM sizes exceed flash size of {}.".format(device_info.flash_size))
+        #     return False
         return True
 
     @staticmethod
@@ -461,9 +443,10 @@ class Nuvo51ICP:
         if not config:
             self.print_err("ERROR: No config provided.")
             return False
-        aprom_size = config.get_aprom_size()
-        for i in range(0, aprom_size, 128):
-            self.page_erase(self.aprom_addr + i)
+        dev_info = self.get_device_info()
+        aprom_size = dev_info.get_aprom_size(config)
+        for i in range(dev_info.aprom_addr,dev_info.aprom_addr + aprom_size, dev_info.page_size):
+            self.page_erase(i)
         return True
 
     def erase_ldrom_area(self, config: ConfigFlags):
@@ -471,19 +454,23 @@ class Nuvo51ICP:
         if not config:
             self.print_err("ERROR: No config provided.")
             return False
-        ldrom_size = config.get_ldrom_size()
+        dev_info: DeviceInfo = self.get_device_info()
+        ldrom_size = dev_info.get_ldrom_size(config)
         if not ldrom_size:
             self.print_err("ERROR: LDROM size is 0 in config.")
             return False
-        for i in range(0, ldrom_size, 128):
-            self.page_erase(self.flash_size - ldrom_size + i)
+        ldrom_addr = dev_info.get_ldrom_addr(config)
+        for i in range(ldrom_addr, ldrom_addr + ldrom_size, dev_info.page_size):
+            self.page_erase(i)
         return True
 
     def _needs_unlock(self):
         return (not self.can_write_locked_without_mass_erase) and self.is_locked()
 
     def _aprom_config_precheck(self, aprom_data: bytes, config: ConfigFlags) -> int:
-        aprom_size = config.get_aprom_size()
+        self._fail_if_not_init()
+        dev_info = self.get_device_info()
+        aprom_size = dev_info.get_aprom_size(config)
         if aprom_size != len(aprom_data):
             self.print_err("WARNING: APROM file size does not match config: %d KB vs %d KB" % (
                 len(aprom_data) / 1024, aprom_size / 1024))
@@ -498,19 +485,27 @@ class Nuvo51ICP:
         return aprom_size
 
     def _ldrom_config_precheck(self, ldrom_data: bytes, config: ConfigFlags, override_size: bool, override_bootable:bool) -> bool:
+        self._fail_if_not_init()
+        dev_info = self.get_device_info()
         if not self.can_write_ldrom:
             self.print_err("ERROR: LDROM programming is not supported on this device.")
             return False
         if not config:
             self.print_err("ERROR: No config provided.")
             return False
-        if config.is_unsupported:
-            self.print_err("ERROR: This device is unsupported for programming the LDROM.")
-            return False
         if len(ldrom_data) == 0:
             self.print_err("ERROR: No LDROM data provided.")
             return False
         else:
+            if config.is_ldrom_boot() != True:
+                self.print_err("WARNING: LDROM boot flag not set in config")
+                if override_bootable:
+                    self.print_err("Overriding LDROM boot in config.")
+                    config.set_ldrom_boot(True)
+                else:
+                    self.print_err("LDROM will not be bootable.")
+            if not dev_info.has_configurable_size_ldrom:
+                return True
             if len(ldrom_data) % 1024 != 0 and self.pad_data:
                 self.print_err("WARNING: LDROM is not a multiple of 1024 bytes, data will be padded with 0xFF.")
             ldrom_size_kb = math.ceil(len(ldrom_data) / 1024)
@@ -533,13 +528,6 @@ class Nuvo51ICP:
                     config.set_ldrom_size_kb(ldrom_size_kb)
                 elif self.pad_data:
                     self.print_err("LDROM will be padded with 0xFF.")
-            if config.is_ldrom_boot() != True:
-                self.print_err("WARNING: LDROM boot flag not set in config")
-                if override_bootable:
-                    self.print_err("Overriding LDROM boot in config.")
-                    config.set_ldrom_boot(True)
-                else:
-                    self.print_err("LDROM will not be bootable.")
         return True
 
     def program_config(self, config: ConfigFlags, erase=True) -> bool:
@@ -603,7 +591,7 @@ class Nuvo51ICP:
         if erase:
             self.erase_aprom_area(config)
         if self.pad_data:
-            aprom_data = self.pad_rom(aprom_data, config.get_aprom_size())
+            aprom_data = self.pad_rom(aprom_data, device_info.get_aprom_size(config))
         self.print_vb("Programming APROM...")
         if not self.write_flash(device_info.aprom_addr, aprom_data):
             self.print_err("Programming APROM Failed!")
@@ -641,17 +629,17 @@ class Nuvo51ICP:
             self.print_err("ERROR: No config provided.")
             return False
         device_info = self.get_device_info()
-        if not device_info.is_supported:
+        if device_info.is_unsupported:
             self.print_err("ERROR: Device is not supported for LDROM programming.")
             return False
-        start_addr = device_info.flash_size - config.get_ldrom_size()
+        start_addr = device_info.get_ldrom_addr(config)
         if len(ldrom_data) > device_info.ldrom_max_size:
             self.print_err("ERROR: LDROM size greater than max of 4KB. Not programming...")
             return False
         if not self._ldrom_config_precheck(ldrom_data, config, False, False):
             return False
         if self.pad_data:
-            ldrom_data = self.pad_rom(ldrom_data, config.get_ldrom_size())
+            ldrom_data = self.pad_rom(ldrom_data, device_info.get_ldrom_size(config))
         self.print_vb("Programming LDROM (%d KB)..." % int(len(ldrom_data) / 1024))
         if erase:
             if self._needs_unlock():
@@ -697,6 +685,7 @@ class Nuvo51ICP:
         if config:
             if not self._run_prechecks(aprom_data, ldrom_data, config, ldrom_config_override):
                 return False
+
         did_mass_erase = False
         if self._needs_unlock():
             if not self._try_mass_erase(_erase):
@@ -711,17 +700,17 @@ class Nuvo51ICP:
             if not self._run_prechecks(aprom_data, ldrom_data, config, ldrom_config_override):
                 return False
         device_info = self.get_device_info()
-        ldrom_addr = device_info.flash_size - config.get_ldrom_size()
+        ldrom_addr = device_info.get_ldrom_addr(config)
         if len(aprom_data) > 0:
             if self.pad_data:
-                aprom_data = self.pad_rom(aprom_data, config.get_aprom_size())
+                aprom_data = self.pad_rom(aprom_data, device_info.get_aprom_size(config))
             if _erase:
                 self.erase_aprom_area(config)
             self.print_vb("Programming APROM ({} KB)...".format(len(aprom_data) // 1024))
             self.write_flash(device_info.aprom_addr, aprom_data)
         if len(ldrom_data) > 0:
             if self.pad_data:
-                ldrom_data = self.pad_rom(ldrom_data, config.get_ldrom_size())
+                ldrom_data = self.pad_rom(ldrom_data, device_info.get_ldrom_size(config))
             if _erase:
                 self.erase_ldrom_area(config)
             self.print_vb("Programming LDROM ({} KB)...".format(len(ldrom_data) // 1024))
@@ -797,7 +786,7 @@ class Nuvo51ICP:
 
 
 def print_usage():
-    print("nuvo51icpy, a RPi ICP flasher for the Nuvoton N76E003")
+    print("nuvo51icpy, an ICP flasher for the Nuvoton NuMicro 8051 line of chips")
     print("written by Nikita Lita\n")
     print("Usage:")
     print("\t-h, --help:                       print this help")
@@ -901,7 +890,7 @@ def main() -> int:
     with Nuvo51ICP(silent=silent) as nuvo:
         devinfo = nuvo.get_device_info()
         did_mass_erase = False
-        if not nuvo.is_valid_device_id(devinfo.device_id):
+        if devinfo.is_unsupported:
             if is_writing and nuvo._needs_unlock():
                 print("Device not found, chip may be locked, Do you want to attempt a mass erase? (y/N)")
                 if input() == "y" or input() == "Y":
@@ -912,7 +901,7 @@ def main() -> int:
                     eprint(devinfo)
                 else:
                     return exit_with_code("Device not found! Exiting...", 2, False)
-                if not nuvo.is_valid_device_id(devinfo.device_id):
+                if devinfo.is_unsupported:
                     return exit_with_code("ERROR: Unsupported device ID: 0x%04X (mass erase failed!)\n\n" % devinfo.device_id, 2, False)
             else:
                 if devinfo.device_id == 0:

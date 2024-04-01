@@ -1,2 +1,4 @@
-obj/
+objdir-*/
 out/
+bootloader-*.bin
+bootloader-*.hex

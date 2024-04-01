@@ -24,6 +24,7 @@
 #define CMD_GET_UCID             0xb4 // non-official
 #define CMD_GET_BANDGAP          0xb5 // non-official
 #define CMD_ISP_PAGE_ERASE       0xD5 // non-official
+#define CMD_GET_PID              0xeb // non-official
 
 // Arduino ISP-to-ICP bridge only
 #define CMD_UPDATE_WHOLE_ROM     0xE1 // non-official
@@ -48,17 +49,6 @@
 // The modes returned by CMD_GET_FLASHMODE
 #define APMODE 1
 #define LDMODE 2
-
-
-// N76E003 device constants
-#define N76E003_DEVID	    0x3650
-#define APROM_FLASH_ADDR	0x0
-#define CFG_FLASH_ADDR		0x30000
-#define CFG_FLASH_LEN		5
-#define LDROM_MAX_SIZE      (4 * 1024)
-#define PAGE_SIZE            128 // flash page size
-#define FLASH_SIZE	        (18 * 1024)
-#define FLASH_PAGE_COUNT FLASH_SIZE/PAGE_SIZE
 
 // packet constants
 #define PKT_CMD_START     0

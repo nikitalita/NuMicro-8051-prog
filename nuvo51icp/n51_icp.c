@@ -1,5 +1,5 @@
 /*
- * nuvo51icp, a RPi ICP flasher for the Nuvoton N76E003
+ * nuvo51icp, an ICP flasher for the Nuvoton NuMicro 8051 line of chips
  * https://github.com/steve-m/N76E003-playground
  *
  * Copyright (c) 2021 Steve Markgraf <steve@steve-m.de>
@@ -33,11 +33,20 @@
 #ifndef DEFAULT_BIT_DELAY
 #include "delay.h"
 #endif
+#define DEFAULT_PROGRAM_TIME 25
+#define DEFAULT_PROGRAM_HOLD_TIME 5
+#define DEFAULT_PAGE_ERASE_TIME 6000
+#define DEFAULT_PAGE_ERASE_HOLD_TIME 100
+#define DEFAULT_MASS_ERASE_TIME 65000
+#define DEFAULT_POST_MASS_ERASE_TIME 1000
+#define N76E616_PROGRAM_TIME 40
+#define N76E616_PAGE_ERASE_TIME 40000
+
 // These are MCU dependent (default for N76E003)
-static uint32_t program_time = 25;
-static uint32_t page_erase_time = 6000;
-static uint32_t mass_erase_time = 65000;
-static uint32_t post_mass_erase_time = 1000;
+static uint32_t program_time = DEFAULT_PROGRAM_TIME;
+static uint32_t page_erase_time = DEFAULT_PAGE_ERASE_TIME;
+static uint32_t mass_erase_time = DEFAULT_MASS_ERASE_TIME;
+static uint32_t post_mass_erase_time = DEFAULT_POST_MASS_ERASE_TIME;
 #define ENTRY_BIT_DELAY 60
 
 // ICP Commands
@@ -120,6 +129,18 @@ int N51ICP_init(uint8_t do_reset)
 	return 0;
 }
 
+void post_entry_set_times() {
+	uint32_t devid = N51ICP_read_device_id();
+	// N76E616
+	if (devid >> 8 == 0x2f){
+		page_erase_time = N76E616_PAGE_ERASE_TIME;
+		program_time = N76E616_PROGRAM_TIME;
+	} else {
+		page_erase_time = DEFAULT_PAGE_ERASE_TIME;
+		program_time = DEFAULT_PROGRAM_TIME;
+	}
+}
+
 void N51ICP_enter_icp_mode(uint8_t do_reset) {
 	if (do_reset) {
 		send_reset_seq(ICP_RESET_SEQ, 24);
@@ -134,6 +155,7 @@ void N51ICP_enter_icp_mode(uint8_t do_reset) {
 	USLEEP(100);
 	N51ICP_send_entry_bits();
 	USLEEP(10);
+	post_entry_set_times();
 }
 
 void N51ICP_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
@@ -146,6 +168,7 @@ void N51ICP_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
 	USLEEP(delay2);
 	N51ICP_send_entry_bits();
 	USLEEP(delay3);
+	post_entry_set_times();
 }
 
 void N51ICP_fullexit_entry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay3){
@@ -184,6 +207,8 @@ void N51ICP_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_afte
 	USLEEP(delay2);
 	N51ICP_send_entry_bits();
 	USLEEP(10);
+	// not setting the times since there's no target board for the N76E616
+	// post_entry_set_times();
 }
 
 void N51ICP_deinit(uint8_t leave_reset_high)
@@ -311,7 +336,7 @@ uint32_t N51ICP_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 	N51ICP_send_command(ICP_CMD_WRITE_FLASH, addr);
 	int delay1 = program_time;
 	for (uint32_t i = 0; i < len; i++) {
-		N51ICP_write_byte(data[i], i == (len-1), delay1, 5);
+		N51ICP_write_byte(data[i], i == (len-1), delay1, DEFAULT_PROGRAM_HOLD_TIME);
 	}
 
 	return addr + len;
@@ -326,7 +351,7 @@ void N51ICP_mass_erase(void)
 void N51ICP_page_erase(uint32_t addr)
 {
 	N51ICP_send_command(ICP_CMD_PAGE_ERASE, addr);
-	N51ICP_write_byte(0xff, 1, page_erase_time, 100);
+	N51ICP_write_byte(0xff, 1, page_erase_time, DEFAULT_PAGE_ERASE_HOLD_TIME);
 }
 
 void N51ICP_set_program_time(uint32_t time_us)

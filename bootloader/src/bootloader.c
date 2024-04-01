@@ -25,11 +25,18 @@
 
 // bootloader-specific constants
 #define FW_VERSION 0xD0 // Supports extended commands
-#define APROM_SIZE 16 * 1024
+#ifndef MAX_APROM_SIZE
+#error "MAX_APROM_SIZE must be defined"
+#endif
+#ifndef LDROM_SIZE
+// default for this bootloader is 2K
 #define LDROM_SIZE 2 * 1024
+#endif
+#define APROM_SIZE (MAX_APROM_SIZE - LDROM_SIZE)
 #define APROM_PAGE_COUNT APROM_SIZE / PAGE_SIZE
 #define LDROM_ADDRESS APROM_SIZE
 #define PAGE_MASK 0xFF80
+#define PAGE_SIZE 128 // flash page size
 
 #define DISCONNECTED_STATE  0
 #define CONNECTING_STATE    1
@@ -97,21 +104,34 @@ unsigned char hircmap[2];
 #define clr_BRCK_NO_PG_CLR T3CON&=0xDF
 #define set_PSH_NO_PG_CLR  IPH|=0x10
 
+#ifndef clr_SFRS_SFRPAGE
+#define clr_SFRS_SFRPAGE         BIT_TMP=EA;EA=0;TA=0xAA;TA=0x55;SFRS=0;EA=BIT_TMP
+#endif
 
-void UART0_ini_115200(void)
+#ifdef FOSC_240000
+#define FSYS_DIV16 1500000UL
+#else // FOSC_166000
+#define FSYS_DIV16 1037500UL
+#endif
+
+#define DIV_ROUND_CLOSEST_UNSIGNED(n, d) (((n) + (d) / 2) / (d))
+#define BAUD_RATE 115200
+
+void UART0_ini_115200(void) // T1M = 1, SMOD = 1
 {
-  P06_Quasi_Mode;
-  P07_Quasi_Mode;
+  P06_QUASI_MODE; // Setting UART pin as Quasi mode for transmit
+  P07_QUASI_MODE; // Setting UART pin as Quasi mode for transmit
 
   SCON = 0x52;  // UART0 Mode1,REN=1,TI=1
   TMOD |= 0x20; // Timer1 Mode1
 
-  set_SMOD; // UART0 Double Rate Enable
-  set_T1M;
+  set_PCON_SMOD; // UART0 Double Rate Enable
+  set_CKCON_T1M;
   clr_BRCK_NO_PG_CLR; // Serial port 0 baud rate clock source = Timer1
 
-  TH1 = (unsigned char)(256 - (1037500 / 115200)); /* ISP Rom is always 16.6 MHz */
-  set_TR1;
+  TH1 = (unsigned char) (256 - (FSYS_DIV16 / BAUD_RATE));
+  set_TCON_TR1;
+  // set_SCON_TI; // For printf function must setting TI = 1
   ES = 1;
   EA = 1;
 }
@@ -135,14 +155,32 @@ void READ_HIRCMAP(void){
 }
 
 void SET_HIRCMAP(void){
+  uint8_t hircmap0, hircmap1;
+  hircmap0 = hircmap[0];
+  hircmap1 = hircmap[1];
   TA = 0XAA;
   TA = 0X55;
-  RCTRIM0 = hircmap[0];
+  RCTRIM0 = hircmap0;
   TA = 0XAA;
   TA = 0X55;
-  RCTRIM1 = hircmap[1];
+  RCTRIM1 = hircmap1;
 }
 
+
+#ifdef FOSC_240000
+void READ_HIRCMAP_24(void)
+{
+  BYTE_READ_FUNC(READ_UID, 0x38, 2, hircmap);
+}
+
+void MODIFY_HIRC_24(void)
+{
+  READ_HIRCMAP_24();
+  SET_HIRCMAP();
+  /* Clear power on flag */
+  PCON &= CLR_BIT4;
+}
+#else // FOSC_166000
 void MODIFY_HIRC_16588(void)
 {
   READ_HIRCMAP();
@@ -156,13 +194,14 @@ void MODIFY_HIRC_16588(void)
   /* Clear power on flag */
   PCON &= CLR_BIT4;
 }
+#endif
 
 void MODIFY_HIRC_16(void)
 {
   READ_HIRCMAP();
   SET_HIRCMAP();
 }
-#define READ_DEVICE_ID() BYTE_READ_FUNC(BYTE_READ_ID, 0x00, 4, DPID);
+void READ_DEVICE_ID() {BYTE_READ_FUNC(BYTE_READ_ID, 0x00, 4, DPID);}
 
 #define READ_CONFIG() BYTE_READ_FUNC(BYTE_READ_CONFIG, 0x00, CONFIG_LENGTH, CONF);
 
@@ -171,9 +210,9 @@ void MODIFY_HIRC_16(void)
 void TM0_ini(void)
 {
   TH0 = TL0 = 0; // Interrupt timer 140us
-  set_TR0;       // Start timer0
+  set_TCON_TR0;       // Start timer0
   set_PSH_NO_PG_CLR; // Serial port 0 interrupt level2
-  set_ET0;
+  set_IE_ET0;
 }
 #if CHECK_SEQUENCE_NO
 uint8_t check_g_packno(void){
@@ -215,7 +254,7 @@ void Send_64byte_To_UART0(void)
     SBUF = uart_txbuf[count];
     while (TI == 0)
       ;
-    set_WDCLR;
+    set_WDCON_WDCLR;
   }
 }
 
@@ -224,13 +263,13 @@ void Serial_ISR(void) __interrupt(4)
   uint8_t tmp;
   if (TI == 1)
   {
-    clr_TI; // Clear TI (Transmit Interrupt).
+    clr_SCON_TI; // Clear TI (Transmit Interrupt).
   }
   if (RI == 1)
   {
     tmp = SBUF;
     uart_rcvbuf[bufhead++] = tmp;
-    clr_RI; // Clear RI (Receive Interrupt).
+    clr_SCON_RI; // Clear RI (Receive Interrupt).
     
     // If we're not yet connected, ignore all bytes until we get a CMD_CONNECT
     if (g_state == DISCONNECTED_STATE) {
@@ -292,7 +331,7 @@ void Timer0_ISR(void) __interrupt(1)
 
 unsigned int __xdata start_address, end_address;
 
-void dump()
+void dump(void)
 {
   uint16_t addr;
   for (count = 8; count < 64; count++)
@@ -353,7 +392,7 @@ void update(uint8_t start_count)
   Send_64byte_To_UART0();
 }
 
-void set_addrs()
+void set_addrs(void)
 {
   start_address = uart_rcvbuf[8];
   start_address |= ((uart_rcvbuf[9] << 8) & 0xFF00);
@@ -363,7 +402,7 @@ void set_addrs()
   end_address = AP_size + start_address;
 }
 
-void finish_read_config()
+void finish_read_config(void)
 {
   Package_checksum();
   BYTE_READ_FUNC(BYTE_READ_CONFIG, 0x00, CONFIG_LENGTH, &uart_txbuf[8]);
@@ -375,7 +414,7 @@ void finish_read_config()
 
 void erase_ap(uint16_t addr, uint16_t end_addr)
 {
-  set_APUEN;
+  set_IAPUEN_APUEN;
   IAPFD = 0xFF; // Erase must set IAPFD = 0xFF
   IAPCN = PAGE_ERASE_AP;
   for (; addr < end_addr; addr += PAGE_SIZE)
@@ -386,7 +425,7 @@ void erase_ap(uint16_t addr, uint16_t end_addr)
   }
 }
 
-void send_fail_packet(){
+void send_fail_packet(void){
   Package_checksum();
   uart_txbuf[0] = ~uart_txbuf[0];
   uart_txbuf[1] = ~uart_txbuf[1];
@@ -432,8 +471,14 @@ void main(void)
   set_error_led(0);
   EA = 0;
   clr_SFRS_SFRPAGE; // always use SFR page 0; we don't use any SFRs on page 1.
-  set_IAPEN;
+  set_CHPCON_IAPEN;
+#ifdef FOSC_240000
+  MODIFY_HIRC_24();
+#elif defined(FOSC_166000)
   MODIFY_HIRC_16588();
+#else
+  #error "Neither FOSC_240000 or FOSC_166000 are defined. Please define one of these."
+#endif
 #ifdef isp_with_wdt
   TA = 0x55;
   TA = 0xAA;
@@ -540,6 +585,17 @@ _CONN_COMMON:
         Send_64byte_To_UART0();
         break;
       }
+      case CMD_GET_PID:
+      {
+        READ_DEVICE_ID();
+        Package_checksum();
+        uart_txbuf[8] = DPID[2];
+        uart_txbuf[9] = DPID[3];
+        uart_txbuf[10] = 0;
+        uart_txbuf[11] = 0;
+        Send_64byte_To_UART0();
+        break;
+      }
       case CMD_GET_UID:
       {
         BYTE_READ_FUNC(READ_UID, 0, UID_LENGTH, &uart_txbuf[8]);
@@ -590,7 +646,7 @@ _CONN_COMMON:
 
       case CMD_UPDATE_CONFIG:
       {
-        set_CFUEN; // Erase CONFIG
+        set_IAPUEN_CFUEN; // Erase CONFIG
         IAPCN = PAGE_ERASE_CONFIG;
         IAPAL = 0x00;
         IAPAH = 0x00;
@@ -607,7 +663,7 @@ _CONN_COMMON:
           IAPAL++;
         }
         ISP_SET_IAPGO;
-        clr_CFUEN;
+        clr_IAPUEN_CFUEN;
 
         finish_read_config();
         break;
@@ -680,7 +736,7 @@ _APROM:
   set_led_connected(0);
   set_led_online(0);
   disableLEDs;
-  clr_IAPEN;
+  clr_CHPCON_IAPEN;
   TA = 0xAA;
   TA = 0x55;
   CHPCON = 0x80; // Software reset, enable boot from APROM

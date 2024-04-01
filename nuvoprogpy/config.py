@@ -1,6 +1,14 @@
+from curses import flash
 import json
 import struct
 import ctypes
+
+try:
+    from .Flash import Flash_8051 as _Flash_8051
+    from .PartNumID import lookup_name_and_type, ChipType
+except:
+    from Flash import Flash_8051 as _Flash_8051
+    from PartNumID import lookup_name_and_type, ChipType
 
 N76E003_DEVID = 0x3650
 APROM_ADDR = 0
@@ -13,16 +21,187 @@ LDROM_MAX_SIZE = 4 * 1024
 FLASH_SIZE = 18 * 1024
 
 
-supported_devices = [N76E003_DEVID]
-
-devid_to_device = {
-    N76E003_DEVID: "N76E003"
-}
+class FlashInfo:
+    # stub class
+    def __init__(self):
+        raise NotImplementedError("Don't call the constructor! Call `get_flash_info` instead!")
     
+    @property
+    def max_memory_size(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def static_ldrom_size(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def maximum_ldrom_size(self):
+        raise NotImplementedError("Not implemented!")
+    
+    def get_ldrom_size(self, config):
+        raise NotImplementedError("Not implemented!")
+    
+    def get_aprom_size(self, config):
+        raise NotImplementedError("Not implemented!")
+    
+    def get_dataflash_size(self, config):
+        raise NotImplementedError("Not implemented!")
+    
+    def get_dataflash_addr(self, config):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def ram_size(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def did(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def flash_type(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def max_dataflash_size(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def dataflash_addr(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def page_size(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def has_configurable_size_ldrom(self):
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def config_addr(self):
+        raise NotImplementedError("Not implemented!")
+
+    @property
+    def config_len(self):
+        raise NotImplementedError("Not implemented!")
+
+
+
+class FlashInfo8051(FlashInfo):
+    def __init__(self, memory_size:int, LDROM_size:int, RAM_size:int, DID:int, Flash_type:int):
+        self._memory_size = memory_size
+        self._LDROM_size = LDROM_size
+        self._RAM_size = RAM_size
+        self._DID = DID
+        self._Flash_type = Flash_type
+        _, type = lookup_name_and_type(DID)
+        self._chip_type = type
+
+    @property
+    def max_memory_size(self):
+        return self._memory_size
+
+    @property
+    def static_ldrom_size(self):
+        # return self._LDROM_size
+        # they're all 0
+        return 0
+    
+    @property
+    def maximum_ldrom_size(self):
+        return 4 * 1024
+    
+    def get_ldrom_size(self, config):
+        return config.get_ldrom_size()
+    
+    def get_aprom_size(self, config):
+        return self.max_memory_size - self.get_dataflash_size(config) - self.get_ldrom_size(config)
+    
+    def get_dataflash_size(self, config):
+        data_flash_size = self.max_dataflash_size
+        if data_flash_size > 0:
+            data_flash_size -= self.get_ldrom_size(config)
+        return data_flash_size
+    
+    def get_dataflash_addr(self, config):
+        return self.get_aprom_size(config)
+    
+    @property
+    def ram_size(self):
+        return self._RAM_size
+    
+    @property
+    def did(self):
+        return self._DID
+    
+    @property
+    def flash_type(self):
+        return self._Flash_type
+
+    @property
+    def max_dataflash_size(self):
+        if self.flash_type & 0x3 != 0:
+            return 0x2800
+        return 0
+    
+    @property
+    def page_size(self):
+        return 128
+    
+    @property
+    def has_configurable_size_ldrom(self):
+        return True
+
+    @property
+    def config_addr(self):
+        return CFG_FLASH_ADDR
+
+    @property
+    def config_len(self):
+        return CFG_FLASH_LEN
+
+def dump_Flash_8051_to_dict():
+    flash_8051_dict = {}
+    for flash in _Flash_8051:
+        flash_8051_dict[flash[3]] = FlashInfo8051(flash[0], flash[1], flash[2], flash[3], flash[4])
+    return flash_8051_dict
+
+Flash_8051: dict[int, FlashInfo8051] = dump_Flash_8051_to_dict()
+
+
+# supported_types = [ChipType.N76E003, ChipType.MS51_16K, ChipType.MS51_32K, ChipType.MG51]
+
+def get_flash_info(device_id: int) -> FlashInfo:
+    did = device_id & 0xFFFF
+    if did in Flash_8051:
+        # have to do this because one of the 8051 chips shares a DID with a NuMicro chip
+        _, type = lookup_name_and_type(device_id)
+        if type != ChipType.UNKNOWN and not type.is_8051:
+            return FlashInfo8051(0, 0, 0, did, 0)
+        return Flash_8051[did]
+    return FlashInfo8051(0, 0, 0, did, 0)
+
 class DeviceInfo:
     def __init__(self, device_id=0xFFFF, pid=0x0000):
-        self.device_id = device_id
+        self._did = device_id
+        self._pid = 0
         self.pid = pid
+
+    def _refresh_flash_info(self):
+        self.flash_info: FlashInfo = get_flash_info(self.device_id)
+        name, chip_type = lookup_name_and_type(self.device_id)
+        self._name = name
+        self._chip_type = chip_type
+
+    @property
+    def did(self):
+        return self._did
+    
+    @did.setter
+    def did(self, did):
+        self._did = did
+        self._refresh_flash_info()
 
     @property
     def pid(self):
@@ -30,48 +209,86 @@ class DeviceInfo:
 
     @pid.setter
     def pid(self, pid):
-        if pid == self.device_id and pid != 0xffff:
+        if pid == self.did and pid != 0xffff:
             pid = 0
-        self._pid = pid        
+        self._pid = pid
+        self._refresh_flash_info() 
     
     @property
-    def aprom_addr(self):
-        return get_aprom_addr(self.device_id)
+    def device_id(self):
+        if self.did & 0xFFFF == self.did:
+            return self.did | (self.pid << 16)
+        else:
+            return self.did
+    
+    @property
+    def aprom_addr(self): # it's always 0
+        return 0
 
     @property
     def ldrom_max_size(self):
-        return get_ldrom_max_size(self.device_id)
+        return self.flash_info.maximum_ldrom_size
 
     @property
     def flash_size(self):
-        return get_flash_size(self.device_id)
+        return self.flash_info.max_memory_size
+        
+    @property
+    def max_nvm_size(self):
+        return self.flash_info.max_dataflash_size
     
     @property
     def config_addr(self):
-        return get_config_addr(self.device_id)
+        return self.flash_info.config_addr
     
     @property
     def config_len(self):
-        return get_config_len(self.device_id)
+        return self.flash_info.config_len
 
     @property
     def is_unsupported(self):
-        return not self.device_id in supported_devices
+        if self._chip_type.is_8051:
+            return False
+        return True
+    
+    @property
+    def chip_name(self):
+        return self._name
+    
+    @property
+    def chip_type(self):
+        return self._chip_type
+    
+    @property
+    def page_size(self):
+        return self.flash_info.page_size
+    
+    @property
+    def has_configurable_size_ldrom(self):
+        return self.flash_info.has_configurable_size_ldrom
+    
+    def get_aprom_size(self, config):
+        return self.flash_info.get_aprom_size(config)
+    
+    def get_ldrom_size(self, config):
+        return self.flash_info.get_ldrom_size(config)
+    
+    def get_ldrom_addr(self, config):
+        return self.get_aprom_size(config)
+    
+    def get_dataflash_size(self, config):
+        return self.flash_info.get_dataflash_size(config)
+
+    def get_dataflash_addr(self, config):
+        return self.flash_info.get_dataflash_addr(config)
 
     def __str__(self):
-        if self.pid > 0:
-            #concatenate the pid
-            device_id = self.pid << 16 | self.device_id
-        else:
-            device_id = self.device_id
-        ret = "Device ID: 0x{:04X} ({})\n".format(self.device_id, devid_to_device[device_id])
-        ret += "Flash size: %d kB\n" % (self.flash_size // 1024)
+        ret = "Device ID: 0x{:08X} ({})\n".format(self.device_id, self.chip_name)
+        ret += "RAM size: %d bytes\n" % self.flash_info.ram_size
+        ret += "Max Flash size: %d kB\n" % (self.flash_size // 1024)
+        ret += "Max LDROM size: %d kB\n" % (self.ldrom_max_size // 1024)
+        ret += "Max NVM size: %d kB\n" % (self.max_nvm_size // 1024)
         return ret
-
-    @property
-    def is_supported(self):
-        return self.device_id in supported_devices
-
 
 def float_index_to_bit(bit: float) -> int:
     # get the byte
@@ -83,34 +300,8 @@ def float_index_to_bit(bit: float) -> int:
         bitshift = bitshift - 8
     return (bytenum, bitshift)
 
-def get_aprom_addr(device_id: int) -> int:
-    # N76E003 only for now
-    return APROM_ADDR
-
-def get_config_addr(device_id: int) -> int:
-    # N76E003 only for now
-    return CFG_FLASH_ADDR
-
-def get_config_len(device_id: int) -> int:
-    # N76E003 only for now
-    return CFG_FLASH_LEN
-
-def get_flash_size(device_id: int) -> int:
-    # N76E003 only for now
-    return FLASH_SIZE
-
-def get_ldrom_max_size(device_id: int) -> int:
-    # N76E003 only for now
-    return LDROM_MAX_SIZE
-
-def get_ldrom_max_size_kb(device_id: int) -> int:
-    return int(get_ldrom_max_size(device_id) // 1024)
-
-# Configflags bitfield structure:
-# class N8051ConfigFlags:
-#     pass
 class ConfigFlags:
-    def __init__(self, device_id = N76E003_DEVID, cfg_bytes: list = None):
+    def __init__(self, cfg_bytes: list = None):
         raise NotImplementedError("Don't call the constructor! Call `from_bytes` or `from_json` instead!")
     
     def to_bytes(self) -> bytes:
@@ -121,13 +312,6 @@ class ConfigFlags:
         raise NotImplementedError("Not implemented!")
 
     def get_ldrom_size_kb(self) -> int:
-        raise NotImplementedError("Not implemented!")
-
-    # get the size of the APROM in bytes
-    def get_aprom_size(self):
-        raise NotImplementedError("Not implemented!")
-
-    def get_aprom_size_kb(self):
         raise NotImplementedError("Not implemented!")
 
     def is_locked(self) -> bool:
@@ -212,25 +396,21 @@ class ConfigFlags:
 
     @property
     def is_unsupported(self):
-        return not self.device_id in supported_devices
+        return True
         
     @staticmethod
     def from_bytes(config_bytes, device_id):
-        if device_id in supported_devices:
-            return N8051ConfigFlags(config_bytes, device_id)
-        return UnsupportedConfigFlags(config_bytes, device_id)
+        _, type = lookup_name_and_type(device_id)
+        if type.is_8051:
+            return N8051ConfigFlags(config_bytes)
+        return UnsupportedConfigFlags(config_bytes)
 
     @staticmethod
-    def from_json(json, device_id=None):
-        if device_id is None:
-            device_id = N76E003_DEVID
-        # unsupported devices
-        if 'device_id' in json and json['device_id'] != device_id:
-            device_id = json['device_id']
+    def from_json(json, device_id = None):
         if 'config_bytes' in json and type(json['config_bytes']) == list and len(json['config_bytes']) == 5:
-            config = UnsupportedConfigFlags(json['config_bytes'], device_id)
+            config = UnsupportedConfigFlags(json['config_bytes'])
             return config
-        config = N8051ConfigFlags(device_id=device_id)
+        config = N8051ConfigFlags()
         # check that key exists
         if 'lock' in json and type(json['lock']) == bool:
             config.set_lock(json['lock'])
@@ -254,7 +434,7 @@ class ConfigFlags:
         return config
 
     @staticmethod
-    def from_json_file(filename, device_id=None):
+    def from_json_file(filename, device_id = None):
         try:
             with open(filename, "r") as f:
                 confinfo = json.load(f)
@@ -266,72 +446,30 @@ class ConfigFlags:
 class UnsupportedConfigFlags(ConfigFlags):
 
     # default constructor
-    # takes in an optional 5-byte array
-    def __init__(self, cfg_bytes: list = None, device_id = N76E003_DEVID):
+    # takes in a byte array
+    def __init__(self, cfg_bytes: list = None):
         # print the type of bytes
-        self.device_id = device_id
-        self.cfg_bytes = cfg_bytes
+        self.cfg_bytes = cfg_bytes if cfg_bytes is not None else [0xFF] * (14 * 4)
 
-    # def get_bit_value_n(self, bytenum: int, bit: int) -> int:
-    #     # get the byte
-    #     if bytenum > 4 or bit > 7:
-    #         raise ValueError("Invalid bit index")
-    #     byte = self.to_bytes()[bytenum]
-    #     return (byte >> bit) & 0x1
+    def __getitem__(self, key):
+        return getattr(self, key)
 
-    # # key is in format of [0-4].[0-7]
-    # def get_bit_value(self, bit: float) -> int:
-    #     bytenum, bitnum = float_index_to_bit(bit)
-    #     return self.get_bit_value_n(bytenum, bitnum)
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
 
-    # def set_bit_value_n(self, bytenum: int, bit: int, value: bool):
-    #     if bytenum > 4 or bit > 7:
-    #         raise ValueError("Invalid bit index")
-    #     # get the byte
-    #     value = 1 if value else 0
-    #     byte = self.to_bytes()[bytenum]
-    #     # set the bit
-    #     byte = (byte & ~(1 << bit)) | (value << bit)
-    #     # set the byte
-    #     struct.pack_into("B", self, bytenum, byte)
-
-    # def set_bit_value(self, bit: float, value: bool):
-    #     bytenum, bitnum = float_index_to_bit(bit)
-    #     self.set_bit_value_n(bytenum, bitnum, value)
-
-    # def __getitem__(self, key):
-    #     # if key is int...
-    #     if isinstance(key, int):
-    #         return self.to_bytes()[int(key)]
-    #     # if str is a int
-    #     elif isinstance(key, str) and key.isdigit():
-    #         return self.to_bytes()[int(key)]
-    #     return getattr(self, key)
-
-    # # Set item
-    # def __setitem__(self, key, value):
-    #     # if key is int...
-    #     if isinstance(key, int):
-    #         struct.pack_into("B", self, key, value)
-    #     else:
-    #         setattr(self, key, value)
+    @property
+    def is_unsupported(self):
+        return True
 
     def to_bytes(self) -> bytes:
         return bytes(self.cfg_bytes)
 
     # get the size of the LDROM in bytes
     def get_ldrom_size(self) -> int:
-        return 0
+        return None
 
     def get_ldrom_size_kb(self) -> int:
-        return 0
-
-    # get the size of the APROM in bytes
-    def get_aprom_size(self):
-        return get_flash_size(self.device_id) - self.get_ldrom_size()
-
-    def get_aprom_size_kb(self):
-        return int(self.get_aprom_size() / 1024)
+        return None
 
     def is_locked(self) -> bool:
         return False
@@ -413,7 +551,6 @@ class UnsupportedConfigFlags(ConfigFlags):
 
     def to_json(self):
         return json.dumps({
-            "device_id": self.device_id,
             "config_bytes": self.to_bytes()
         }, indent=4)
 
@@ -497,66 +634,34 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
 
     # default constructor
     # takes in an optional 5-byte array
-    def __init__(self, cfg_bytes: list = None, device_id = N76E003_DEVID):
-        # print the type of bytes
-        self.device_id = device_id
-        if not self.device_id in supported_devices:
-            if cfg_bytes is None:
-                cfg_bytes = [0xFF] * 16
-            self.bytes = cfg_bytes
+    def __init__(self, cfg_bytes: list = None):
+        if cfg_bytes is None or len(cfg_bytes) != ctypes.sizeof(self):
+            # initialize to all 0xFF
+            struct.pack_into("B" * ctypes.sizeof(self), self,
+                            0, *([0xFF] * ctypes.sizeof(self)))
         else:
-            self.bytes = None
-            if cfg_bytes is None or len(cfg_bytes) != ctypes.sizeof(self):
-                # initialize to all 0xFF
-                struct.pack_into("B" * ctypes.sizeof(self), self,
-                                0, *([0xFF] * ctypes.sizeof(self)))
-            else:
-                # initialize to the given bytes
-                struct.pack_into("B" * ctypes.sizeof(self), self, 0, *cfg_bytes)
+            # initialize to the given bytes
+            struct.pack_into("B" * ctypes.sizeof(self), self, 0, *cfg_bytes)
 
-    # def get_bit_value_n(self, bytenum: int, bit: int) -> int:
-    #     # get the byte
-    #     if bytenum > 4 or bit > 7:
-    #         raise ValueError("Invalid bit index")
-    #     byte = self.to_bytes()[bytenum]
-    #     return (byte >> bit) & 0x1
+    def __getitem__(self, key):
+        # # if key is int...
+        # if isinstance(key, int):
+        #     return self.to_bytes()[int(key)]
+        # # if str is a int
+        # elif isinstance(key, str) and key.isdigit():
+        #     return self.to_bytes()[int(key)]
+        return getattr(self, key)
 
-    # # key is in format of [0-4].[0-7]
-    # def get_bit_value(self, bit: float) -> int:
-    #     bytenum, bitnum = float_index_to_bit(bit)
-    #     return self.get_bit_value_n(bytenum, bitnum)
-
-    # def set_bit_value_n(self, bytenum: int, bit: int, value: bool):
-    #     if bytenum > 4 or bit > 7:
-    #         raise ValueError("Invalid bit index")
-    #     # get the byte
-    #     value = 1 if value else 0
-    #     byte = self.to_bytes()[bytenum]
-    #     # set the bit
-    #     byte = (byte & ~(1 << bit)) | (value << bit)
-    #     # set the byte
-    #     struct.pack_into("B", self, bytenum, byte)
-
-    # def set_bit_value(self, bit: float, value: bool):
-    #     bytenum, bitnum = float_index_to_bit(bit)
-    #     self.set_bit_value_n(bytenum, bitnum, value)
-
-    # def __getitem__(self, key):
-    #     # if key is int...
-    #     if isinstance(key, int):
-    #         return self.to_bytes()[int(key)]
-    #     # if str is a int
-    #     elif isinstance(key, str) and key.isdigit():
-    #         return self.to_bytes()[int(key)]
-    #     return getattr(self, key)
-
-    # # Set item
-    # def __setitem__(self, key, value):
-    #     # if key is int...
-    #     if isinstance(key, int):
-    #         struct.pack_into("B", self, key, value)
-    #     else:
-    #         setattr(self, key, value)
+    # Set item
+    def __setitem__(self, key, value):
+        # # if key is int...
+        # if isinstance(key, int):
+        #     struct.pack_into("B", self, key, value)
+        # else:
+            setattr(self, key, value)
+    @property
+    def is_unsupported(self):
+        return False
 
     def to_bytes(self) -> bytes:
         return bytes(struct.unpack_from("B" * ctypes.sizeof(self), self))
@@ -566,14 +671,7 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         return int(self.get_ldrom_size_kb() * 1024)
 
     def get_ldrom_size_kb(self) -> int:
-        return min((7 - (self.LDS & 0x7)), get_ldrom_max_size_kb(self.device_id))
-
-    # get the size of the APROM in bytes
-    def get_aprom_size(self):
-        return get_flash_size(self.device_id) - self.get_ldrom_size()
-
-    def get_aprom_size_kb(self):
-        return int(self.get_aprom_size() / 1024)
+        return min((7 - (self.LDS & 0x7)), LDROM_MAX_SIZE)
 
     def is_locked(self) -> bool:
         return self.LOCK == 0
@@ -606,7 +704,7 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
     # Set ldrom size in bytes
 
     def set_ldrom_size(self, size: int):
-        size_kb = int(size / 1024)
+        size_kb = int(size // 1024)
         if size % 1024 != 0:
             size_kb += 1
         self.set_ldrom_size_kb(size_kb)
@@ -614,7 +712,7 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
 
     # Set ldrom size in KB
     def set_ldrom_size_kb(self, size_kb: int):
-        if size_kb < 0 or size_kb > get_ldrom_max_size_kb(self.device_id):
+        if size_kb < 0 or size_kb > LDROM_MAX_SIZE // 1024:
             raise ValueError("Invalid LDROM size")
         self.LDS = ((7 - size_kb) & 0x7)
         return True
@@ -688,14 +786,9 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         ret_str +=("Raw config bytes:\t")
         for i in range(len(raw_bytes)):
             ret_str +=("%02X " % raw_bytes[i])
-
-        if self.device_id not in supported_devices:
-            return ret_str
-
         ret_str +=("\nMCU Boot select:\t%s\n" %
               ("APROM" if self.CBS == 1 else "LDROM"))
         ret_str +=("LDROM size:\t\t%d Bytes\n" % self.get_ldrom_size())
-        ret_str +=("APROM size:\t\t%d Bytes\n" % self.get_aprom_size())
         ret_str +=("Security lock:\t\t%s\n" %
               ("UNLOCKED" if not self.is_locked() else "LOCKED"))
         ret_str +=("P2.0/Nrst reset:\t%s\n" %
@@ -730,11 +823,6 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         return " ".join(["%02X" % b for b in self.to_bytes()])
 
     def to_json(self):
-        if not (self.device_id in supported_devices):
-            return json.dumps({
-                "device_id": self.device_id,
-                "config_bytes": self.to_bytes()
-            }, indent=4)
         return json.dumps({
             "lock": self.is_locked(),
             "boot_from_ldrom": self.is_ldrom_boot(),
@@ -765,5 +853,3 @@ def is_config_flags(thing):
 
 
 assert ctypes.sizeof(N8051ConfigFlags) == CFG_FLASH_LEN
-
-# class DeviceInfo:

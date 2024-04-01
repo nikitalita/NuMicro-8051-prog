@@ -7,11 +7,11 @@ DEV_OBJ = stub.o
 default: all
 
 all: nuvo51icp shared
-nuvo51icp: main.o n51_icp.o $(DEV_OBJ)
+nuvo51icp: main.o n51_icp.o device_common.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o nuvo51icp $^
-shared: main.o n51_icp.o $(DEV_OBJ)
+shared: main.o n51_icp.o device_common.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -shared -o libnuvo51icp-stub.so $^
-test: itest.o n51_icp.o $(DEV_OBJ)
+test: itest.o n51_icp.o device_common.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o itest $^
 clean:
 	rm -f nuvo51icp *.o libnuvo51icp-*.so itest

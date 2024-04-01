@@ -1,5 +1,5 @@
 /*
- * nuvo51icp, a RPi ICP flasher for the Nuvoton N76E003
+ * nuvo51icp, an ICP flasher for the Nuvoton NuMicro 8051 line of chips
  * https://github.com/steve-m/N76E003-playground
  *
  * Copyright (c) 2021 Steve Markgraf <steve@steve-m.de>
@@ -37,9 +37,18 @@
 #include "n51_icp.h"
 #include "n51_pgm.h"
 #include "config.h"
-#include "n76e003_icp_dev.h"
+
+// NOTE: This only supports the N76E003!
+// N76E003 device constants
+#define N76E003_DEVID	    0x3650
+#define APROM_FLASH_ADDR	0x0
+#define CFG_FLASH_ADDR		0x30000
+#define CFG_FLASH_LEN		5
+#define LDROM_MAX_SIZE      (4 * 1024)
+#define FLASH_SIZE	        (18 * 1024)
 
 #define N76E003_DEVID	0x3650
+#define MS51_16K_DEVID  0x4B21
 #define LEAVE_RESET_HIGH 0
 
 void N51ICP_print_config(config_flags flags){
@@ -138,7 +147,7 @@ config_flags get_default_config() {
 void usage(void)
 {
 	fprintf(stderr,
-		"nuvo51icp, a RPi ICP flasher for the Nuvoton N76E003\n"
+		"nuvo51icp, an ICP flasher for the Nuvoton NuMicro 8051 line of chips\n"
 		"written by Steve Markgraf <steve@steve-m.de>\n\n"
 		"Usage:\n"
 		"\t[-h print this help]\n"

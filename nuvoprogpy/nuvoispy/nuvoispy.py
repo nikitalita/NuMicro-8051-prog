@@ -36,6 +36,8 @@ import serial
 import time
 import math
 
+from zmq import device
+
 try:
     from ..nuvoprog import NuvoProg
     from ..config import ConfigFlags, DeviceInfo
@@ -74,6 +76,7 @@ CMD_GET_CID           =  0xb3 # non-official
 CMD_GET_UCID          =  0xb4 # non-official
 CMD_GET_BANDGAP       =  0xb5 # non-official
 CMD_ISP_PAGE_ERASE    =  0xD5 # non-official
+CMD_GET_PID           =  0xeb # non-official
 
 # Arduino ISP-to-ICP bridge only
 CMD_UPDATE_WHOLE_ROM  =  0xE1 # non-official
@@ -213,8 +216,12 @@ def cmd_to_str(cmd):
         return "CAN_CMD_RUN_APROM"
     elif cmd == CAN_CMD_GET_DEVICEID:
         return "CAN_CMD_GET_DEVICEID"
+    elif cmd == CMD_FORMAT2_CONTINUATION:
+        return "CMD_FORMAT2_CONTINUATION"
+    elif cmd == CMD_GET_PID:
+        return "CMD_GET_PID"
     else:
-        return str(0)
+        return "{:02x}".format(cmd)
 
 def progress_bar(text, value, endvalue, bar_length=54):
     percent = float(value) / endvalue
@@ -630,6 +637,12 @@ class NuvoISP(NuvoProg):
         self._fail_if_not_init()
         _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_GET_DEVICEID))
         return unpack_u32(rx_pkt.data)
+    
+    def get_pid(self) -> int:
+        self._fail_if_not_init()
+        self._fail_if_not_extended()
+        _, rx_pkt = self.send_cmd(self._cmd_packet(CMD_GET_PID))
+        return unpack_u32(rx_pkt.data)
 
     def get_cid(self) -> int:
         self._fail_if_not_init()
@@ -686,9 +699,10 @@ class NuvoISP(NuvoProg):
     def get_device_info(self) -> DeviceInfo:
         self._fail_if_not_init()
         dev_id = self.get_device_id()
-        pid = dev_id >> 16
-        did = dev_id & 0xffff
-        return DeviceInfo(did, pid)
+        pid = 0
+        if self.supports_extended_cmds:
+            pid = self.get_pid()
+        return DeviceInfo(dev_id, pid)
 
     def page_erase(self, addr):
         self._fail_if_not_init()
@@ -794,11 +808,6 @@ class NuvoISP(NuvoProg):
     def program_config(self, config: ConfigFlags):
         return self.write_config(config.to_bytes())
 
-    @staticmethod
-    def check_ldrom_size(size) -> bool:
-        if size > LDROM_MAX_SIZE:
-            return False
-        return True
     def _pad_if_necessary(self, data):
         if not data:
             return data
@@ -806,7 +815,9 @@ class NuvoISP(NuvoProg):
             data += bytes([0xFF]* (1024 - (len(data) % 1024)))
         return data
     def _check_ldrom_config(self, config: ConfigFlags, ldrom_size, ldrom_data=None, override=True) -> tuple[ConfigFlags, bytes]:
-        if config.get_ldrom_size() != ldrom_size:
+        self._fail_if_not_init()
+        device_info = self.get_device_info()
+        if device_info.has_configurable_size_ldrom and config.get_ldrom_size() != ldrom_size:
             self.print_vb("WARNING: LDROM size does not match config: %dB vs %dB" % (
                 ldrom_size, config.get_ldrom_size()))
             if not (ldrom_data is None) and (0 < config.get_ldrom_size() - len(ldrom_data) < 1024):
@@ -841,10 +852,12 @@ class NuvoISP(NuvoProg):
 
     def _check_config(self, prev_config:ConfigFlags, curr_config:ConfigFlags = None, ldrom_data:bytes = None, override=True, _lock=False) -> tuple[ConfigFlags, bytes]:
         ldrom_size = 0
+        self._fail_if_not_init()
+        device_info = self.get_device_info()
         if not (ldrom_data is None):
             if len(ldrom_data) > 0:
                 ldrom_size = len(ldrom_data)
-                if not self.check_ldrom_size(ldrom_size):
+                if device_info.ldrom_max_size < ldrom_size:
                     raise Exception("ERROR: Invalid LDROM size. Not programming...")
                 else:
                     if not curr_config:  # No config, set defaults
@@ -890,7 +903,7 @@ class NuvoISP(NuvoProg):
         config_to_write, ldrom_data = self._check_config(read_config, config, ldrom_data, ldrom_config_override, _lock)
 
         device_info = self.get_device_info()
-        aprom_size = config_to_write.get_aprom_size()
+        aprom_size = device_info.get_aprom_size(config_to_write)
         if aprom_size != len(aprom_data):
             eprint("WARNING: APROM file size does not match config: %d KB vs %d KB" % (
                 len(aprom_data) / 1024, aprom_size / 1024))
@@ -1124,28 +1137,6 @@ def main() -> int:
             print_usage()
             return 2
 
-    # try:
-    #     # check to see if the files are the correct size
-    #     if write and os.path.getsize(write_file) > FLASH_SIZE:
-    #         eprint("ERROR: %s is too large for APROM.\n\n" % write_file)
-    #         print_usage()
-    #         return 2
-    # except:
-    #     eprint("ERROR: Could not read %s.\n\n" % write_file)
-    #     return 2
-    # check the length of the ldrom file
-    ldrom_size = 0
-    if ldrom_file:
-        try:
-            # check the length of the ldrom file
-            ldrom_size = os.path.getsize(ldrom_file)
-            if not NuvoISP.check_ldrom_size(ldrom_size):
-                eprint("Error: LDROM file invalid.")
-                return 1
-        except Exception as e:
-            eprint("Error: Could not read LDROM file")
-            return 2
-
     try:
         with NuvoISP(serial_port=port, serial_rate=baud, silent=silent) as nuvo:
 
@@ -1164,10 +1155,8 @@ def main() -> int:
                 return 1
             # process commands
             if config_dump_cmd:
+                print("\n*** Device Info ***")
                 print(devinfo)
-                test = nuvo.get_ucid_test()
-                # print as individual bytes
-                print(" ".join(["%02X" % b for b in test]))
                 read_config.print_config()
                 return 0
             elif read:

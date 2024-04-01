@@ -44,11 +44,11 @@ default: all
 
 
 all: pigpio-target nuvo51icp set_cap_on_nuvo51icp
-nuvo51icp: main.o n51_icp.o $(DEV_OBJ)
+nuvo51icp: main.o n51_icp.o device_common.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o nuvo51icp $^ $(LDFLAGS)
-shared: main.o n51_icp.o $(DEV_OBJ)
+shared: main.o n51_icp.o device_common.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -shared -o libnuvo51icp-$(LIBNAME).so $^ $(LDFLAGS)
-test: itest.o n51_icp.o $(DEV_OBJ)
+test: itest.o n51_icp.o device_common.o $(DEV_OBJ)
 	$(CC) $(CFLAGS) -o itest $^ $(LDFLAGS)
 clean:
 	rm -f nuvo51icp *.o libnuvo51icp-*.so

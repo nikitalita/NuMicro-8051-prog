@@ -3,11 +3,11 @@
 #include "n51_icp.h"
 #include "n51_pgm.h"
 #include "config.h"
-#include "n76e003_icp_dev.h"
 
 #include <Arduino.h>
 #include <assert.h>
 #include "common/isp_common.h"
+#include "device_common.h"
 
 #define FW_VERSION          0xE0  // Our own special firmware version to tell our ISP tool we can use our custom commands
 
@@ -40,7 +40,20 @@
 #define BUILTIN_LED LED_BUILTIN
 #endif
 
-#define PAGE_MASK 0xFF80
+
+#define PAGE_SIZE            128 // flash page size
+#define PAGE_MASK            0xFF80
+#define MAX_FLASH_SIZE  (64 * 1024) // 64k
+// N76E003 device constants
+#define N76E003_DEVID	         0x3650
+#define MS16K_512B_DEVID         0x4B20
+#define MS16K_1K_OLD_DEVID       0x4B21
+#define MS16K_1K_DEVID           0x5322
+#define CFG_FLASH_ADDR		       0x30000
+#define CFG_FLASH_LEN		         5
+#define LDROM_MAX_SIZE      (4 * 1024)
+
+
 
 #define DISCONNECTED_STATE      0
 #define CONNECTING_STATE        1
@@ -68,9 +81,8 @@ unsigned long last_read_time = 0;
 unsigned long curr_time = 0;
 
 #if CACHED_ROM_READ
-byte read_buff[FLASH_SIZE];
+byte read_buff[MAX_FLASH_SIZE];
 bool read_buff_valid = false;
-uint8_t LDROM_BUF[LDROM_MAX_SIZE];
 #define INVALIDATE_CACHE read_buff_valid = false
 #else
 #define INVALIDATE_CACHE
@@ -274,6 +286,14 @@ void update(unsigned char* data, int len)
 }
 
 
+
+uint32_t get_aprom_size(){
+  config_flags flags;
+  read_config(&flags);
+  const flash_info_t * flash_info = get_flash_info(N51ICP_read_device_id());
+  return flash_info_get_aprom_size(flash_info, get_ldrom_size(&flags));
+}
+
 void dump()
 {
   unsigned char * data_buf = tx_buf + DUMP_DATA_START;
@@ -284,15 +304,17 @@ void dump()
 #if CACHED_ROM_READ
   // hack to make reads faster
   if (!read_buff_valid) {
+    uint32_t device_id = N51ICP_read_device_id();
+    const flash_info_t * flash_info = get_flash_info(device_id);
+    if (flash_info == NULL) {
+      DEBUG_PRINT("Failed to get flash info for device 0x%04x\n", N51ICP_read_device_id());
+      fail_pkt();
+      return;
+    }
     DEBUG_PRINT("Caching rom...\n");
     // we're going to read the entire thing into memory
-    int read_addr = 0;
-    // dump x bytes at a time
-#define READ_CHUNK FLASH_SIZE
-    for (read_addr = 0; read_addr < FLASH_SIZE; read_addr += READ_CHUNK){
-      N51ICP_read_flash(read_addr, READ_CHUNK, &read_buff[read_addr]);
-      delayMicroseconds(1);
-    }
+    uint32_t read_chunk = flash_info->memory_size;
+    N51ICP_read_flash(0, flash_info->memory_size, read_buff);
     read_buff_valid = true;
   }
   memcpy(data_buf, &read_buff[dump_addr], n);
@@ -352,10 +374,9 @@ bool mass_erase_checked(bool check_device_id = false){
     N51ICP_reentry(5000, 1000, 10);
   }
   if (check_device_id){
-    uint32_t devid = N51ICP_read_device_id();
-    if (devid != N76E003_DEVID){
+    if (get_flash_info(N51ICP_read_device_id()) == NULL){
       N51ICP_reentry(5000, 1000, 10);
-      if (devid != N76E003_DEVID) {
+      if (get_flash_info(N51ICP_read_device_id()) == NULL) {
         DEBUG_PRINT("Failed to find device after mass erase! failing...\n");
         fail_pkt();
         return false;
@@ -611,6 +632,16 @@ void loop()
         tx_buf[11] = 0;
         send_pkt();
         } break;
+      case CMD_GET_PID:
+        {
+        uint32_t id = N51ICP_read_pid();
+        DEBUG_PRINT("received part id of 0x%04x\n", id);
+        tx_buf[8] = id & 0xff;
+        tx_buf[9] = (id >> 8) & 0xff;
+        tx_buf[10] = 0;
+        tx_buf[11] = 0;
+        send_pkt();
+        } break;
       case CMD_READ_CONFIG:
         DEBUG_PRINT("CMD_READ_CONFIG\n");
         N51ICP_read_flash(CFG_FLASH_ADDR, CFG_FLASH_LEN, &tx_buf[8]);
@@ -637,11 +668,12 @@ void loop()
       {
         DEBUG_PRINT("CMD_ERASE_ALL\n");
         INVALIDATE_CACHE;
-        read_config(&flags);
-        int ldrom_size = get_ldrom_size(&flags);
-        DEBUG_PRINT("ldrom_size: %d\n", ldrom_size);
-        DEBUG_PRINT("Erasing %d bytes of APROM\n", FLASH_SIZE - ldrom_size);
-        for (int i = 0; i < FLASH_SIZE - ldrom_size; i += PAGE_SIZE) {
+        // read_config(&flags);
+        // int ldrom_size = get_ldrom_size(&flags);
+        // DEBUG_PRINT("ldrom_size: %d\n", ldrom_size);
+        uint32_t aprom_size = get_aprom_size();
+        DEBUG_PRINT("Erasing %d bytes of APROM\n", aprom_size);
+        for (int i = 0; i < aprom_size; i += PAGE_SIZE) {
           N51ICP_page_erase(i);
         }
         send_pkt();
@@ -711,6 +743,7 @@ void loop()
         
         cid = N51ICP_read_cid();
         int ldrom_size = get_ldrom_size(&flags);
+        INVALIDATE_CACHE;
         // Specification states that we need to erase the aprom when we receive this command
         if (flags.LOCK != 0 && cid != 0xFF) {
           // device is not locked, we need to erase only the areas we're going to write to
@@ -722,7 +755,6 @@ void loop()
         } else { // device is locked, we'll need to do a mass erase
           if (!mass_erase_checked(true)) break;
         }
-        INVALIDATE_CACHE;
         read_config(&flags);
         DEBUG_PRINT("flashing %d bytes\n", update_size);
         update(&rx_buf[16], 48);

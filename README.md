@@ -1,15 +1,15 @@
 # NuMicro-8051-prog
 
-N76E003 programming libraries.
+NuMicro 8051 programming libraries.
 
 This provides the following packages:
 
-- nuvo51icp: N76E003 ICP library and Arduino ISP-to-ICP bridge sketch
+- nuvo51icp: NuMicro 8051 ICP library and Arduino ISP-to-ICP bridge sketch
 - nuvo51icpy: Python bindings and command-line tool for nuvo51icp (for Raspberry Pi Only)
 - nuvoispy: Python library and command-line tool for Nuvoton ISP programming
 - bootloader: Custom ISP LDROM bootloader with extended ISP commands
 
-This currently only supports the N76E003, but it could easily be extended to other Nuvoton NuMicro 1T 8051 chips, like the MS51FB9AE ([see here](https://github.com/vladimir-dudnik/MS51FB9AE-pgm-rpi)). I don't have access to any other chips though; if anyone wants to add additional chips, let me know.
+This currently supports the most of the Nuvoton 1T 8051 line, but it has only been tested with the N76E003, MS51FB9AE, and MS51FC0AE. It should work with the other chips in the line, but it may require some tweaking.
 
 ### build requirements:
 - sdcc
@@ -90,7 +90,7 @@ Just run `pip install -e .` in the root directory of this repository. This will 
 
 When using the command-line tool, run `python -m nuvoprogpy.nuvo51icpy <commands>`:
 ```
-nuvo51icpy, a RPi ICP flasher for the Nuvoton N76E003
+nuvo51icpy, an ICP flasher for the Nuvoton NuMicro 8051 line of chips
 written by Nikita Lita
 
 Usage:
@@ -146,7 +146,7 @@ When using the Python library directly, use the `Nuvo51ICP` class in the `nuvopr
 
 This is a python library and command-line tool for programming the APROM with the ISP protocol.
 
-This is compatible with the official N76E003 ISP ROM, and is ALSO compatible with the Arduino-built versions of `nuvo51icp`, which implement the ISP protocol.
+This is compatible with the official 8051 ISP ROMs, and is ALSO compatible with the Arduino-built versions of `nuvo51icp`, which implement the ISP protocol.
 
 NOTE: Right now, the two Python packages are joined together in the `nuvoprogpy` package because they share functionality. If anyone has ideas on how to seperate these elegantly, let me know.
 
@@ -179,8 +179,10 @@ Usage:
 
 This bootloader behaves like the standard Nuvoton ISP LDROM with extended functionality. It can be used with either the standard Nuvoton ISP tools, or with `nuvoispy` to take advantage of the extended commands (e.g. reading the flash contents and additional device read commands).
 
+PLEASE NOTE: This is currently only implemented for the N76E003, the MS51 16K series, the MS51 32K series, and the N76S003. To implement this for other chips, you will have to get the support libraries for those chips and modify the code accordingly.
+
 ### Build:
-Just run `make` in the bootloader directory
+Just run `make PLATFORM=<PLATFORM_GOES_HERE>` in the bootloader directory
 
 ### Usage:
 Program it as an LDROM with the icp tools above. Then, you can use either the standard Nuvoton ISP tools or nuvoispy to program the APROM.
