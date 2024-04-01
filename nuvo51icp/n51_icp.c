@@ -38,15 +38,18 @@
 #define DEFAULT_PAGE_ERASE_TIME 6000
 #define DEFAULT_PAGE_ERASE_HOLD_TIME 100
 #define DEFAULT_MASS_ERASE_TIME 65000
-#define DEFAULT_POST_MASS_ERASE_TIME 1000
+#define DEFAULT_MASS_ERASE_HOLD_TIME 1000
 #define N76E616_PROGRAM_TIME 40
 #define N76E616_PAGE_ERASE_TIME 40000
 
 // These are MCU dependent (default for N76E003)
 static uint32_t program_time = DEFAULT_PROGRAM_TIME;
+static uint32_t program_hold_time = DEFAULT_PROGRAM_HOLD_TIME;
 static uint32_t page_erase_time = DEFAULT_PAGE_ERASE_TIME;
+static uint32_t page_erase_hold_time = DEFAULT_PAGE_ERASE_HOLD_TIME;
 static uint32_t mass_erase_time = DEFAULT_MASS_ERASE_TIME;
-static uint32_t post_mass_erase_time = DEFAULT_POST_MASS_ERASE_TIME;
+static uint32_t mass_erase_hold_time = DEFAULT_MASS_ERASE_HOLD_TIME;
+
 #define ENTRY_BIT_DELAY 60
 
 // ICP Commands
@@ -331,9 +334,8 @@ uint32_t N51ICP_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 		return 0;
 	}
 	N51ICP_send_command(ICP_CMD_WRITE_FLASH, addr);
-	int delay1 = program_time;
 	for (uint32_t i = 0; i < len; i++) {
-		N51ICP_write_byte(data[i], i == (len-1), delay1, DEFAULT_PROGRAM_HOLD_TIME);
+		N51ICP_write_byte(data[i], i == (len-1), program_time, program_hold_time);
 	}
 
 	return addr + len;
@@ -342,33 +344,31 @@ uint32_t N51ICP_write_flash(uint32_t addr, uint32_t len, uint8_t *data)
 void N51ICP_mass_erase(void)
 {
 	N51ICP_send_command(ICP_CMD_MASS_ERASE, 0x3A5A5);
-	N51ICP_write_byte(0xff, 1, mass_erase_time, post_mass_erase_time);
+	N51ICP_write_byte(0xff, 1, mass_erase_time, mass_erase_hold_time);
 }
 
 void N51ICP_page_erase(uint32_t addr)
 {
 	N51ICP_send_command(ICP_CMD_PAGE_ERASE, addr);
-	N51ICP_write_byte(0xff, 1, page_erase_time, DEFAULT_PAGE_ERASE_HOLD_TIME);
+	N51ICP_write_byte(0xff, 1, page_erase_time, page_erase_hold_time);
 }
 
-void N51ICP_set_program_time(uint32_t time_us)
+void N51ICP_set_program_time(uint32_t delay_us, uint32_t hold_us)
 {
-	program_time = time_us;
+	program_time = delay_us;
+	program_hold_time = hold_us;
 }
 
-void N51ICP_set_page_erase_time(uint32_t time_us)
+void N51ICP_set_page_erase_time(uint32_t delay_us, uint32_t hold_us)
 {
-	page_erase_time = time_us;
+	page_erase_time = delay_us;
+	page_erase_hold_time = hold_us;
 }
 
-void N51ICP_set_mass_erase_time(uint32_t time_us)
+void N51ICP_set_mass_erase_time(uint32_t delay_us, uint32_t hold_us)
 {
-	mass_erase_time = time_us;
-}
-
-void N51ICP_set_post_mass_erase_time(uint32_t time_us)
-{
-	post_mass_erase_time = time_us;
+	mass_erase_time = delay_us;
+	mass_erase_hold_time = hold_us;
 }
 
 void N51ICP_outputf(const char *s, ...)

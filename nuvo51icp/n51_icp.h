@@ -91,41 +91,27 @@ void N51ICP_outputf(const char *fmt, ...);
 /***
  * @brief     Set the program time for the N76E003.
  * 
- * This is the time that `N51ICP_write_flash()` will wait between bytes while writing to flash
- * (default: 25us)
- * @param time The time in microseconds
+ * @param delay_us The time to wait while programming (default: 25us)
+ * @param hold_us The time to wait after programming (default: 5us)
  */
-void N51ICP_set_program_time(uint32_t time_us);
+void N51ICP_set_program_time(uint32_t delay_us, uint32_t hold_us);
 
 /***
  * @brief     Set the page erase time for the N76E003.
  * 
- * This is the time that `N51ICP_page_erase()` will wait between pages while erasing flash
- * (default: 6000us)
- * 
- * @param time The time in microseconds
+ * @param delay_us The time to wait while erasing (default: 6000us)
+ * @param hold_us The time to wait after erasing (default: 100us)
 */
-void N51ICP_set_page_erase_time(uint32_t time_us);
+void N51ICP_set_page_erase_time(uint32_t delay_us, uint32_t hold_us);
 
 /***
  * @brief     Set the mass erase time for the N76E003.
  * 
- * This is the time that `N51ICP_mass_erase()` will wait during the erase
- * (default: 65000us)
- * 
- * @param time The time in microseconds
-*/
-void N51ICP_set_mass_erase_time(uint32_t time_us);
+ * @param delay_us The time to wait while erasing (default: 65000us)
+ * @param hold_us The time to wait after erasing (default: 1000us)
 
-/***
- * @brief     Set the post mass erase time for the N76E003.
- * 
- * This is the time that `N51ICP_mass_erase()` will wait after the erase
- * (default: 1000us)
- * 
- * @param time The time in microseconds
 */
-void N51ICP_set_post_mass_erase_time(uint32_t time_us);
+void N51ICP_set_mass_erase_time(uint32_t delay_us, uint32_t hold_us);
 
 /**
  * @brief      Puts the target chip into ICP mode.

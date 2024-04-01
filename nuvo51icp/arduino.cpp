@@ -14,7 +14,7 @@
 #endif
 extern "C" {
 
-uint8_t initialized = 0;
+static uint8_t initialized = 0;
 
 int N51PGM_init(void)
 {

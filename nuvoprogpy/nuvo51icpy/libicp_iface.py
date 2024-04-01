@@ -51,14 +51,14 @@ class ICPLibInterface:
     def page_erase(self, addr) -> bool:
         raise NotImplementedError("Not implemented!")
 
-    def set_program_time(self, time_us: int) -> bool:
+    def set_program_time(self, delay_us: int, hold_us: int) -> bool:
         raise NotImplementedError("Not implemented!")
     
-    def set_page_erase_time(self, time_us: int) -> bool:
+    def set_page_erase_time(self, delay_us: int, hold_us: int) -> bool:
         raise NotImplementedError("Not implemented!")
 
-    def set_mass_erase_time(self, time_us: int) -> bool:
+    def set_mass_erase_time(self, delay_us: int, hold_us: int) -> bool:
         raise NotImplementedError("Not implemented!")
     
-    def set_entry_time(self, time_us: int) -> bool:
+    def set_entry_time(self, delay_us: int, hold_us: int) -> bool:
         raise NotImplementedError("Not implemented!")

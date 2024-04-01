@@ -103,17 +103,14 @@ class LibICP:
         self.lib.N51ICP_page_erase.argtypes = [ctypes.c_uint32]
         self.lib.N51ICP_page_erase.restype = None
 
-        self.lib.N51ICP_set_program_time.argtypes = [ctypes.c_uint32]
+        self.lib.N51ICP_set_program_time.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
         self.lib.N51ICP_set_program_time.restype = None
     
-        self.lib.N51ICP_set_page_erase_time.argtypes = [ctypes.c_uint32]
+        self.lib.N51ICP_set_page_erase_time.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
         self.lib.N51ICP_set_page_erase_time.restype = None
 
-        self.lib.N51ICP_set_mass_erase_time.argtypes = [ctypes.c_uint32]
+        self.lib.N51ICP_set_mass_erase_time.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
         self.lib.N51ICP_set_mass_erase_time.restype = None
-
-        self.lib.N51ICP_set_post_mass_erase_time.argtypes = [ctypes.c_uint32]
-        self.lib.N51ICP_set_post_mass_erase_time.restype = None
 
         # Wrapper functions
 
@@ -202,20 +199,16 @@ class LibICP:
         self.lib.N51ICP_page_erase(ctypes.c_uint32(addr))
         return True
 
-    def set_program_time(self, time_us: int) -> bool:
-        self.lib.N51ICP_set_program_time(ctypes.c_uint32(time_us))
+    def set_program_time(self, delay_us: int, hold_us: int) -> bool:
+        self.lib.N51ICP_set_program_time(ctypes.c_uint32(time_us), ctypes.c_uint32(hold_us))
         return True
 
-    def set_page_erase_time(self, time_us: int) -> bool:
-        self.lib.N51ICP_set_page_erase_time(ctypes.c_uint32(time_us))
+    def set_page_erase_time(self, delay_us: int, hold_us: int) -> bool:
+        self.lib.N51ICP_set_page_erase_time(ctypes.c_uint32(time_us), ctypes.c_uint32(hold_us))
         return True
     
-    def set_mass_erase_time(self, time_us: int) -> bool:
-        self.lib.N51ICP_set_mass_erase_time(ctypes.c_uint32(time_us))
-        return True
-    
-    def set_post_mass_erase_time(self, time_us: int) -> bool:
-        self.lib.N51ICP_set_post_mass_erase_time(ctypes.c_uint32(time_us))
+    def set_mass_erase_time(self, delay_us: int, hold_us: int) -> bool:
+        self.lib.N51ICP_set_mass_erase_time(ctypes.c_uint32(time_us), ctypes.c_uint32(hold_us))
         return True
     
 
