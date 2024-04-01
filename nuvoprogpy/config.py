@@ -16,6 +16,9 @@ APROM_ADDR = 0
 CFG_FLASH_ADDR = 0x30000
 CFG_FLASH_LEN = 5
 
+SPROM_ADDR = 0x20180
+SPROM_LEN = 128
+
 # N76E003 values only for now
 LDROM_MAX_SIZE = 4 * 1024
 FLASH_SIZE = 18 * 1024
@@ -86,6 +89,13 @@ class FlashInfo:
     def config_len(self):
         raise NotImplementedError("Not implemented!")
 
+    @property
+    def sprom_addr(self):
+        raise NotImplementedError("Not implemented!")
+
+    @property
+    def sprom_len(self):
+        raise NotImplementedError("Not implemented!")
 
 
 class FlashInfo8051(FlashInfo):
@@ -160,6 +170,14 @@ class FlashInfo8051(FlashInfo):
     @property
     def config_len(self):
         return CFG_FLASH_LEN
+
+    @property
+    def sprom_addr(self):
+        return SPROM_ADDR
+
+    @property
+    def sprom_len(self):
+        return SPROM_LEN
 
 def dump_Flash_8051_to_dict():
     flash_8051_dict = {}
@@ -267,6 +285,14 @@ class DeviceInfo:
     def has_configurable_size_ldrom(self):
         return self.flash_info.has_configurable_size_ldrom
     
+    @property
+    def sprom_addr(self):
+        return self.flash_info.sprom_addr
+
+    @property
+    def sprom_len(self):
+        return self.flash_info.sprom_len
+        
     def get_aprom_size(self, config):
         return self.flash_info.get_aprom_size(config)
     

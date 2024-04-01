@@ -358,6 +358,18 @@ class Nuvo51ICP:
         self._fail_if_not_init()
         return self.icp.write_flash(addr, data)
     
+    def read_sprom(self, addr, len) -> bytes:
+        self._fail_if_not_init()
+        device_info = self.get_device_info()
+        addr = device_info.sprom_addr + addr
+        return self.read_flash(addr, len)
+    
+    def write_sprom(self, addr, data: bytes) -> bool:
+        self._fail_if_not_init()
+        device_info = self.get_device_info()
+        addr = device_info.sprom_addr + addr
+        return self.write_flash(addr, data)
+    
     def is_locked(self):
         self._fail_if_not_init()
         return (self.get_cid() == 0xFF or self.read_config().is_locked())
