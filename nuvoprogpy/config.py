@@ -461,7 +461,6 @@ class ConfigFlags:
     def get_config_status(self) -> str:
         raise NotImplementedError("Not implemented!")
 
-
     def print_config(self):
         raise NotImplementedError("Not implemented!")
 
@@ -483,6 +482,10 @@ class ConfigFlags:
     def from_bytes(config_bytes, device_id):
         _, type = lookup_name_and_type(device_id)
         if type.is_8051:
+            if type in [ChipType.ML51_32K, ChipType.ML51_16K, ChipType.ML56]:
+                return ML5XConfigFlags(config_bytes)
+            elif type in [ChipType.MUG51]:
+                return MUG51ConfigFlags(config_bytes)
             return N8051ConfigFlags(config_bytes)
         return UnsupportedConfigFlags(config_bytes)
 
@@ -491,28 +494,14 @@ class ConfigFlags:
         if 'config_bytes' in json and type(json['config_bytes']) == list and len(json['config_bytes']) == 5:
             config = UnsupportedConfigFlags(json['config_bytes'])
             return config
-        config = N8051ConfigFlags()
-        # check that key exists
-        if 'lock' in json and type(json['lock']) == bool:
-            config.set_lock(json['lock'])
-        if 'boot_from_ldrom' in json and type(json['boot_from_ldrom']) == bool:
-            config.set_ldrom_boot(json['boot_from_ldrom'])
-        if 'ldrom_size' in json and json['ldrom_size'] >= 0 and json['ldrom_size'] <= 4096:
-            config.set_ldrom_size(json['ldrom_size'])
-        if 'OCD_enable' in json and type(json['OCD_enable']) == bool:
-            config.set_ocd_enable(json['OCD_enable'])
-        if 'brownout_detect' in json and type(json['brownout_detect']) == bool:
-            config.set_brownout_detect(json['brownout_detect'])
-        if 'brownout_reset' in json and type(json['brownout_reset']) == bool:
-            config.set_brownout_reset(json['brownout_reset'])
-        if 'brownout_voltage' in json and (json['brownout_voltage'] == 2.2 or json['brownout_voltage'] == 4.4 or json['brownout_voltage'] == 2.7 or json['brownout_voltage'] == 3.7):
-            config.set_brownout_voltage(json['brownout_voltage'])
-        if 'brownout_inhibits_IAP' in json and type(json['brownout_inhibits_IAP']) == bool:
-            config.set_brownout_inhibits_IAP(json['brownout_inhibits_IAP'])
-        if 'WDT_enable' in json and type(json['WDT_enable']) == bool:
-            keep_active = False if not json['WDT_keep_active'] else True
-            config.set_wdt(json['WDT_enable'], keep_active)
-        return config
+        if not device_id is None:
+            _, type = lookup_name_and_type(device_id)
+            # check if it's any of the ML51/ML54/ML56 chips
+            if type in [ChipType.ML51_32K, ChipType.ML51_16K, ChipType.ML56]:
+                return ML5XConfigFlags().load_json(json)
+            elif type in [ChipType.MUG51]:
+                return MUG51ConfigFlags().load_json(json)
+        return N8051ConfigFlags().load_json(json)
 
     @staticmethod
     def from_json_file(filename, device_id = None):
@@ -631,9 +620,9 @@ class UnsupportedConfigFlags(ConfigFlags):
         return " ".join(["%02X" % b for b in self.to_bytes()])
 
     def to_json(self):
-        return json.dumps({
+        return {
             "config_bytes": self.to_bytes()
-        }, indent=4)
+        }
 
     # Dumps config to file
     def to_json_file(self, filename) -> bool:
@@ -667,7 +656,11 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         # 1: tri-state pins are used as PWM outputs
         # 0: PWM continues
         ("OCDPWM", ctypes.c_uint8, 1),        # 0:5
-        ("reserved0_6", ctypes.c_uint8, 1),  # 0:6
+        # ML51/ML54/ML56 only
+        # Default Fsys Select in Power-on Sequence or ICP/HW/ICE Entry Mode.
+        # 1 = Default Fsys select HIRC.
+        # 0 = Default Fsys select LIRC and HIRC off.
+        ("FSYS", ctypes.c_uint8, 1),  # 0:6
         # CONFIG boot selection
         # 1: MCU will reboot from APROM after resets except software reset
         # 0: MCU will reboot from LDROM after resets except software reset
@@ -679,8 +672,15 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         # 101 = LDROM is 2K Bytes. APROM is 16K Bytes.
         # 100 = LDROM is 3K Bytes. APROM is 15K Bytes.
         # 0xx = LDROM is 4K Bytes. APROM is 14K Bytes
-        ("LDS", ctypes.c_uint8, 3),          # 1:3-0
-        ("unk1_3", ctypes.c_uint8, 5),       # 1:7-3
+        ("LDS", ctypes.c_uint8, 3),          # 1:2-0
+        ("unk1_3", ctypes.c_uint8, 2),       # 1:4-3
+        # MUG51 only
+        # GPIO Pin Default Select:
+        # 1 = GPIO pin default in INPUT mode.
+        # 0 = GPIO pin default in Quasi mode.
+        ("IODEFAULT", ctypes.c_uint8,1),       # 1:5
+        ("unk1_6", ctypes.c_uint8, 5),       # 1:7-6
+        
         # config2
         ("unk2_0", ctypes.c_uint8, 2),       # 2:1-0
         # CONFIG brown-out reset enable
@@ -702,8 +702,24 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         # 1 = Brown-out detection circuit on.
         # 0 = Brown-out detection circuit off.
         ("CBODEN", ctypes.c_uint8, 1),         # 2:7
-        # config3 - no flags
-        ("unk3", ctypes.c_uint8),            # 3:7-0
+        # config3
+        # MUG51 only
+        # System Clock Divider Sectection
+        # This field configures the system clock divider after MCU execution.
+        # 11 = System clock divided by 1.
+        # 10 = System clock divided by 2.
+        # 01 = System clock divided by 4.
+        # 00 = System clock divided by 6.
+        ("CLKDIV", ctypes.c_uint8, 2),         # 3:1-0
+        ("unk3_2", ctypes.c_uint8, 1),         # 3:2
+        # MG51 only
+        # ADC Interrupt Flag Setting Enabled in ADC Compare Mode.
+        # 1 = ADC flag ADCF(ADCCON0.7) is set to 1 only when the compare result is matched.
+        # After select this type ADC behavior same as MS51.
+        # 0 = ADC flag is set while each ADC coveraion finish.
+        # After select this type ADC behavior same as N76E003.
+        ("ADCINTEN", ctypes.c_uint8, 1),       # 3:3
+        ("unk3_4", ctypes.c_uint8, 4),         # 3:7-4
         # config4
         ("unk4_0", ctypes.c_uint8, 4),       # 4:3-0
         #  WDT enable
@@ -859,6 +875,13 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         else:
             self.WDTEN = 0b1111
         return True
+    
+    def is_resetpin_enabled(self):
+        return self.RPD == 1
+    
+    def set_resetpin_enable(self, enable: bool) -> bool:
+        self.RPD = 1 if enable else 0
+        return True
 
     def get_config_status(self) -> str:
         ret_str = ""
@@ -903,8 +926,8 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
     def __str__(self) -> str:
         return " ".join(["%02X" % b for b in self.to_bytes()])
 
-    def to_json(self):
-        return json.dumps({
+    def to_json(self) -> dict:
+        return {
             "lock": self.is_locked(),
             "boot_from_ldrom": self.is_ldrom_boot(),
             "ldrom_size": self.get_ldrom_size(),
@@ -915,11 +938,11 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
             "brownout_inhibits_IAP": self.is_brownout_inhibits_IAP(),
             "WDT_enable": self.is_wdt_enabled(),
             "WDT_keep_active": self.is_wdt_keep_active()
-        }, indent=4)
+        }
 
     # Dumps config to file
     def to_json_file(self, filename) -> bool:
-        obj = self.to_json()
+        obj = json.dumps(self.to_json(), indent=4)
         try:
             with open(filename, "w") as f:
                 f.write(obj)
@@ -927,6 +950,157 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         except:
             print("Error writing config file")
             return False
+        
+    def load_json(self, json):
+        # check that key exists
+        if 'lock' in json and type(json['lock']) == bool:
+            self.set_lock(json['lock'])
+        if 'boot_from_ldrom' in json and type(json['boot_from_ldrom']) == bool:
+            self.set_ldrom_boot(json['boot_from_ldrom'])
+        if 'ldrom_size' in json and json['ldrom_size'] >= 0 and json['ldrom_size'] <= 4096:
+            self.set_ldrom_size(json['ldrom_size'])
+        if 'OCD_enable' in json and type(json['OCD_enable']) == bool:
+            self.set_ocd_enable(json['OCD_enable'])
+        if 'brownout_detect' in json and type(json['brownout_detect']) == bool:
+            self.set_brownout_detect(json['brownout_detect'])
+        if 'brownout_reset' in json and type(json['brownout_reset']) == bool:
+            self.set_brownout_reset(json['brownout_reset'])
+        if 'brownout_voltage' in json and (json['brownout_voltage'] == 2.2 or json['brownout_voltage'] == 4.4 or json['brownout_voltage'] == 2.7 or json['brownout_voltage'] == 3.7):
+            self.set_brownout_voltage(json['brownout_voltage'])
+        if 'brownout_inhibits_IAP' in json and type(json['brownout_inhibits_IAP']) == bool:
+            self.set_brownout_inhibits_IAP(json['brownout_inhibits_IAP'])
+        if 'WDT_enable' in json and type(json['WDT_enable']) == bool:
+            keep_active = False if not json['WDT_keep_active'] else True
+            self.set_wdt(json['WDT_enable'], keep_active)
+        return self
+
+class _3bitbov(N8051ConfigFlags):
+
+    def get_brown_out_voltage(self):
+        """
+        CONFIG Brown-Out Voltage Select
+        111 = VBOD is 1.8V.
+        110 = VBOD is 1.8V.
+        101 = VBOD is 2.0V.
+        100 = VBOD is 2.4V.
+        011 = VBOD is 2.7V.
+        010 = VBOD is 3.0V.
+        001 = VBOD is 3.7V.
+        000 = VBOD is 4.4V.
+        """
+        CBOV_val = self.CBOV & 0x7
+        if CBOV_val == 1:
+            return 3.7
+        elif CBOV_val == 2:
+            return 3.0
+        elif CBOV_val == 3:
+            return 2.7
+        elif CBOV_val == 4:
+            return 2.4
+        elif CBOV_val == 5:
+            return 2.0
+        elif CBOV_val == 6:
+            return 1.8
+        elif CBOV_val == 7:
+            return 1.8
+        # else 0
+        return 4.4
+
+    def set_brownout_voltage(self, voltage: float) -> bool:
+        if voltage == 1.8:
+            self.CBOV = 7
+        elif voltage == 2.0:
+            self.CBOV = 5
+        elif voltage == 2.4:
+            self.CBOV = 4
+        elif voltage == 2.7:
+            self.CBOV = 3
+        elif voltage == 3.0:
+            self.CBOV = 2
+        elif voltage == 3.7:
+            self.CBOV = 1
+        elif voltage == 4.4:
+            self.CBOV = 0
+        else:
+            return False
+        return True
+
+class ML5XConfigFlags(_3bitbov):
+    def is_hirc_enabled(self):
+        return self.FSYS == 1
+    
+    def set_hirc_enable(self, enable: bool) -> bool:
+        self.FSYS = 1 if enable else 0
+        return True
+
+    def to_json(self) -> dict:
+        json = super().to_json()
+        json["hirc_enable"] = self.is_hirc_enabled()
+        return json
+    
+    def load_json(self, json):
+        super().load_json(json)
+        if 'hirc_enable' in json and type(json['hirc_enable']) == bool:
+            self.set_hirc_enable(json['hirc_enable'])
+        return self
+    
+    def get_config_status(self) -> str:
+        ret_str = super().get_config_status()
+        ret_str +=("HIRC enabled:\t\t%s\n" %
+              ("enabled" if self.is_hirc_enabled() else "disabled"))
+        return ret_str
+
+class MUG51ConfigFlags(ConfigFlags):
+    def get_clock_divider(self):
+        # System Clock Divider Sectection
+        # This field configures the system clock divider after MCU execution.
+        # 11 = System clock divided by 1.
+        # 10 = System clock divided by 2.
+        # 01 = System clock divided by 4.
+        # 00 = System clock divided by 6.
+        if self.CLKDIV == 3:
+            return 1
+        elif self.CLKDIV == 2:
+            return 2
+        elif self.CLKDIV == 1:
+            return 4
+        # else 0
+        return 6
+    
+    def set_clock_divider(self, divider: int) -> bool:
+        if divider == 1:
+            self.CLKDIV = 3
+        elif divider == 2:
+            self.CLKDIV = 2
+        elif divider == 4:
+            self.CLKDIV = 1
+        elif divider == 6:
+            self.CLKDIV = 0
+        else:
+            return False
+        return True
+    
+    def get_io_pin_default(self):
+        return "INPUT" if self.IODEFAULT == 1 else "Quasi"
+    
+    def set_io_pin_default(self, default: str) -> bool:
+        self.IODEFAULT = 1 if default.upper() == "INPUT" else 0
+        return True
+    
+    def to_json(self) -> dict:
+        json = super().to_json()
+        json["clock_divider"] = self.get_clock_divider()
+        json["io_pin_default"] = self.get_io_pin_default()
+        return json
+    
+    def load_json(self, json):
+        super().load_json(json)
+        if 'clock_divider' in json and json['clock_divider'] in [1, 2, 4, 6]:
+            self.set_clock_divider(json['clock_divider'])
+        if 'io_pin_default' in json:
+            self.set_io_pin_default(json['io_pin_default'])
+        return self
+    
 
 
 def is_config_flags(thing):
