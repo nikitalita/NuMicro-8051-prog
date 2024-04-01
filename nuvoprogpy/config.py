@@ -934,11 +934,3 @@ def is_config_flags(thing):
 
 
 assert ctypes.sizeof(N8051ConfigFlags) == CFG_FLASH_LEN
-
-for did in Flash_8051:
-    # get the flash type
-    name, chip_type = lookup_name_and_type(did)
-    name = name.replace(" (Please report the chip name if you encounter this in the wild)", "")
-    flash_type = Flash_8051[did].flash_type
-    # print out the device type and flash type as hex
-    print("Device {:20s}\tFlash Type: 0x{:032b}".format(name, flash_type))
