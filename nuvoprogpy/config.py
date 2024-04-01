@@ -645,8 +645,8 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         # Reset pin enable
         # 1: reset function of P2.0/Nrst pin enabled
         # 0: disabled, P2.0/Nrst only functions as input-only pin P2.0
-        # 0:2 -- Please make sure you know what you're doing before unsetting this, as this will disable the reset pin and make it difficult to get back into the programmer
-        ("RPD", ctypes.c_uint8, 1),
+        # Please make sure you know what you're doing before unsetting this, as this will disable the reset pin and make it difficult to get back into the programmer
+        ("RPD", ctypes.c_uint8, 1),          # 0:2
         ("unk0_3", ctypes.c_uint8, 1),       # 0:3
         # OCD enable
         # 1: OCD Disabled
@@ -679,7 +679,7 @@ class N8051ConfigFlags(ctypes.LittleEndianStructure, ConfigFlags):
         # 1 = GPIO pin default in INPUT mode.
         # 0 = GPIO pin default in Quasi mode.
         ("IODEFAULT", ctypes.c_uint8,1),       # 1:5
-        ("unk1_6", ctypes.c_uint8, 5),       # 1:7-6
+        ("unk1_6", ctypes.c_uint8, 2),       # 1:7-6
         
         # config2
         ("unk2_0", ctypes.c_uint8, 2),       # 2:1-0
@@ -1106,5 +1106,5 @@ class MUG51ConfigFlags(ConfigFlags):
 def is_config_flags(thing):
     return isinstance(thing, ConfigFlags)
 
-
+thing = ctypes.sizeof(N8051ConfigFlags)
 assert ctypes.sizeof(N8051ConfigFlags) == CFG_FLASH_LEN
