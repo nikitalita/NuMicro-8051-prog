@@ -31,13 +31,14 @@ extern "C" {
 #endif
 
 /***
- * @brief     Initializes the PGM interface and enters the target chip into ICP mode.
+ * @brief     Initializes the PGM interface.
  * @param[in] do_reset If set, the reset sequence will be sent when performing ICP entry (recommended to set this to 1).
+ * @return    0 on success, any other value on failure
 */
-int N51ICP_init(uint8_t do_reset);
+int N51ICP_init();
 
 /**
- * @brief      Deinitializes the PGM interface and exits the target chip from ICP mode.
+ * @brief      Deinitializes the PGM interface.
  * 
  * @param[in] leave_reset_high  If set, the reset pin will not be released and will be left high after deinitializing the PGM interface.
 */
@@ -130,8 +131,9 @@ void N51ICP_set_post_mass_erase_time(uint32_t time_us);
  * @brief      Puts the target chip into ICP mode.
  * 
  * @param do_reset If set, the reset sequence will be sent when performing ICP entry (recommended to set this to 1).
+ * @return         The detected device ID
 */
-void N51ICP_enter_icp_mode(uint8_t do_reset);
+uint32_t N51ICP_enter_icp_mode(uint8_t do_reset);
 
 /**
  * @brief      Takes the target chip out of ICP mode.

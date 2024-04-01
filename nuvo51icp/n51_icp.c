@@ -114,7 +114,7 @@ void N51ICP_send_exit_bits(){
 	N51ICP_bitsend(EXIT_BITS, 24, ENTRY_BIT_DELAY);
 }
 
-int N51ICP_init(uint8_t do_reset)
+int N51ICP_init()
 {
 	int rc;
 	if (!N51PGM_is_init()) {
@@ -125,11 +125,10 @@ int N51ICP_init(uint8_t do_reset)
 			return -1;
 		}
 	}
-	N51ICP_enter_icp_mode(do_reset);
 	return 0;
 }
 
-void post_entry_set_times() {
+uint32_t post_entry_set_times() {
 	uint32_t devid = N51ICP_read_device_id();
 	// N76E616
 	if (devid >> 8 == 0x2f){
@@ -139,9 +138,10 @@ void post_entry_set_times() {
 		page_erase_time = DEFAULT_PAGE_ERASE_TIME;
 		program_time = DEFAULT_PROGRAM_TIME;
 	}
+	return devid;
 }
 
-void N51ICP_enter_icp_mode(uint8_t do_reset) {
+uint32_t N51ICP_enter_icp_mode(uint8_t do_reset) {
 	if (do_reset) {
 		send_reset_seq(ICP_RESET_SEQ, 24);
 		N51PGM_set_rst(0);
@@ -155,7 +155,7 @@ void N51ICP_enter_icp_mode(uint8_t do_reset) {
 	USLEEP(100);
 	N51ICP_send_entry_bits();
 	USLEEP(10);
-	post_entry_set_times();
+	return post_entry_set_times();
 }
 
 void N51ICP_reentry(uint32_t delay1, uint32_t delay2, uint32_t delay3) {
@@ -213,9 +213,6 @@ void N51ICP_reentry_glitch(uint32_t delay1, uint32_t delay2, uint32_t delay_afte
 
 void N51ICP_deinit(uint8_t leave_reset_high)
 {
-	if (N51PGM_is_init()){
-		N51ICP_exit_icp_mode();
-	}
 	N51PGM_deinit(leave_reset_high);
 }
 

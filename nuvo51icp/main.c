@@ -247,10 +247,11 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (N51ICP_init(true) != 0) {
+	if (N51ICP_init() != 0) {
 		fprintf(stderr, "ERROR: Failed to initialize ICP!\n\n");
 		goto err;
 	}
+	N51ICP_enter_icp_mode(true);
 	device_info devinfo = get_device_info();
 	// chip's locked, re-enter ICP mode to reload the flash
 	if (devinfo.cid == 0xFF) {
@@ -358,9 +359,11 @@ int main(int argc, char *argv[])
 	}
 
 out:
+	N51ICP_exit_icp_mode();
 	N51ICP_deinit(LEAVE_RESET_HIGH);
 	return 0;
 out_err:
+	N51ICP_exit_icp_mode();
 	N51ICP_deinit(LEAVE_RESET_HIGH);
 	err:
 	return 1;

@@ -54,11 +54,11 @@ class LibICP:
         self.lib.N51ICP_send_exit_bits.argtypes = []
         self.lib.N51ICP_send_exit_bits.restype = None
 
-        self.lib.N51ICP_init.argtypes = [ctypes.c_uint8]
+        self.lib.N51ICP_init.argtypes = []
         self.lib.N51ICP_init.restype = ctypes.c_int
 
         self.lib.N51ICP_enter_icp_mode.argtypes = [ctypes.c_uint8]
-        self.lib.N51ICP_enter_icp_mode.restype = None
+        self.lib.N51ICP_enter_icp_mode.restype = ctypes.c_uint32
 
         self.lib.N51ICP_reentry.argtypes = [
             ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
@@ -125,8 +125,8 @@ class LibICP:
         self.lib.N51ICP_send_exit_bits()
         return True
 
-    def init(self, do_reset=True) -> bool:
-        ret = self.lib.N51ICP_init(ctypes.c_uint8(do_reset))
+    def init(self) -> bool:
+        ret = self.lib.N51ICP_init()
         if ret == 0:  # PGM initialized
             # This ends up calling gpioInitialise(), so take the signals back
             if self.libname == "pigpio":
@@ -135,9 +135,9 @@ class LibICP:
         # ret != 0 means PGM not initialized, don't override signals
         return False
 
-    def entry(self, do_reset=True) -> bool:
-        self.lib.N51ICP_enter_icp_mode(ctypes.c_uint8(do_reset))
-        return True
+    def entry(self, do_reset=True) -> int:
+        ret = self.lib.N51ICP_enter_icp_mode(ctypes.c_uint8(do_reset))
+        return ret
 
     def reentry(self, delay1=5000, delay2=1000, delay3=10) -> bool:
         self.lib.N51ICP_reentry(ctypes.c_uint32(

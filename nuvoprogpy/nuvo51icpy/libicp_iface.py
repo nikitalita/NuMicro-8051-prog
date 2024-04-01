@@ -6,10 +6,10 @@ class ICPLibInterface:
     def send_exit_bits(self) -> bool:
         raise NotImplementedError("Not implemented!")
 
-    def init(self, do_reset=True) -> bool:
+    def init(self) -> bool:
         raise NotImplementedError("Not implemented!")
 
-    def entry(self, do_reset=True) -> bool:
+    def entry(self, do_reset=True) -> int:
         raise NotImplementedError("Not implemented!")
 
     def reentry(self, delay1=5000, delay2=1000, delay3=10) -> bool:

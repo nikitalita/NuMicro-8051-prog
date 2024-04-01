@@ -196,6 +196,7 @@ void setup()
 #endif
 #ifdef DEBUG_START_PRINT
   N51ICP_init();
+  N51ICP_enter_icp_mode(true);
   DEBUG_PRINT("DEVICEID\t\t\t0x%02x\n", N51ICP_read_device_id());
   DEBUG_PRINT("CID\t\t\t0x%02x\n", N51ICP_read_cid());
   DEBUG_PRINT("UID\t\t\t0x%024x\n", N51ICP_read_uid());
@@ -210,6 +211,7 @@ void setup()
     DEBUG_PRINT("\n");
     addr += sizeof(buf);
   }
+  N51ICP_exit_icp_mode();
   N51ICP_deinit(LEAVE_RESET_HIGH);
 #endif // DEBUG_START_PRINT
 #endif // _DEBUG
@@ -438,6 +440,7 @@ void reset_conn() {
   DEBUG_PRINT("Disconnecting...\n");
   if (state > WAITING_FOR_CONNECT_CMD) {
     disable_connect_led();
+    N51ICP_exit_icp_mode();
     N51ICP_deinit(LEAVE_RESET_HIGH);
   }
   state = DISCONNECTED_STATE;
@@ -544,7 +547,12 @@ void loop()
           INVALIDATE_CACHE;
           if (state == WAITING_FOR_CONNECT_CMD) {
             state = WAITING_FOR_SYNCNO;
-            N51ICP_init(true);
+            if (N51ICP_init() != 0) {
+              DEBUG_PRINT("Failed to initialize the PGM\n");
+              fail_pkt();
+              return;
+            }
+            N51ICP_enter_icp_mode(true);
             enable_connect_led();
           } else if (state == WAITING_FOR_SYNCNO) {
             // Don't send back a packet if we just connected and are waiting for syncno

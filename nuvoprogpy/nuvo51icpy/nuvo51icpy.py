@@ -181,17 +181,19 @@ class Nuvo51ICP:
                     self.print_vb("Attempting full exit and entry...")
                     self.icp.exit()
                     time.sleep(0.5)
-                    self.icp.entry()
-                    if self.icp.read_device_id() != 0:
+                    device_id = self.icp.entry()
+                    if device_id != 0:
                         self.print_vb("Connected!")
                         return True
                     fullexit_tries += 1
                 fullexit_tries = 0
                 self.print_vb("Attempting reinitialization...")
+                self.icp.exit()
                 self.icp.deinit(self.deinit_reset_high)
                 time.sleep(0.5)
                 self.icp.init()
-                if self.icp.read_device_id() != 0:
+                device_id = self.icp.entry()
+                if device_id != 0:
                     self.print_vb("Connected!")
                     return True
                 reinit_tries += 1
@@ -228,7 +230,8 @@ class Nuvo51ICP:
             **UnsupportedDeviceException**
                 If the detected device is not supported
         """
-        self.initialized = self.icp.init(do_reset_seq)
+        self.initialized = self.icp.init()
+        self.icp.entry(do_reset_seq)
         if not self.initialized:
             raise PGMInitException("ERROR: Could not initialize ICP.")
         if check_device:
@@ -236,6 +239,7 @@ class Nuvo51ICP:
             cid = self.icp.read_cid()
             if dev_info.did == 0:
                 if not retry or not self.retry():
+                    self.icp.exit()
                     self.icp.deinit(self.deinit_reset_high)
                     raise NoDeviceException(
                         "ERROR: No device detected, please check your connections!")
@@ -257,6 +261,7 @@ class Nuvo51ICP:
         """
         if self.initialized:
             self.initialized = False
+            self.icp.exit()
             self.icp.deinit(self.deinit_reset_high)
 
     def reinit(self, do_reset_seq=True, check_device=True):
