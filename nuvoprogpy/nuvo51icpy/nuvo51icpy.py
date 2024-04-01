@@ -358,15 +358,29 @@ class Nuvo51ICP:
         self._fail_if_not_init()
         return self.icp.write_flash(addr, data)
     
+    def erase_sprom(self, addr) -> bool:
+        self._fail_if_not_init()
+        device_info = self.get_device_info()
+        if device_info.sprom_len == 0:
+            self.print_err("ERROR: Device does not have SPROM.")
+            return False
+        return self.icp.page_erase(device_info.sprom_addr + addr)
+
     def read_sprom(self, addr, len) -> bytes:
         self._fail_if_not_init()
         device_info = self.get_device_info()
+        if device_info.sprom_len == 0:
+            self.print_err("ERROR: Device does not have SPROM.")
+            return None
         addr = device_info.sprom_addr + addr
         return self.read_flash(addr, len)
     
     def write_sprom(self, addr, data: bytes) -> bool:
         self._fail_if_not_init()
         device_info = self.get_device_info()
+        if device_info.sprom_len == 0:
+            self.print_err("ERROR: Device does not have SPROM.")
+            return False
         addr = device_info.sprom_addr + addr
         return self.write_flash(addr, data)
     

@@ -2,6 +2,7 @@ from curses import flash
 import json
 import struct
 import ctypes
+from typing import Tuple
 
 try:
     from .Flash import Flash_8051 as _Flash_8051
@@ -96,6 +97,18 @@ class FlashInfo:
     @property
     def sprom_len(self):
         raise NotImplementedError("Not implemented!")
+    
+    @property
+    def program_times(self) -> Tuple[int, int]:
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def page_erase_times(self) -> Tuple[int, int]:
+        raise NotImplementedError("Not implemented!")
+    
+    @property
+    def mass_erase_times(self) -> Tuple[int, int]:
+        raise NotImplementedError("Not implemented!")
 
 
 class FlashInfo8051(FlashInfo):
@@ -172,12 +185,42 @@ class FlashInfo8051(FlashInfo):
         return CFG_FLASH_LEN
 
     @property
+    def has_sprom(self):
+        return self.flash_type & 0x70
+
+    @property
     def sprom_addr(self):
-        return SPROM_ADDR
+        """
+        TODO: This is a guess; Need to check to see if N76S003 actually has SPROM
+        If it does, this is correct; if not, we should check bit 24.
+        """
+        # check if bits [6:4] are set
+        if self.flash_type & 0x70:
+            return SPROM_ADDR
+        return 0
 
     @property
     def sprom_len(self):
-        return SPROM_LEN
+        if self.flash_type & 0x70:
+            return SPROM_LEN
+        return 0
+
+    @property
+    def program_times(self) -> Tuple[int, int]:
+        if self.flash_type & 0x4:
+            return (40, 5)
+        return (25, 5)
+    
+    @property
+    def page_erase_times(self) -> Tuple[int, int]:
+        if self.flash_type & 0x4:
+            return (40000, 100)
+        return (6000, 100)
+    
+    @property
+    def mass_erase_times(self) -> Tuple[int, int]:
+        return (65000, 1000)
+
 
 def dump_Flash_8051_to_dict():
     flash_8051_dict = {}
@@ -292,7 +335,19 @@ class DeviceInfo:
     @property
     def sprom_len(self):
         return self.flash_info.sprom_len
-        
+
+    @property
+    def program_times(self) -> Tuple[int, int]:
+        return self.flash_info.program_times
+    
+    @property
+    def page_erase_times(self) -> Tuple[int, int]:
+        return self.flash_info.page_erase_times
+    
+    @property
+    def mass_erase_times(self) -> Tuple[int, int]:
+        return self.flash_info.mass_erase_times
+
     def get_aprom_size(self, config):
         return self.flash_info.get_aprom_size(config)
     
@@ -879,3 +934,11 @@ def is_config_flags(thing):
 
 
 assert ctypes.sizeof(N8051ConfigFlags) == CFG_FLASH_LEN
+
+for did in Flash_8051:
+    # get the flash type
+    name, chip_type = lookup_name_and_type(did)
+    name = name.replace(" (Please report the chip name if you encounter this in the wild)", "")
+    flash_type = Flash_8051[did].flash_type
+    # print out the device type and flash type as hex
+    print("Device {:20s}\tFlash Type: 0x{:032b}".format(name, flash_type))

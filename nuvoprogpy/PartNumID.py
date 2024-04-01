@@ -977,11 +977,14 @@ PartNumIDs: dict[int, Tuple[int, ChipType]] = {
     # 8051 1T N76 & ML51 & MS51 series 
     0x00002150: ["N76E885", ChipType.N76E885],
 
-    0x00002140: ["N76_MISSINGNO (Please report the chip name if you encounter this in the wild)", ChipType.N76E885],
+    0x00002140: ["N76E885_MISSINGNO (Please report the chip name if you encounter this in the wild)", ChipType.N76E885],
 
     0x00002F50: ["N76E616", ChipType.N76E616],
 
     0x00003650: ["N76E003", ChipType.N76E003],
+
+    # No idea what this is
+    0x00003640: ["N76E003_MISSINGNO (Please report the chip name if you encounter this in the wild)", ChipType.N76E003],
 
     # For ML51, Version A (PID0 = 0x00), Version B (PID0 = 0x10)
     0x00004832: ["ML51_32K_GENERIC", ChipType.ML51_32K],
