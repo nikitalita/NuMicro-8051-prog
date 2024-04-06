@@ -18,6 +18,8 @@ CFG_FLASH_ADDR = 0x30000
 CFG_FLASH_LEN = 5
 
 SPROM_ADDR = 0x20180
+# No idea what this is for
+SPECIAL_ADDR = 0x30100
 SPROM_LEN = 128
 
 # N76E003 values only for now
@@ -170,6 +172,8 @@ class FlashInfo8051(FlashInfo):
     
     @property
     def page_size(self):
+        if self.flash_type & 0xC != 0:
+            return 256
         return 128
     
     @property
@@ -186,22 +190,17 @@ class FlashInfo8051(FlashInfo):
 
     @property
     def has_sprom(self):
-        return self.flash_type & 0x70
+        return self.flash_type >> 24 & 0x1
 
     @property
     def sprom_addr(self):
-        """
-        TODO: This is a guess; Need to check to see if N76S003 actually has SPROM
-        If it does, this is correct; if not, we should check bit 24.
-        """
-        # check if bits [6:4] are set
-        if self.flash_type & 0x70:
+        if self.has_sprom:
             return SPROM_ADDR
-        return 0
+        return SPECIAL_ADDR
 
     @property
     def sprom_len(self):
-        if self.flash_type & 0x70:
+        if self.has_sprom:
             return SPROM_LEN
         return 0
 
