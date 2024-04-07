@@ -73,6 +73,42 @@ static uint32_t mass_erase_hold_time = DEFAULT_MASS_ERASE_HOLD_TIME;
 // ICP Exit sequence
 #define EXIT_BITS     0xF78F0
 
+/** UNKNOWN STUFF **/
+// If you are interested in figuring out what this is, leave an issue here and I can provide further guidance:
+// https://github.com/nikitalita/NuMicro-8051-prog/issues
+// More information can be found here: https://github.com/OpenNuvoton/OpenOCD-Nuvoton-8051/blob/84af658b5c3ca7596f845a2a3e7ded88726b56d2/src/flash/nor/numicro.c
+// These have to do with accessing memory address 0x30100
+// This appears to be where an SPROM is located on the N76 series of chips, but it's not documented at all in the TRMs.
+// Used in the program flash function
+// If it detects the address is writing to 0x301XX, it changes the cmd from 0x21 to 0x2a, doesn't change the address
+#define ICP_CMD_PROGRAM_FLASH_UNK_2A 		0x2a
+
+/* 
+	Used in the page erase function.
+	If it detects the address == 0x30100:
+	- it changes the cmd from 0x22 to 0x29,
+	- adds 0x5a to the address 
+	- changes the normal flash erase value of 0xFF to 0xA5
+*/
+#define ICP_CMD_PAGE_ERASE_UNK_29			0x29
+
+// Not sure if any of the following has anything to do with the SPROM
+/*    
+	Unknown what these are for; the function they're used in does the following:
+	- Sends command 0x2e with an address parameter
+	- Writes with a data parameter and uses the same delay and hold times as mass erase
+	- Sends command 0x0e with the same address parameter
+	- Reads 1 byte and returns it
+*/
+#define ICP_CMD_MASS_ERASE_UNK_2E	0x2e
+#define ICP_CMD_READ_UNK_0E			0x0e
+
+// unknown what this is for
+#define ALT_ENTRY_BITS 0x0075BA03
+/** END UNKNOWN STUFF **/
+
+
+
 // to avoid overhead from calling usleep() for 0 us
 #define USLEEP(x) if (x > 0) N51PGM_usleep(x)
 
